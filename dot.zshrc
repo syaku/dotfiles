@@ -33,7 +33,6 @@ PROMPT='
 %F{yellow}[%~]%f `vcs_echo`
 %(?.$.%F{red}$%f) '
 
-
 source ~/.zplug/zplug
 
 zplug "chrissicool/zsh-256color", of:"zsh-256color.plugin.zsh"
@@ -68,3 +67,6 @@ bindkey '^]' anyframe-widget-cd-ghq-repository
 
 ## プロセス一覧をインクリメントサーチ & kill
 bindkey '^x^k' anyframe-widget-kill
+
+export LSCOLORS=gxfxcxdxbxegedabagacad
+alias ls='ls -G'
