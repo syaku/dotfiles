@@ -6,6 +6,9 @@ autoload -U compinit
 compinit -u
 bindkey -e
 
+autoload -Uz colors
+colors
+
 autoload -Uz vcs_info
 zstyle ':vcs_info:*' enable git svn
 zstyle ':vcs_info:*' max-exports 6 # formatに入る変数の最大数
@@ -65,5 +68,3 @@ bindkey '^]' anyframe-widget-cd-ghq-repository
 
 ## プロセス一覧をインクリメントサーチ & kill
 bindkey '^x^k' anyframe-widget-kill
-
-
