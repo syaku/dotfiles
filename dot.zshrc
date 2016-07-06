@@ -70,3 +70,6 @@ bindkey '^x^k' anyframe-widget-kill
 
 export LSCOLORS=gxfxcxdxbxegedabagacad
 alias ls='ls -G'
+alias vim='nvim'
+
+export XDG_CONFIG_HOME=$HOME/.config

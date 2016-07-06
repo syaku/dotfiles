@@ -1,3 +1,35 @@
+"dein Scripts-----------------------------
+if &compatible
+  set nocompatible               " Be iMproved
+endif
+
+" Required:
+set runtimepath^=$HOME/git/github.com/Shougo/dein.vim
+
+" Required:
+call dein#begin(expand('.'))
+
+" Let dein manage dein
+" Required:
+call dein#add('Shougo/dein.vim')
+
+" Add or remove your plugins here:
+call dein#add('altercation/vim-colors-solarized')
+call dein#add('scrooloose/nerdtree')
+
+" Required:
+call dein#end()
+
+" Required:
+filetype plugin indent on
+
+" If you want to install not installed plugins on startup.
+if dein#check_install()
+  call dein#install()
+endif
+
+"End dein Scripts-------------------------
+
 "=========================
 " 基本設定
 "=========================
@@ -14,44 +46,10 @@ set number
 "ctrl+eでNERDTreeを開く
 nnoremap <silent><C-e> :NERDTreeToggle<CR>
 
-"=========================
-" Neobundle設定
-"=========================
-" bundleで管理するディレクトリを指定
-set runtimepath+=~/.vim/bundle/neobundle.vim/
+let g:solarized_termcolors=256
+syntax enable
+set background=dark
+colorscheme solarized
 
-" Required:
-call neobundle#begin(expand('~/.vim/bundle/'))
+set clipboard+=unnamedplus
 
-" neobundle自体をneobundleで管理
-NeoBundleFetch 'Shougo/neobundle.vim'
-
-"-------------------------
-" 各種プラグライン
-"-------------------------
-" colorscheme
-NeoBundle 'w0ng/vim-hybrid'
-NeoBundle 'vim-scripts/twilight'
-" エクスプローラー的なNERDTree
-NeoBundle 'scrooloose/nerdtree'
-" 入力保管
-NeoBundle 'Townk/vim-autoclose'
-" マークアップ用入力補完
-NeoBundle 'mattn/emmet-vim'
-" ソースコード実行
-NeoBundle 'thinca/vim-quickrun'
-" grep
-NeoBundle 'grep.vim'
-" solarized
-NeoBundle 'altercation/vim-colors-solarized'
-
-call neobundle#end()
-
-" Required:
-filetype plugin indent on
-
-" 未インストールのプラグインがある場合、インストールするかを確認する
-NeoBundleCheck
-
-syntax on
-colorscheme twilight
