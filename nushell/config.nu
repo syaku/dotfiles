@@ -856,5 +856,5 @@ alias zd = __zd
 
 source ~\.config\nushell\zoxide.nu
 source ~\.config\nushell\broot.nu
-source ~\.cache\starship\init.nu
+source ~\.config\nushell\starship.nu
 
