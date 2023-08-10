@@ -848,13 +848,8 @@ alias cat = bat -pP
 alias vim = nvim
 alias vi = vim
 
-def-env __zd [] {
-    let path = fd -H --type d | fzf | decode utf-8 | str trim
-    cd $path
-}
-alias zd = __zd
-
 source ~\.config\nushell\zoxide.nu
 source ~\.config\nushell\broot.nu
 source ~\.config\nushell\starship.nu
 
+source ~\.config\nushell\fzf-extras.nu
