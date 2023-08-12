@@ -26,6 +26,8 @@ return {
 
     { key = 'RightArrow', mods = 'SHIFT|META', action = act.ActivateTabRelative(1) },
     { key = 'LeftArrow', mods = 'SHIFT|META', action = act.ActivateTabRelative(-1) },
+
+    { key = 'f', mods = 'SHIFT|META', action = wezterm.action.ToggleFullScreen, },
   },
   key_tables = {
     copy_mode = {

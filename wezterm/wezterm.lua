@@ -14,17 +14,21 @@ function main()
   config.initial_rows = 32
 
   format.helper(config)
-  
+
+  config.window_padding = {
+    left = 0,
+    right = 0,
+    top = 0,
+    bottom = 0,
+  }
+
   -- カラースキームの設定
-  config.color_scheme = "Solarized Dark Higher Contrast"
+  config.color_scheme = "tender (base16)"
   config.colors = colors
-  --config.window_background_opacity = 0.93
+  -- config.window_background_opacity = 0.85
 
   -- フォント設定
-  config.font = wezterm.font_with_fallback({
-    { family = "HackGen Console NF" },
-    { family = "HackGen Console NF", assume_emoji_presentation = true },
-  })
+  config.font = wezterm.font("PlemolJP Console NF", {weight="Regular", stretch="Normal", style="Normal"})
   config.font_size = 10.5
   config.cell_width = 1.0
   config.line_height = 1.0

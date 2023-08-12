@@ -446,7 +446,7 @@ $env.config = {
             mode: emacs
             event: {
                 send: executehostcommand,
-                cmd: "history | reverse | get command | to text | fzf | decode utf-8 | str trim | commandline $in"
+                cmd: "history | reverse | get command | uniq | to text | fzf | decode utf-8 | str trim | commandline $in"
             }
         }
         {
