@@ -843,7 +843,6 @@ $env.config = {
 alias ll = ls -l
 alias la = ls -la
 alias ls = lsd
-alias less = bat --paging always
 alias cat = bat -pP
 alias vim = nvim
 alias vi = vim

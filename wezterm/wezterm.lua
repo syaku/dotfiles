@@ -42,8 +42,7 @@ function main()
   -- mouse設定
   config.mouse_bindings = require('mouse').mouse_bindings
 
-  -- nushellをデフォルトシェルに
-  config.default_prog = { 'nu', '--login' }
+  config.default_prog = { 'pwsh' }
 
   return config
 end
