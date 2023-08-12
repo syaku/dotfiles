@@ -10,9 +10,9 @@ bar:
   height: "30px"
   position: "top"
   opacity: 1.0
-  background: "#20242cc4"
-  foreground: "#ffffff"
-  font_family: "Segoe UI"
+  background: "#282828"
+  foreground: "#dbdbdb"
+  font_family: "Noto Sans JP"
   font_size: "13px"
   padding: "4px 6px"
   offset_x: "0"
@@ -20,8 +20,8 @@ bar:
   border_radius: "0"
   components_left:
     - type: "workspaces"
-      focused_workspace_background: "#ffffff33"
-      displayed_workspace_background: "#00000033"
+      focused_workspace_background: "#606060"
+      displayed_workspace_background: "#606060"
       default_workspace_background: "transparent"
   components_center:
     - type: "window title"
@@ -29,11 +29,11 @@ bar:
     - type: "tiling direction"
       label_horizontal: "⮂"
       label_vertical: "⮁"
-      background: "#ffffff33"
+      background: "#606060"
       margin: "0 4px"
       padding: "0 8px"
     - type: "binding mode"
-      background: "#ffffff33"
+      background: "#606060"
       margin: "0 4px 0 0"
       padding: "0 8px"
     - type: "clock"
@@ -44,14 +44,23 @@ bar:
 
 workspaces:
   - name: "1"
+    bind_to_monitor: 1
   - name: "2"
+    bind_to_monitor: 2
   - name: "3"
+    bind_to_monitor: 1
   - name: "4"
+    bind_to_monitor: 2
   - name: "5"
+    bind_to_monitor: 1
   - name: "6"
+    bind_to_monitor: 2
   - name: "7"
+    bind_to_monitor: 1
   - name: "8"
+    bind_to_monitor: 2
   - name: "9"
+    bind_to_monitor: 1
 
 window_rules:
   # Task Manager requires admin privileges to manage and should be ignored unless running
@@ -124,8 +133,8 @@ keybindings:
     binding: "Alt+V"
 
   # Change focus between floating / tiling windows.
-  #- command: "focus mode toggle"
-  #  binding: "Alt+Space"
+  - command: "focus mode toggle"
+    binding: "Alt+Space"
 
   # Change the focused window to be floating / tiling.
   - command: "toggle floating"
