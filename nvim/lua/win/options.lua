@@ -1,1 +1,1 @@
-vim.opt.shell = "nu.exe"
+vim.opt.shell = "pwsh"
