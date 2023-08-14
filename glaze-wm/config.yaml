@@ -12,8 +12,8 @@ bar:
   opacity: 1.0
   background: "#282828"
   foreground: "#dbdbdb"
-  font_family: "Noto Sans JP"
-  font_size: "13px"
+  font_family: "BIZTER"
+  font_size: "14px"
   padding: "4px 6px"
   offset_x: "0"
   offset_y: "0"
@@ -39,7 +39,7 @@ bar:
     - type: "clock"
       # Documentation on formatting date/time string:
       # https://learn.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings
-      time_formatting: "🕑HH:mm:ss / 📅 ddd MMM d"
+      time_formatting: "📅 yyyy-MM-dd ddd / 🕑HH:mm:ss"
       margin: "0 0 0 10px"
 
 workspaces:
