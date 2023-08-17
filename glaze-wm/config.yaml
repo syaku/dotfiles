@@ -22,7 +22,7 @@ bar:
     - type: "workspaces"
       padding: "0"
       margin: "0"
-      font_size: "20px"
+      font_size: "24px"
       focused_workspace_foreground: "#73cef4"
       focused_workspace_background: "transparent"
       displayed_workspace_foreground: "#dbdbdb"
@@ -31,9 +31,10 @@ bar:
       default_workspace_background: "transparent"
   components_center:
     - type: "window title"
+      font_family: "BIZTER"
   components_right:
     - type: "tiling direction"
-      font_size: "20px"
+      font_size: "24px"
       label_horizontal: "󰯌"
       label_vertical: "󰯋"
       foreground: "#d3b987"
@@ -41,15 +42,16 @@ bar:
       margin: "0"
       padding: "0"
     - type: "binding mode"
-      font_size: "20px"
+      font_size: "24px"
       foreground: "#f43753"
       background: "transparent"
       margin: "0 0 0 12px"
       padding: "0"
     - type: "clock"
+      font_family: "PlemolJP35 Console NF"
       # Documentation on formatting date/time string:
       # https://learn.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings
-      time_formatting: " yyyy-MM-dd ddd /  HH:mm:ss"
+      time_formatting: " yyyy-MM-dd ddd 󰥔 HH:mm:ss"
       margin: "0 6px 0 16px"
 
 workspaces:
