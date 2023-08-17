@@ -48,20 +48,26 @@ bar:
       # Documentation on formatting date/time string:
       # https://learn.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings
       time_formatting: " yyyy-MM-dd ddd /  HH:mm:ss"
-      margin: "0 8px 0 10px"
+      margin: "0 6px 0 10px"
 
 workspaces:
-  - name: "󰇊"
+  - name: "1"
+    display_name: "󰇊"
     bind_to_monitor: 1
-  - name: "󰇋"
+  - name: "2"
+    display_name: "󰇋"
     bind_to_monitor: 2
-  - name: "󰇌"
+  - name: "3"
+    display_name: "󰇌"
     bind_to_monitor: 1
-  - name: "󰇍"
+  - name: "4"
+    display_name: "󰇍"
     bind_to_monitor: 2
-  - name: "󰇎"
+  - name: "5"
+    display_name: "󰇎"
     bind_to_monitor: 1
-  - name: "󰇏"
+  - name: "6"
+    display_name: "󰇏"
     bind_to_monitor: 2
 
 window_rules:
@@ -190,17 +196,17 @@ keybindings:
     binding: "Alt+Shift+T"
 
   # Change focus to a workspace defined in `workspaces` config.
-  - command: "focus workspace 󰇊"
+  - command: "focus workspace 1"
     binding: "Alt+1"
-  - command: "focus workspace 󰇋"
+  - command: "focus workspace 2"
     binding: "Alt+2"
-  - command: "focus workspace 󰇌"
+  - command: "focus workspace 3"
     binding: "Alt+3"
-  - command: "focus workspace 󰇍"
+  - command: "focus workspace 4"
     binding: "Alt+4"
-  - command: "focus workspace 󰇎"
+  - command: "focus workspace 5"
     binding: "Alt+5"
-  - command: "focus workspace 󰇏"
+  - command: "focus workspace 6"
     binding: "Alt+6"
 
   # Move focused workspace to a monitor in a given direction.
@@ -214,15 +220,15 @@ keybindings:
     binding: "Alt+S"
 
   # Move focused window to a workspace defined in `workspaces` config.
-  - commands: ["move to workspace 󰇊", "focus workspace 󰇊"]
+  - commands: ["move to workspace 1", "focus workspace 1"]
     binding: "Alt+Shift+1"
-  - commands: ["move to workspace 󰇋", "focus workspace 󰇋"]
+  - commands: ["move to workspace 2", "focus workspace 2"]
     binding: "Alt+Shift+2"
-  - commands: ["move to workspace 󰇌", "focus workspace 󰇌"]
+  - commands: ["move to workspace 3", "focus workspace 3"]
     binding: "Alt+Shift+3"
-  - commands: ["move to workspace 󰇍", "focus workspace 󰇍"]
+  - commands: ["move to workspace 4", "focus workspace 4"]
     binding: "Alt+Shift+4"
-  - commands: ["move to workspace 󰇎", "focus workspace 󰇎"]
+  - commands: ["move to workspace 5", "focus workspace 5"]
     binding: "Alt+Shift+5"
-  - commands: ["move to workspace 󰇏", "focus workspace 󰇏"]
+  - commands: ["move to workspace 6", "focus workspace 6"]
     binding: "Alt+Shift+6"
