@@ -12,34 +12,38 @@ bar:
   opacity: 1.0
   background: "#282828"
   foreground: "#dbdbdb"
-  font_family: "BIZTER"
-  font_size: "14px"
+  font_family: "PlemolJP Console NF"
+  font_size: "16px"
   padding: "4px 6px"
   offset_x: "0"
   offset_y: "0"
   border_radius: "0"
   components_left:
     - type: "workspaces"
-      focused_workspace_background: "#606060"
-      displayed_workspace_background: "#606060"
+      focused_workspace_foreground: "#1d1d1d"
+      focused_workspace_background: "#73cef4"
+      displayed_workspace_foreground: "#1d1d1d"
+      displayed_workspace_background: "#44778d"
       default_workspace_background: "transparent"
   components_center:
     - type: "window title"
   components_right:
     - type: "tiling direction"
-      label_horizontal: "⮂"
-      label_vertical: "⮁"
-      background: "#606060"
-      margin: "0 4px"
-      padding: "0 8px"
+      label_horizontal: "󰯌"
+      label_vertical: "󰯋"
+      foreground: "#d3b987"
+      background: "#715b2f"
+      margin: "0"
+      padding: "0 10px 0 7px"
     - type: "binding mode"
-      background: "#606060"
-      margin: "0 4px 0 0"
-      padding: "0 8px"
+      foreground: "#f43753"
+      background: "#79313c"
+      margin: "0 0 0 4px"
+      padding: "0 10px 0 6px"
     - type: "clock"
       # Documentation on formatting date/time string:
       # https://learn.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings
-      time_formatting: "📅 yyyy-MM-dd ddd / 🕑HH:mm:ss"
+      time_formatting: " yyyy-MM-dd ddd /  HH:mm:ss"
       margin: "0 0 0 10px"
 
 workspaces:
@@ -72,22 +76,34 @@ window_rules:
   - command: "set floating"
     match_class_name: "#32770"
 
+  - command: "ignore"
+    match_class_name: "TSelDriveDlg"
+  
+  - command: "ignore"
+    match_class_name: "TRegDirDlg"
+ 
+  - command: "ignore"
+    match_class_name: "TTaskManDlg"
+
+  - command: "ignore"
+    match_process_name: "Destiny2"
+  
   # Some applications (eg. Steam) have borders that extend past the normal border size.
   - command: "resize borders 0px -7px -7px -7px"
     match_process_name: "steam"
 
 binding_modes:
-  - name: "resize"
+  - name: "󰩨"
     keybindings:
       # Resize focused window by a percentage or pixel amount.
       - command: "resize width -2%"
-        bindings: ["H", "Left"]
+        bindings: ["Left"]
       - command: "resize width +2%"
-        bindings: ["L", "Right"]
+        bindings: ["Right"]
       - command: "resize height +2%"
-        bindings: ["K", "Up"]
+        bindings: ["Up"]
       - command: "resize height -2%"
-        bindings: ["J", "Down"]
+        bindings: ["Down"]
       # Press enter/escape to return to default keybindings.
       - command: "binding mode none"
         bindings: ["Escape", "Enter"]
@@ -95,23 +111,23 @@ binding_modes:
 keybindings:
   # Shift focus in a given direction.
   - command: "focus left"
-    bindings: ["Alt+H", "Alt+Left"]
+    bindings: ["Alt+Left"]
   - command: "focus right"
-    bindings: ["Alt+L", "Alt+Right"]
+    bindings: ["Alt+Right"]
   - command: "focus up"
-    bindings: ["Alt+K", "Alt+Up"]
+    bindings: ["Alt+Up"]
   - command: "focus down"
-    bindings: ["Alt+J", "Alt+Down"]
+    bindings: ["Alt+Down"]
 
   # Move focused window in a given direction.
   - command: "move left"
-    bindings: ["Alt+Shift+H", "Alt+Shift+Left"]
+    bindings: ["LWin+Left"]
   - command: "move right"
-    bindings: ["Alt+Shift+L", "Alt+Shift+Right"]
+    bindings: ["LWin+Right"]
   - command: "move up"
-    bindings: ["Alt+Shift+K", "Alt+Shift+Up"]
+    bindings: ["LWin+Up"]
   - command: "move down"
-    bindings: ["Alt+Shift+J", "Alt+Shift+Down"]
+    bindings: ["LWin+Down"]
 
   # Resize focused window by a percentage or pixel amount.
   - command: "resize width -2%"
@@ -125,7 +141,7 @@ keybindings:
 
   # As an alternative to the resize keybindings above, resize mode enables resizing via
   # HJKL or arrow keys. The binding mode is defined above with the name "resize".
-  - command: "binding mode resize"
+  - command: "binding mode 󰩨"
     binding: "Alt+R"
 
   # Change tiling direction. This determines where new tiling windows will be inserted.
