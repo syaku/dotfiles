@@ -14,16 +14,20 @@ bar:
   foreground: "#dbdbdb"
   font_family: "PlemolJP Console NF"
   font_size: "16px"
-  padding: "4px 6px"
+  padding: "0"
   offset_x: "0"
   offset_y: "0"
   border_radius: "0"
   components_left:
     - type: "workspaces"
-      focused_workspace_foreground: "#1d1d1d"
-      focused_workspace_background: "#73cef4"
+      padding: "0"
+      margin: "0"
+      font_size: "24px"
+      focused_workspace_foreground: "#73cef4"
+      focused_workspace_background: "transparent"
       displayed_workspace_foreground: "#1d1d1d"
-      displayed_workspace_background: "#44778d"
+      displayed_workspace_background: "transparent"
+      default_workspace_foreground: "#666666"
       default_workspace_background: "transparent"
   components_center:
     - type: "window title"
@@ -44,27 +48,21 @@ bar:
       # Documentation on formatting date/time string:
       # https://learn.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings
       time_formatting: " yyyy-MM-dd ddd /  HH:mm:ss"
-      margin: "0 0 0 10px"
+      margin: "0 8px 0 10px"
 
 workspaces:
-  - name: "1"
+  - name: "󰇊"
     bind_to_monitor: 1
-  - name: "2"
+  - name: "󰇋"
     bind_to_monitor: 2
-  - name: "3"
+  - name: "󰇌"
     bind_to_monitor: 1
-  - name: "4"
+  - name: "󰇍"
     bind_to_monitor: 2
-  - name: "5"
+  - name: "󰇎"
     bind_to_monitor: 1
-  - name: "6"
+  - name: "󰇏"
     bind_to_monitor: 2
-  - name: "7"
-    bind_to_monitor: 1
-  - name: "8"
-    bind_to_monitor: 2
-  - name: "9"
-    bind_to_monitor: 1
 
 window_rules:
   # Task Manager requires admin privileges to manage and should be ignored unless running
@@ -192,24 +190,18 @@ keybindings:
     binding: "Alt+Shift+T"
 
   # Change focus to a workspace defined in `workspaces` config.
-  - command: "focus workspace 1"
+  - command: "focus workspace 󰇊"
     binding: "Alt+1"
-  - command: "focus workspace 2"
+  - command: "focus workspace 󰇋"
     binding: "Alt+2"
-  - command: "focus workspace 3"
+  - command: "focus workspace 󰇌"
     binding: "Alt+3"
-  - command: "focus workspace 4"
+  - command: "focus workspace 󰇍"
     binding: "Alt+4"
-  - command: "focus workspace 5"
+  - command: "focus workspace 󰇎"
     binding: "Alt+5"
-  - command: "focus workspace 6"
+  - command: "focus workspace 󰇏"
     binding: "Alt+6"
-  - command: "focus workspace 7"
-    binding: "Alt+7"
-  - command: "focus workspace 8"
-    binding: "Alt+8"
-  - command: "focus workspace 9"
-    binding: "Alt+9"
 
   # Move focused workspace to a monitor in a given direction.
   - command: "move workspace left"
@@ -222,21 +214,15 @@ keybindings:
     binding: "Alt+S"
 
   # Move focused window to a workspace defined in `workspaces` config.
-  - commands: ["move to workspace 1", "focus workspace 1"]
+  - commands: ["move to workspace 󰇊", "focus workspace 󰇊"]
     binding: "Alt+Shift+1"
-  - commands: ["move to workspace 2", "focus workspace 2"]
+  - commands: ["move to workspace 󰇋", "focus workspace 󰇋"]
     binding: "Alt+Shift+2"
-  - commands: ["move to workspace 3", "focus workspace 3"]
+  - commands: ["move to workspace 󰇌", "focus workspace 󰇌"]
     binding: "Alt+Shift+3"
-  - commands: ["move to workspace 4", "focus workspace 4"]
+  - commands: ["move to workspace 󰇍", "focus workspace 󰇍"]
     binding: "Alt+Shift+4"
-  - commands: ["move to workspace 5", "focus workspace 5"]
+  - commands: ["move to workspace 󰇎", "focus workspace 󰇎"]
     binding: "Alt+Shift+5"
-  - commands: ["move to workspace 6", "focus workspace 6"]
+  - commands: ["move to workspace 󰇏", "focus workspace 󰇏"]
     binding: "Alt+Shift+6"
-  - commands: ["move to workspace 7", "focus workspace 7"]
-    binding: "Alt+Shift+7"
-  - commands: ["move to workspace 8", "focus workspace 8"]
-    binding: "Alt+Shift+8"
-  - commands: ["move to workspace 9", "focus workspace 9"]
-    bindings: ["Alt+Shift+9"]
