@@ -7,7 +7,7 @@ general:
 
   # Whether to switch back and forth between the previously focused workspace
   # when focusing the current workspace.
-  toggle_workspace_on_refocus: true
+  toggle_workspace_on_refocus: false
 
   # Whether to show floating windows as always on top.
   show_floating_on_top: false
@@ -58,7 +58,7 @@ bar:
   components_center:
     - type: "window title"
   components_right:
-    - type: "system tray"
+    #- type: "system tray"
     - type: "tiling direction"
       label_horizontal: "⮂"
       label_vertical: "⮁"
@@ -115,6 +115,12 @@ window_rules:
  
   - command: "ignore"
     match_class_name: "TTaskManDlg"
+
+  - command: "ignore"
+    match_process_name: "keypirinha-x64.exe"
+
+  - command: "ignore"
+    match_class_name: "ATOK33ToolTip"
 
   # Games
   - command: "ignore"
