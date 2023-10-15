@@ -72,7 +72,7 @@ bar:
     - type: "clock"
       # Documentation on formatting date/time string:
       # https://learn.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings
-      time_formatting: "hh:mm tt  ddd MMM d"
+      time_formatting: "HH:mm ddd MMM dd"
 
 workspaces:
   - name: "1"
