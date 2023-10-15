@@ -123,14 +123,20 @@ window_rules:
     match_class_name: "ATOK33ToolTip"
 
   # Games
+  - command: "set floating"
+    match_process_name: "EADesktop"
   - command: "ignore"
     match_title: "Destiny 2"
   - command: "ignore"
     match_process_name: "Starfield"
   - command: "ignore"
-    match_process_name: "RainbowSix"
+    match_process_name: "RainbowSix_Vulkan"
   - command: "ignore"
     match_process_name: "Cyberpunk2077"
+  - command: "ignore"
+    match_process_name: "cod"
+  - command: "ignore"
+    match_process_name: "Warframe.x64"
 
   # Some applications (eg. Steam) have borders that extend past the normal border size.
   - command: "resize borders 0px -7px -7px -7px"
