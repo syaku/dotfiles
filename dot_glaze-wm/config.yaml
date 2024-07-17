@@ -1,0 +1,265 @@
+general:
+  # Whether to automatically focus windows underneath the cursor.
+  focus_follows_cursor: false
+
+  # Whether to jump the cursor between windows focused by the WM.
+  cursor_follow_focus: false
+
+  # Whether to switch back and forth between the previously focused workspace
+  # when focusing the current workspace.
+  toggle_workspace_on_refocus: false
+
+  # Whether to show floating windows as always on top.
+  show_floating_on_top: false
+
+  # Amount to move floating windows by (eg. when using `alt+<hjkl>` on a floating window)
+  floating_window_move_amount: "5%"
+
+  # *Strongly* recommended to set to 'false'. Whether to globally enable/disable
+  # window transition animations (on minimize, close, etc). Set to 'unchanged'
+  # to make no setting changes.
+  window_animations: "unchanged"
+
+gaps:
+  # Gap between adjacent windows.
+  inner_gap: "20px"
+
+  # Gap between windows and the screen edge.
+  outer_gap: '45px 20px 20px 20px'
+
+# Highlight active/inactive windows with a colored border.
+# ** Exclusive to Windows 11 due to API limitations.
+focus_borders:
+  active:
+    enabled: true
+    color: "#0000ff"
+
+  inactive:
+    enabled: false
+    color: "#ff0000"
+
+bar:
+  enabled: false
+
+workspaces:
+  - name: "1"
+    display_name: "1"
+    bind_to_monitor: 1
+  - name: "2"
+    display_name: "2"
+    bind_to_monitor: 2
+  - name: "3"
+    display_name: "3"
+    bind_to_monitor: 1
+  - name: "4"
+    display_name: "4"
+    bind_to_monitor: 2
+  - name: "5"
+    display_name: "5"
+    bind_to_monitor: 1
+  - name: "6"
+    display_name: "6"
+    bind_to_monitor: 2
+
+window_rules:
+  # Task Manager requires admin privileges to manage and should be ignored unless running
+  # the WM as admin.
+  - command: "ignore"
+    match_process_name: "Taskmgr"
+
+  - command: 'ignore'
+    match_process_name: '/Zebar/'
+
+  # Launches system dialogs as floating by default (eg. File Explorer save/open dialog).
+  - command: "set floating"
+    match_class_name: "#32770"
+
+  - command: "set floating"
+    match_process_name: "LoupedeckConfig"
+
+  - command: "ignore"
+    match_class_name: "TSelDriveDlg"
+  
+  - command: "ignore"
+    match_class_name: "TRegDirDlg"
+ 
+  - command: "ignore"
+    match_class_name: "TTaskManDlg"
+
+  - command: "ignore"
+    match_process_name: "keypirinha-x64.exe"
+
+  - command: "ignore"
+    match_class_name: "ATOK33ToolTip"
+  - command: "ignore"
+    match_class_name: "ATOK34ToolTip"
+
+
+  - command: "set floating"
+    match_process_name: "HWMonitor_x64"
+
+  # Games- command: "ignore"
+    match_class_name: "ATOK33ToolTip"
+
+  - command: "set floating"
+    match_process_name: "EADesktop"
+  - command: "ignore"
+    match_title: "Destiny 2"
+  - command: "ignore"
+    match_process_name: "Starfield"
+  - command: "ignore"
+    match_process_name: "RainbowSix_Vulkan"
+  - command: "ignore"
+    match_process_name: "Cyberpunk2077"
+  - command: "ignore"
+    match_process_name: "cod"
+  - command: "ignore"
+    match_process_name: "Warframe.x64"
+  - command: "ignore"
+    match_process_name: "FateSamuraiRemnant"
+  - command: "ignore"
+    match_process_name: "Respawn001"
+  - command: "ignore"
+    match_process_name: "JREAST_TrainSimulator"
+  - command: "ignore"
+    match_process_name: "Grim Dawn"
+  - command: "ignore"
+    match_process_name: "PenDriverPro-Win64-Shipping"
+  - command: "ignore"
+    match_process_name: "enshrouded"
+  - command: "ignore"
+    match_process_name: "DD2CCS"
+  - command: "ignore"
+    match_process_name: "DDDA"
+  - command: "ignore"
+    match_process_name: "DD2"
+  - command: "ignore"
+    match_process_name: "stellaris"
+  - command: "ignore"
+    match_process_name: "TheDivision2"
+
+  # Some applications (eg. Steam) have borders that extend past the normal border size.
+  - command: "resize borders 0px -7px -7px -7px"
+    match_process_name: "steam"
+
+binding_modes:
+  - name: "resize"
+    keybindings:
+      # Resize focused window by a percentage or pixel amount.
+      - command: "resize width -2%"
+        bindings: ["Left"]
+      - command: "resize width +2%"
+        bindings: ["Right"]
+      - command: "resize height +2%"
+        bindings: ["Up"]
+      - command: "resize height -2%"
+        bindings: ["Down"]
+      # Press enter/escape to return to default keybindings.
+      - command: "binding mode none"
+        bindings: ["Escape", "Enter"]
+
+keybindings:
+  # Shift focus in a given direction.
+  - command: "focus left"
+    bindings: ["Alt+Left"]
+  - command: "focus right"
+    bindings: ["Alt+Right"]
+  - command: "focus up"
+    bindings: ["Alt+Up"]
+  - command: "focus down"
+    bindings: ["Alt+Down"]
+
+  # Move focused window in a given direction.
+  - command: "move left"
+    bindings: ["Alt+Shift+Left"]
+  - command: "move right"
+    bindings: ["Alt+Shift+Right"]
+  - command: "move up"
+    bindings: ["Alt+Shift+Up"]
+  - command: "move down"
+    bindings: ["Alt+Shift+Down"]
+
+  # Resize focused window by a percentage or pixel amount.
+  - command: "resize width -2%"
+    binding: "Alt+U"
+  - command: "resize width +2%"
+    binding: "Alt+P"
+  - command: "resize height +2%"
+    binding: "Alt+O"
+  - command: "resize height -2%"
+    binding: "Alt+I"
+
+  # As an alternative to the resize keybindings above, resize mode enables resizing via
+  # HJKL or arrow keys. The binding mode is defined above with the name "resize".
+  - command: "binding mode resize"
+    binding: "Alt+R"
+
+  # Change tiling direction. This determines where new tiling windows will be inserted.
+  - command: "tiling direction toggle"
+    binding: "Alt+V"
+
+  # Change focus between floating / tiling windows.
+  - command: "focus mode toggle"
+    binding: "Alt+Space"
+
+  # Change the focused window to be floating / tiling.
+  - command: "toggle floating"
+    binding: "Alt+Shift+Space"
+
+  # Change the focused window to be maximized / unmaximized.
+  - command: "toggle maximized"
+    binding: "Alt+X"
+
+  # Minimize focused window.
+  - command: "set minimized"
+    binding: "Alt+M"
+
+  # Close focused window.
+  - command: "close"
+    binding: "Alt+Shift+Q"
+
+  # Kill GlazeWM process safely.
+  - command: "exit wm"
+    binding: "Alt+Shift+E"
+
+  # Re-evaluate configuration file.
+  - command: "reload config"
+    binding: "Alt+Shift+R"
+
+  # Focus the workspace that last had focus.
+  - command: "focus workspace recent"
+    binding: "Alt+Y"
+
+  # Focus the next/previous workspace defined in `workspaces` config.
+  - command: "focus workspace next"
+    binding: "Alt+T"
+  - command: "focus workspace prev"
+    binding: "Alt+Shift+T"
+
+  # Change focus to a workspace defined in `workspaces` config.
+  - command: "focus workspace 1"
+    binding: "Alt+1"
+  - command: "focus workspace 2"
+    binding: "Alt+2"
+  - command: "focus workspace 3"
+    binding: "Alt+3"
+  - command: "focus workspace 4"
+    binding: "Alt+4"
+  - command: "focus workspace 5"
+    binding: "Alt+5"
+  - command: "focus workspace 6"
+    binding: "Alt+6"
+
+  # Move focused window to a workspace defined in `workspaces` config.
+  - commands: ["move to workspace 1", "focus workspace 1"]
+    binding: "Alt+Shift+1"
+  - commands: ["move to workspace 2", "focus workspace 2"]
+    binding: "Alt+Shift+2"
+  - commands: ["move to workspace 3", "focus workspace 3"]
+    binding: "Alt+Shift+3"
+  - commands: ["move to workspace 4", "focus workspace 4"]
+    binding: "Alt+Shift+4"
+  - commands: ["move to workspace 5", "focus workspace 5"]
+    binding: "Alt+Shift+5"
+  - commands: ["move to workspace 6", "focus workspace 6"]
+    binding: "Alt+Shift+6"

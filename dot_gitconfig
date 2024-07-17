@@ -1,0 +1,34 @@
+[core]
+	autocrlf = false
+	pager = delta
+
+[ghq]
+	root = ~/workspace
+[user]
+	email = syaku@sevenspirals.net
+	name = syaku
+[init]
+	defaultBranch = main
+
+[interactive]
+	diffFilter = delta --color-only
+
+[delta]
+	navigate = true    # use n and N to move between diff sections
+	side-by-side = true
+	line-numbers = true
+	hyperlinks = true
+	hyperlinks-file-link-format = "vscode://file/{path}:{line}"
+
+[merge]
+	conflictstyle = diff3
+	ff = false
+
+[diff]
+	colorMoved = default
+[grep]
+	lineNumber = true
+[pull]
+	ff = only
+[alias]
+	tree = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
