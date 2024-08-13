@@ -1,34 +1,41 @@
 [core]
-	autocrlf = false
-	pager = delta
+  autocrlf = false
+  pager = delta
+  editor = code --wait
 
-[ghq]
-	root = ~/workspace
 [user]
-	email = syaku@sevenspirals.net
-	name = syaku
+  email = syaku@sevenspirals.net
+  name = syaku
+
 [init]
-	defaultBranch = main
+  defaultBranch = main
 
 [interactive]
-	diffFilter = delta --color-only
-
-[delta]
-	navigate = true    # use n and N to move between diff sections
-	side-by-side = true
-	line-numbers = true
-	hyperlinks = true
-	hyperlinks-file-link-format = "vscode://file/{path}:{line}"
-
-[merge]
-	conflictstyle = diff3
-	ff = false
+  diffFilter = delta --color-only
 
 [diff]
-	colorMoved = default
+  colorMoved = default
+
 [grep]
-	lineNumber = true
+  lineNumber = true
+
+[merge]
+  conflictstyle = zdiff3
+  ff = false
+
 [pull]
-	ff = only
+  ff = only
+
 [alias]
-	tree = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
+  tree = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
+
+[ghq]
+  root = ~/workspace
+
+[delta]
+  navigate = true    # use n and N to move between diff sections
+  side-by-side = true
+  line-numbers = true
+  hyperlinks = true
+  hyperlinks-file-link-format = "vscode://file/{path}:{line}"
+
