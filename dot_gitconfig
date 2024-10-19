@@ -20,7 +20,6 @@
   lineNumber = true
 
 [merge]
-  conflictstyle = zdiff3
   ff = false
 
 [pull]
@@ -37,8 +36,8 @@
 
 [delta]
   map-styles = bold purple => syntax magenta, bold cyan => syntax blue
+  side-by-side = true
   navigate = true    # use n and N to move between diff sections
   line-numbers = true
   hyperlinks = true
   hyperlinks-file-link-format = "vscode://file/{path}:{line}"
-  side-by-side = true

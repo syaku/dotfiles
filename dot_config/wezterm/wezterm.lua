@@ -43,6 +43,7 @@ function main()
   config.mouse_bindings = require('mouse').mouse_bindings
 
   config.default_prog = { 'c:/venv/xonsh/Scripts/xonsh.exe' }
+  --config.default_prog = { 'pwsh' }
 
   return config
 end
