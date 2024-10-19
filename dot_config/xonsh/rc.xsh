@@ -21,9 +21,6 @@ aliases['gl'] = 'git pull'
 aliases['vim'] = 'nvim'
 aliases['vi'] = 'vim'
 
-# Set editor
-$EDITOR = 'nvim'
-
 # Function to load custom scripts
 def load_custom_scripts():
     script_dir = os.path.expanduser('~/.config/xonsh/scripts/')
