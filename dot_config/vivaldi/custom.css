@@ -1,0 +1,137 @@
+/* -------------------------------------------------- */
+/* 0) Minor Rounded Corners (Adjust as needed)        */
+/* -------------------------------------------------- */
+:root {
+    --tiny-radius: 2px; /* or 2px, 4px, etc. */
+  }
+  
+  /* -------------------------------------------------- */
+  /* 1) Remove Vivaldi’s curved / masked tab backgrounds */
+  /* -------------------------------------------------- */
+  .tab,
+  .tab.active,
+  .tab .tab-bg,
+  .tab.active .tab-bg {
+    clip-path: none !important;
+    mask-image: none !important;
+    /* Give tabs a subtle corner radius */
+    border-radius: var(--tiny-radius) !important;
+  }
+  
+  .tab-border {
+    border-radius: var(--tiny-radius) !important;
+    mask-image: none !important;
+    clip-path: none !important;
+  }
+  
+  /* -------------------------------------------------- */
+  /* 2) Outer vertical tabbar layout                    */
+  /* -------------------------------------------------- */
+  /* Let Vivaldi keep its default layout on the outer container
+     so the resize handle remains active. */
+  
+  .tabbar-wrapper:has(#tabs-container[aria-orientation="vertical"]) {
+    /* Don't override display here. Let Vivaldi handle resizing. */
+    /* You can still style backgrounds, paddings, etc. if desired. */
+  }
+  
+  #tabs-tabbar-container {
+    /* Using a flexible column layout (like Vivaldi’s default).
+       This helps preserve the resizable edge. */
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;  /* we’ll let the child .tablist handle its own scroll */
+    padding-top: 0;
+  }
+  
+  .sync-and-trash-container {
+    padding-block: 0.5rem;
+  }
+  
+  /* -------------------------------------------------- */
+  /* 3) The grid for pinned vs. regular tabs            */
+  /* -------------------------------------------------- */
+  #tabs-container[aria-orientation="vertical"] [role="tablist"] {
+    /* Now THIS is where we do grid layout, so pinned tabs can be small squares. */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(3rem, 1fr));
+    grid-auto-rows: min-content;
+    gap: 0.1rem;                 /* minimal spacing */
+    padding-inline: 0.1rem;
+    
+    /* crucial: allow vertical scrolling when tabs overflow */
+    overflow-y: auto;
+  }
+  
+  /* By default, each 'span' (the tab container) spans the entire row.
+     But pinned tabs below will override to occupy just one cell. */
+  #tabs-container[aria-orientation="vertical"] [role="tablist"] > span {
+    grid-column: 1 / -1;
+    display: block;
+    background: none !important;
+    
+  /*  border-radius: var(--tiny-radius) !important; */
+    border-radius: 8px !important;
+    margin: 0 !important;
+  }
+  
+  /* -------------------------------------------------- */
+  /* 4) Pinned tabs occupy a single grid cell           */
+  /* -------------------------------------------------- */
+  #tabs-container[aria-orientation="vertical"] [role="tablist"] > span:has(.is-pinned) {
+    grid-column: auto !important;
+  }
+  
+  .is-pinned .title {
+    display: none !important;  /* hide pinned tab text for icon-only look */
+  }
+  
+  .is-pinned .tab-header {
+    justify-content: center !important;
+  }
+  
+  .is-pinned .tab-wrapper {
+    background: none !important;
+
+    border-radius: var(--tiny-radius) !important;d
+  }
+  
+  /* -------------------------------------------------- */
+  /* 5) Regular tab styling: flattish w/ subtle corners */
+  /* -------------------------------------------------- */
+  .tab-position {
+    position: relative;
+    width: 100%;
+    overflow-x: hidden;
+    transform: none !important;
+    height: 2rem;    /* Adjust the vertical height of each tab row */
+  }
+  
+  .tab .tab-header {
+    flex-grow: 1;
+    padding: 0.1rem !important; /* smaller interior padding */
+  }
+  
+  .tab-wrapper {
+    margin: 0 !important;
+    max-height: none !important;
+    background: none !important;
+
+    border-radius: var(--tiny-radius) !important;
+  }
+  
+  /* Hide any tab “badge” counters if you don’t want them */
+  .button-badge {
+    display: none !important;
+  }
+  
+  /* -------------------------------------------------- */
+  /* 6) New Tab button                                  */
+  /* -------------------------------------------------- */
+  .button-toolbar.newtab {
+    top: auto !important;
+    left: auto !important;
+  }
+  
+  
