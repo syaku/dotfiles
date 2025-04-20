@@ -37,12 +37,9 @@ config.font_size = 11
 -- 背景をMica/アクリル風にする設定
 config.window_background_opacity = 0.95
 config.text_background_opacity = 1
-if is_macos then
-  config.macos_window_background_blur = 25 -- macのみぼかし効果をON
-end
 
 -- タブ＆タイトルバーの構成
-config.color_scheme = "Tender (Gogh)"
+config.color_scheme = 'Gruvbox Dark (Gogh)'
 config.window_decorations = "INTEGRATED_BUTTONS|RESIZE" -- 見た目をスッキリ＆最小限に
 config.integrated_title_button_style = "Windows"        -- ボタンはWin風で統一感
 -- タブバーを下部に配置
