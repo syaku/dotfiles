@@ -33,7 +33,7 @@
   path = ~/scoop/apps/delta/current/themes.gitconfig
 
 [ghq]
-  root = ~/workspace
+	root = ~/workspace/repos
 
 [delta]
   map-styles = bold purple => syntax magenta, bold cyan => syntax blue
