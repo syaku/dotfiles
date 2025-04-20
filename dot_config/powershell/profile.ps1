@@ -1,0 +1,5 @@
+. "$HOME/.config/powershell/core.ps1"
+. "$HOME/.config/powershell/functions.ps1"
+. "$HOME/.config/powershell/keybinds.ps1"
+. "$HOME/.config/powershell/aliases.ps1"
+. "$HOME/.config/powershell/mise.ps1"
