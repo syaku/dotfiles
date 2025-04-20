@@ -16,10 +16,12 @@ config.default_prog = is_windows and { 'pwsh.exe', '-NoLogo' } or { '/bin/zsh', 
 config.default_domain = 'local'
 
 -- ── ランチャーメニュー ─────────────────────────────
-config.launch_menu = {
-    { label = 'Ubuntu‑24.04', domain = { DomainName = 'WSL:Ubuntu-24.04' } },
-    { label = 'PowerShell 7', args = {'pwsh.exe', '-NoLogo'}, domain = { DomainName = 'local' } },
-}
+if is_windows then
+  config.launch_menu = {
+      { label = 'Ubuntu‑24.04', domain = { DomainName = 'WSL:Ubuntu-24.04' } },
+      { label = 'PowerShell 7', args = {'pwsh.exe', '-NoLogo'}, domain = { DomainName = 'local' } },
+  }
+end
 
 -- ── 外観 ───────────────────────────────────────────
 
