@@ -10,9 +10,9 @@ remove-item alias:rmdir
 
 remove-item function:mkdir
 
-function ls     { & "$HOME\.cargo\bin\eza.exe" --group-directories-first --git --icons @args }    # exa: lsの代替（推奨）
-function ll     { & "$HOME\.cargo\bin\eza.exe" -l --group-directories-first --git --icons @args }
-function la     { & "$HOME\.cargo\bin\eza.exe" -a --group-directories-first --git --icons @args }
+function ls     { & "$HOME\.cargo\bin\eza.exe" --group-directories-first --hyperlink --icons @args }    # exa: lsの代替（推奨）
+function ll     { & "$HOME\.cargo\bin\eza.exe" -l --group-directories-first --hyperlink --icons @args }
+function la     { & "$HOME\.cargo\bin\eza.exe" -a --group-directories-first --hyperlink --icons @args }
 function cat    { & "$HOME\.cargo\bin\bat.exe" @args }    # bat: catの代替
 function grep   { & "$HOME\.cargo\bin\rg.exe" @args }     # ripgrep: grepの代替
 function find   { & "$HOME\.cargo\bin\fd.exe" @args }     # fd: findの代替

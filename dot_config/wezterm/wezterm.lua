@@ -32,7 +32,7 @@ config.font = wezterm.font_with_fallback({
   { family = 'Noto Sans Mono CJK JP' },
   { family = 'Noto Color Emoji' },
 })
-config.font_size = 11
+config.font_size = 10.5
 
 -- 背景をMica/アクリル風にする設定
 config.window_background_opacity = 0.95
