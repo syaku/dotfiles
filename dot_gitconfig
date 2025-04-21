@@ -47,8 +47,14 @@
 
 [delta]
   map-styles = bold purple => syntax magenta, bold cyan => syntax blue
+  dark = true
+  syntax-theme = base16
+  plus-style = brightgreen black
+  plus-emph-style = black green
+  minus-style = brightred black
+  minus-emph-style = black red
+  navigate = true
   side-by-side = true
-  navigate = true    # use n and N to move between diff sections
   line-numbers = true
   hyperlinks = true
   hyperlinks-file-link-format = "vscode://file/{path}:{line}"
