@@ -3,10 +3,6 @@
   #pager = delta
   editor = code --wait
 
-[user]
-  email = syaku@sevenspirals.net
-  name = syaku
-
 [init]
   defaultBranch = main
 
@@ -31,6 +27,7 @@
 
 [include]
   path = ~/scoop/apps/delta/current/themes.gitconfig
+  path = ~/.gitconfig.local
 
 [ghq]
 	root = ~/workspace/repos
