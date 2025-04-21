@@ -1,0 +1,7 @@
+# 設定ファイルを読み込む関数
+local file="$ZDOTDIR/$1"
+if [[ -f "$file" ]]; then
+    source "$file"
+else
+    echo "設定ファイルが見つかりません: $file" >&2
+fi

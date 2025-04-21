@@ -1,0 +1,14 @@
+# プラグインを読み込む関数
+local plugin_dir="$ZDOTDIR/plugins/$1"
+if [[ -d "$plugin_dir" ]]; then
+    # プラグインのメインファイルを探して読み込む
+    if [[ -f "$plugin_dir/$1.plugin.zsh" ]]; then
+        source "$plugin_dir/$1.plugin.zsh"
+    elif [[ -f "$plugin_dir/$1.zsh" ]]; then
+        source "$plugin_dir/$1.zsh"
+    elif [[ -f "$plugin_dir/$1.zsh-theme" ]]; then
+        source "$plugin_dir/$1.zsh-theme"
+    fi
+else
+    echo "プラグインが見つかりません: $1" >&2
+fi

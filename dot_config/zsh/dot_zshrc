@@ -1,0 +1,18 @@
+# 関数のパスを設定
+fpath=($ZDOTDIR/functions $fpath)
+
+# 自動ロード関数の有効化
+autoload -Uz compinit && compinit
+autoload -Uz $ZDOTDIR/functions/*(.:t)
+
+# 設定ディレクトリからすべての.zshファイルを読み込む
+if [[ -d "$ZDOTDIR/conf.d" ]]; then
+    for config_file in "$ZDOTDIR/conf.d/"*.zsh(N); do
+        zsh_add_file "conf.d/${config_file:t}"
+    done
+fi
+
+# 必要なプラグインを読み込む
+zsh_add_plugin "zoxide"
+zsh_add_plugin "starship"
+zsh_add_plugin "mise"
