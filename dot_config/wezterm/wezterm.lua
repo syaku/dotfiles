@@ -12,7 +12,7 @@ local config = {}
 
 -- ── ドメイン ───────────────────────────────────────
 config.wsl_domains = wezterm.default_wsl_domains()
-config.default_prog = is_windows and { 'pwsh.exe', '-NoLogo' } or { '/bin/zsh', '-l' }
+config.default_prog = is_windows and { 'nu.exe', '-l' } or { '/bin/zsh', '-l' }
 config.default_domain = 'local'
 
 -- ── ランチャーメニュー ─────────────────────────────

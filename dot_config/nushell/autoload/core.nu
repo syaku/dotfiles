@@ -1,0 +1,11 @@
+# エディタ設定
+$env.EDITOR = "cursor"
+$env.VISUAL = "cursor"
+
+# PATH の設定
+$env.PATH = ($env.PATH | split row (char esep) | prepend "~/.local/bin")
+$env.PATH = ($env.PATH | append $"($env.HOME)/.cargo/bin")
+$env.STARSHIP_SHELL = "nu"
+
+# テーブルの表示モード
+$env.config.table.mode = 'rounded'

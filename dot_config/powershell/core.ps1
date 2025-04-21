@@ -14,6 +14,6 @@ Invoke-Expression (&starship init powershell)
 [System.Console]::InputEncoding = [System.Text.Encoding]::GetEncoding("utf-8")
 $env:LESSCHARSET = "utf-8"
 
-$env:EDITOR = "code"
+$env:EDITOR = "cursor"
 
 $Host.UI.RawUI.WindowTitle = " pwsh"
