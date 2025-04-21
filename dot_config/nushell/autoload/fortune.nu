@@ -1,0 +1,1 @@
+fortune ~/.config/fortune/* | cowsay

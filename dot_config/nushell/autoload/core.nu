@@ -10,3 +10,5 @@ $env.STARSHIP_SHELL = "nu"
 
 # テーブルの表示モード
 $env.config.table.mode = 'rounded'
+
+$env.config.show_banner = false
