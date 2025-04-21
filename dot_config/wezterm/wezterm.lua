@@ -32,11 +32,23 @@ config.font = wezterm.font_with_fallback({
   { family = 'Noto Sans Mono CJK JP' },
   { family = 'Noto Color Emoji' },
 })
-config.font_size = 10.5
 
--- 背景をMica/アクリル風にする設定
-config.window_background_opacity = 0.95
-config.text_background_opacity = 1
+if is_windows then
+  config.font_size = 10.5
+  config.window_background_opacity = 0.95
+  config.text_background_opacity = 1
+end
+
+if is_macos then
+  config.font_size = 14
+  config.window_background_opacity = 0.85
+  config.text_background_opacity = 1
+  config.macos_window_background_blur = 20
+end
+
+
+config.initial_cols = 150
+config.initial_rows = 40
 
 -- タブ＆タイトルバーの構成
 config.color_scheme = 'Gruvbox Dark (Gogh)'
