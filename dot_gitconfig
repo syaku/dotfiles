@@ -1,36 +1,49 @@
 [core]
   autocrlf = false
-  #pager = delta
+  pager = delta
   editor = code --wait
 
 [init]
   defaultBranch = main
 
-[interactive]
-  diffFilter = delta --color-only
-
-[diff]
-  colorMoved = dimmed-zebra
-
-[grep]
-  lineNumber = true
+[push]
+  default = current
+  autoSetupRemote = true
 
 [merge]
   ff = false
-	conflictStyle = zdiff3
+  conflictStyle = zdiff3
 
 [pull]
   ff = only
 
+[rebase]
+  autoStash = true
+  autosquash = true
+
+[diff]
+  colorMoved = dimmed-zebra
+
+[interactive]
+  diffFilter = delta --color-only
+
+[grep]
+  lineNumber = true
+
 [alias]
   tree = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
-
+  co = checkout
+  ci = commit
+  st = status
+  br = branch
+  aliases = !git config --get-regexp '^alias\\.' | sed 's/alias\\.\\([^ ]*\\) \\(.*\\)/\\1\\\t => \\2/' | sort
+  
 [include]
   path = ~/scoop/apps/delta/current/themes.gitconfig
   path = ~/.gitconfig.local
 
 [ghq]
-	root = ~/workspace/repos
+  root = ~/workspace/repos
 
 [delta]
   map-styles = bold purple => syntax magenta, bold cyan => syntax blue
