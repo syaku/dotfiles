@@ -16,3 +16,4 @@ fi
 zsh_add_plugin "zoxide"
 zsh_add_plugin "starship"
 zsh_add_plugin "mise"
+zsh_add_plugin "atuin"
