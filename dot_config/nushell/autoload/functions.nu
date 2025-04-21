@@ -1,24 +1,27 @@
-# ghq-fzf: ghq のリポジトリを fzf で選択して移動
-def ghq-fzf [] {
+# ghq + fzfでリポジトリをあいまい検索する関数
+def --env ghq-fzf [] {
     # ghqとfzfコマンドが存在するか確認
     if (which ghq | is-empty) or (which fzf | is-empty) {
         print "Error: ghq または fzf コマンドが見つかりません。両方インストールしてください。"
         return
     }
     
+    # ghqのルートパスを先に取得
+    let ghq_root = do { ^ghq root } | complete | get stdout | str trim
+    
     # ghqでリポジトリ一覧を取得し、fzfで選択
-    let selected = (do {
-        ^ghq list | ^fzf --preview "ls -la (^ghq root)/{}";
-    } | complete)
+    let selected = do { 
+        ^ghq list | ^fzf --preview $"ls -la ($ghq_root)/{}"
+    } | complete
     
     # 選択されたリポジトリが存在する場合、そのディレクトリに移動
-    if $selected.exit_code == 0 and ($selected.stdout | str trim | is-empty) == false {
-        let repo_path = (^ghq root | str trim)
-        cd $"($repo_path)/($selected.stdout | str trim)"
+    if $selected.exit_code == 0 and not ($selected.stdout | str trim | is-empty) {
+        let repo_path = $selected.stdout | str trim
+        cd $"($ghq_root)/($repo_path)"
     }
 }
 
-# fbr: ブランチを検索してcheckout
+# ブランチをあいまい検索してcheckoutする関数
 def fbr [] {
     # gitコマンドとfzfコマンドが存在するか確認
     if (which git | is-empty) or (which fzf | is-empty) {
@@ -35,19 +38,13 @@ def fbr [] {
     
     # ローカルとリモートの全ブランチを取得し、fzfで選択
     let selected = do {
-        ^git branch -a | ^rg -v HEAD | ^sed "s/.* //" | ^sed "s#remotes/origin/##" | ^sort -u | ^fzf
+        # ローカルとリモートのブランチを取得して加工
+        ^git branch -a | ^grep -v HEAD | ^sed "s/.* //" | ^sed "s#remotes/origin/##" | ^sort -u | ^fzf
     } | complete
     
     # 選択されたブランチが存在する場合、そのブランチをcheckout
     if $selected.exit_code == 0 and not ($selected.stdout | str trim | is-empty) {
         let branch = $selected.stdout | str trim
         ^git checkout $branch
-        print $"ブランチ '($branch)' をチェックアウトしました。"
     }
-}
-
-# git-add-fzf: ファイルを選んで add
-def git-add-fzf [] {
-  let file = (git status --short | fzf | split row ' ' | last)
-  if ($file != "") { git add $file }
 }
