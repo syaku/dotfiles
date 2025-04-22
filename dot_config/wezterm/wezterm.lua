@@ -25,6 +25,49 @@ end
 
 -- ── 外観 ───────────────────────────────────────────
 
+-- ── GPU設定 ───────────────────────────────────────────
+
+config.front_end = "WebGpu"  -- 最新のWebGPUレンダラーを使用（推奨）
+-- config.front_end = "OpenGL" -- OpenGLを使用する場合（互換性が必要な場合）
+
+-- GPU機能設定
+config.webgpu_power_preference = "HighPerformance" -- 高性能GPUを優先使用
+-- config.webgpu_power_preference = "LowPower" -- バッテリー寿命を優先する場合
+
+-- アニメーション設定（GPU使用時のパフォーマンスに影響）
+config.animation_fps = 60 -- アニメーション更新レート
+config.cursor_blink_rate = 800 -- カーソル点滅速度（ミリ秒）
+
+-- スクロール設定
+config.max_fps = 120 -- 最大フレームレート
+
+if is_windows then
+  -- Windows専用の設定
+  config.front_end = "WebGpu" -- 最新のWindowsではWebGPUが最適
+  config.enable_wayland = false -- Windowsでは無効
+  
+  -- コンポジターの透明効果に対する最適化
+  config.win32_system_backdrop = "Acrylic" -- Windows 11でのMica/アクリル効果
+end
+
+if is_macos then
+  -- macOS専用の設定
+  config.front_end = "WebGpu" -- 最新のmacOSではWebGPUが最適
+  
+  -- MacのGPUパフォーマンス設定
+  config.macos_window_background_blur = 20 -- 背景ブラー効果の強度
+  config.native_macos_fullscreen_mode = true -- ネイティブのフルスクリーンモード
+end
+
+if not is_windows and not is_macos then
+  -- WSL/Linux専用の設定
+  config.enable_wayland = true -- Waylandサポートを有効（対応環境の場合）
+  config.front_end = "WebGpu" -- 最新のLinuxではWebGPUが最適
+  -- config.front_end = "OpenGL" -- より広い互換性が必要な場合はOpenGL
+end
+
+-- ── フォント設定 ───────────────────────────────────────────
+
 -- 使用フォント：UDEV Gothic Nerd Font
 config.font = wezterm.font_with_fallback({
   { family = 'PlemolJP Console NF' },
@@ -33,21 +76,13 @@ config.font = wezterm.font_with_fallback({
   { family = 'Noto Color Emoji' },
 })
 
-config.front_end = "WebGpu"
-
 if is_windows then
   config.font_size = 10.5
-  config.window_background_opacity = 0.95
-  config.text_background_opacity = 1
 end
 
 if is_macos then
   config.font_size = 12
-  config.window_background_opacity = 0.85
-  config.text_background_opacity = 1
-  config.macos_window_background_blur = 20
 end
-
 
 config.initial_cols = 200
 config.initial_rows = 50
