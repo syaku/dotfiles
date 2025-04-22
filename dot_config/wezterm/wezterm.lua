@@ -33,6 +33,8 @@ config.font = wezterm.font_with_fallback({
   { family = 'Noto Color Emoji' },
 })
 
+config.front_end = "WebGpu"
+
 if is_windows then
   config.font_size = 10.5
   config.window_background_opacity = 0.95
