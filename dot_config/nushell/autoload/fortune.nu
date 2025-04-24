@@ -1,1 +1,1 @@
-fortune ~/.config/fortune/* | cowsay
+fortune ~/.config/fortune/* | cowsay | lolcat

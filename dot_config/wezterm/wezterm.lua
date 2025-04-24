@@ -70,8 +70,7 @@ end
 
 -- 使用フォント：UDEV Gothic Nerd Font
 config.font = wezterm.font_with_fallback({
-  { family = 'PlemolJP Console NF' },
-  { family = 'Cica', assume_emoji_presentation = true },
+  { family = 'UDEV Gothic 35NFLG' },
   { family = 'Noto Sans Mono CJK JP' },
   { family = 'Noto Color Emoji' },
 })
