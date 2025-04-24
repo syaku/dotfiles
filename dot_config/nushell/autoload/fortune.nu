@@ -1,1 +1,0 @@
-fortune ~/.config/fortune/* | cowsay | lolcat

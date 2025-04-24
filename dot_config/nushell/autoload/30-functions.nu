@@ -1,10 +1,10 @@
+# 関数定義ファイル
+# このファイルはカスタム関数を定義します
+# 依存: 10-core.nu (check_commands関数)
+
 # ghq + fzfでリポジトリをあいまい検索する関数
 def --env ghq-fzf [] {
-    # ghqとfzfコマンドが存在するか確認
-    if (which ghq | is-empty) or (which fzf | is-empty) {
-        print "Error: ghq または fzf コマンドが見つかりません。両方インストールしてください。"
-        return
-    }
+    if not (check_commands "ghq" "fzf") { return }
     
     # ghqのルートパスを先に取得
     let ghq_root = do { ^ghq root } | complete | get stdout | str trim
@@ -23,11 +23,7 @@ def --env ghq-fzf [] {
 
 # ブランチをあいまい検索してcheckoutする関数
 def fbr [] {
-    # gitコマンドとfzfコマンドが存在するか確認
-    if (which git | is-empty) or (which fzf | is-empty) {
-        print "Error: git または fzf コマンドが見つかりません。両方インストールしてください。"
-        return
-    }
+    if not (check_commands "git" "fzf" "grep" "sed" "sort") { return }
     
     # カレントディレクトリがgitリポジトリかどうか確認
     let git_check = do { ^git rev-parse --is-inside-work-tree } | complete
@@ -47,4 +43,4 @@ def fbr [] {
         let branch = $selected.stdout | str trim
         ^git checkout $branch
     }
-}
+} 
