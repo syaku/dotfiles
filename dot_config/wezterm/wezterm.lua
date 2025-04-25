@@ -87,7 +87,7 @@ config.initial_cols = 200
 config.initial_rows = 50
 
 -- タブ＆タイトルバーの構成
-config.color_scheme = 'Gruvbox Dark (Gogh)'
+config.color_scheme = 'Tender (Gogh)'
 config.window_decorations = "INTEGRATED_BUTTONS|RESIZE" -- 見た目をスッキリ＆最小限に
 config.integrated_title_button_style = "Windows"        -- ボタンはWin風で統一感
 -- タブバーを下部に配置

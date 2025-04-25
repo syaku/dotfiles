@@ -1,7 +1,7 @@
 [core]
   autocrlf = false
   pager = delta
-  editor = code --wait
+  editor = cursor --wait
 
 [init]
   defaultBranch = main
