@@ -3,6 +3,6 @@
 # 依存: 10-core.nu (check_commands関数)
 
 # fortuneの表示
-if (check_commands "fortune" "cowsay" "lolcat") {
-    fortune ~/.config/fortune/* | cowsay | lolcat
+if (check_commands "figlet" "lolcat") {
+    figlet -f 'slant' 'GQuuuuuuX' | lolcat
 } 
