@@ -20,15 +20,16 @@ def check_commands [...commands: string] {
 }
 
 # PATH の設定
-def add_to_path [path: string] {
+def --env add_to_path [path: string] {
     if ($path | path exists) {
         $env.PATH = ($env.PATH | split row (char esep) | prepend $path)
+        # print $"Added ($path) to PATH"
     }
 }
 
 add_to_path $"($env.HOME)/scoop/shims"
 add_to_path $"($env.HOME)/.cargo/bin"
-add_to_path "~/.local/bin"
+add_to_path $"($env.HOME)/.local/bin"
 
 # シェル設定
 $env.STARSHIP_SHELL = "nu"
