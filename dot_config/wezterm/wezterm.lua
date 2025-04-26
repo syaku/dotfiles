@@ -44,9 +44,9 @@ config.max_fps = 120 -- 最大フレームレート
 if is_windows then
   -- Windows専用の設定
   config.front_end = "WebGpu" -- 最新のWindowsではWebGPUが最適
-  config.enable_wayland = false -- Windowsでは無効
+  -- config.enable_wayland = false -- Windowsでは無効
   -- 透明度
-  config.window_background_opacity = 0.95
+  config.window_background_opacity = 0.8
   
   -- コンポジターの透明効果に対する最適化
   config.win32_system_backdrop = "Acrylic" -- Windows 11でのMica/アクリル効果
