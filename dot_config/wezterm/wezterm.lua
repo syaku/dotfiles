@@ -43,7 +43,7 @@ config.max_fps = 120 -- 最大フレームレート
 
 if is_windows then
   -- Windows専用の設定
-  config.front_end = "WebGpu" -- 最新のWindowsではWebGPUが最適
+  config.front_end = "OpenGL" -- 最新のWindowsではWebGPUが最適
   -- config.enable_wayland = false -- Windowsでは無効
   -- 透明度
   config.window_background_opacity = 0.8
