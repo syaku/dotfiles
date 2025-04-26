@@ -45,6 +45,8 @@ if is_windows then
   -- Windows専用の設定
   config.front_end = "WebGpu" -- 最新のWindowsではWebGPUが最適
   config.enable_wayland = false -- Windowsでは無効
+  -- 透明度
+  config.window_background_opacity = 0.95
   
   -- コンポジターの透明効果に対する最適化
   config.win32_system_backdrop = "Acrylic" -- Windows 11でのMica/アクリル効果
@@ -53,6 +55,8 @@ end
 if is_macos then
   -- macOS専用の設定
   config.front_end = "WebGpu" -- 最新のmacOSではWebGPUが最適
+  -- 透明度
+  config.window_background_opacity = 0.8
   
   -- MacのGPUパフォーマンス設定
   config.macos_window_background_blur = 20 -- 背景ブラー効果の強度
