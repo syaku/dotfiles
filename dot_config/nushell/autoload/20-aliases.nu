@@ -19,6 +19,20 @@ alias ls = eza --icons --hyperlink --color=always --group-directories-first
 alias cat = bat
 alias c = bat
 
+# lessの代替としてのbat
+def less [...rest] {
+    if ($rest | is-empty) {
+        # 標準入力がある場合はそれを使用
+        if ($in | is-empty) {
+            echo "使用方法: less <ファイル名> または パイプで入力"
+        } else {
+            $in | bat --paging=always
+        }
+    } else {
+        bat --paging=always ...$rest
+    }
+}
+
 alias grep = rg
 alias g = rg
 
