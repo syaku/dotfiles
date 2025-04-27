@@ -46,10 +46,10 @@ if is_windows then
   config.front_end = "OpenGL" -- 最新のWindowsではWebGPUが最適
   -- config.enable_wayland = false -- Windowsでは無効
   -- 透明度
-  config.window_background_opacity = 0.8
+  config.window_background_opacity = 0.95
   
   -- コンポジターの透明効果に対する最適化
-  config.win32_system_backdrop = "Acrylic" -- Windows 11でのMica/アクリル効果
+  -- config.win32_system_backdrop = "Acrylic" -- Windows 11でのMica/アクリル効果
 end
 
 if is_macos then
