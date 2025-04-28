@@ -3,8 +3,8 @@
 # TLS 1.2を強制（Install-Module系で必須になることがある）
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# PATH に Rust製ツールのディレクトリを追加
-$env:PATH += ";$HOME\.cargo\bin"
+# PATH の設定
+$env:PATH = "$HOME\scoop\shims;$HOME\.cargo\bin;$HOME\.local\bin;$env:PATH"
 
 # Starship プロンプトを初期化
 Invoke-Expression (&starship init powershell)
@@ -14,6 +14,12 @@ Invoke-Expression (&starship init powershell)
 [System.Console]::InputEncoding = [System.Text.Encoding]::GetEncoding("utf-8")
 $env:LESSCHARSET = "utf-8"
 
-$env:EDITOR = "cursor"
+# エディタ設定
+$env:EDITOR = "nvim"
+$env:VISUAL = "cursor"
 
+# シェル設定
+$env:STARSHIP_SHELL = "pwsh"
+
+# ウィンドウタイトル
 $Host.UI.RawUI.WindowTitle = " pwsh"
