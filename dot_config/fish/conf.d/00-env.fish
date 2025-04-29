@@ -14,8 +14,3 @@ set -gx VISUAL cursor
 
 # シェル設定
 set -gx STARSHIP_SHELL fish
-
-# ウィンドウタイトル
-function fish_title
-    echo " fish"
-end 
