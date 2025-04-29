@@ -85,7 +85,7 @@ return {
       local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
       -- TypeScript LSPの設定
-      lspconfig.tsserver.setup({
+      lspconfig.ts_ls.setup({
         capabilities = capabilities,
       })
 
