@@ -1,9 +1,9 @@
 # 00-env.fish - 環境変数の設定
 
 # PATH の設定
-add_fish_path $HOME/.local/share/mise/shims
-add_fish_path $HOME/.cargo/bin
-add_fish_path $HOME/.local/bin
+fish_add_path $HOME/.local/share/mise/shims
+fish_add_path $HOME/.cargo/bin
+fish_add_path $HOME/.local/bin
 
 # 文字コード関連
 set -gx LESSCHARSET utf-8
