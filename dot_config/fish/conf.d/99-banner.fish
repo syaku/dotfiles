@@ -1,0 +1,1 @@
+fortune-cm.fortune | lolcat
