@@ -39,3 +39,6 @@ alias g = rg
 alias find = fd
 
 alias man = tldr
+
+alias vi = nvim
+alias vim = nvim

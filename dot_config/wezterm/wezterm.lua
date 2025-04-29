@@ -74,7 +74,7 @@ end
 
 -- 使用フォント：UDEV Gothic Nerd Font
 config.font = wezterm.font_with_fallback({
-  { family = 'UDEV Gothic NFLG' }
+  { family = 'UDEV Gothic 35NFLG' }
 })
 
 if is_windows then
