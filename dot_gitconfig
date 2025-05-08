@@ -2,6 +2,7 @@
   autocrlf = false
   pager = delta
   editor = cursor --wait
+  excludesfile = /Users/takayuki.takemura/.gitignore_global
 
 [init]
   defaultBranch = main

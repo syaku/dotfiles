@@ -1,0 +1,43 @@
+# -----------------------------
+# エディタ・IDE関連
+# -----------------------------
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# -----------------------------
+# OS固有ファイル
+# -----------------------------
+.DS_Store         # macOS Finder metadata
+Thumbs.db         # Windows image cache
+ehthumbs.db
+Icon?
+Desktop.ini
+
+# -----------------------------
+# ログ・デバッグ・ビルドファイル
+# -----------------------------
+*.log
+*.swp
+*.tmp
+*.bak
+
+# Node.js/npm関連（必要に応じて）
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Rust（必要に応じて）
+/target/
+
+# Python（必要に応じて）
+__pycache__/
+*.py[cod]
+
+# -----------------------------
+# その他
+# -----------------------------
+*.env
+*.local
+*.secret
