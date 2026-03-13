@@ -14,6 +14,7 @@ local config = {}
 config.wsl_domains = wezterm.default_wsl_domains()
 config.default_prog = is_windows and { 'nu.exe', '-l' } or { '/bin/zsh', '-l' }
 config.default_domain = 'local'
+config.term = 'xterm-256color'
 
 -- ── ランチャーメニュー ─────────────────────────────
 if is_windows then
@@ -40,6 +41,7 @@ config.cursor_blink_rate = 800 -- カーソル点滅速度（ミリ秒）
 
 -- スクロール設定
 config.max_fps = 120 -- 最大フレームレート
+config.scrollback_lines = 100000 -- デフォルト3500 → Claude Codeの長い出力に対応
 
 if is_windows then
   -- Windows専用の設定
@@ -78,11 +80,11 @@ config.font = wezterm.font_with_fallback({
 })
 
 if is_windows then
-  config.font_size = 10.5
+  config.font_size = 10
 end
 
 if is_macos then
-  config.font_size = 12
+  config.font_size = 13
 end
 
 config.initial_cols = 200
@@ -259,6 +261,29 @@ config.keys = {
     -- ---------- その他 ----------
     { key = 'r', mods = 'LEADER', action = act.ReloadConfiguration },
     { key = 'f', mods = 'LEADER', action = act.Search{ CaseSensitiveString = '' } },
+
+    -- ---------- Claude Code 向け ----------
+    -- コピーモード（スクロールバックをvi風に移動・選択）
+    { key = '[', mods = 'LEADER', action = act.ActivateCopyMode },
+    -- クイックセレクト（ファイルパス/URLをキーで選択）
+    { key = 's', mods = 'LEADER', action = act.QuickSelect },
+    -- ペインズーム（Claude Codeに集中したい時）
+    { key = 'z', mods = 'LEADER', action = act.TogglePaneZoomState },
+
+    -- ---------- ワークスペース ----------
+    -- LEADER + w : ワークスペース一覧・切り替え
+    { key = 'w', mods = 'LEADER', action = act.ShowLauncherArgs {
+        flags = 'FUZZY|WORKSPACES',
+    }},
+    -- LEADER + n : 新規ワークスペース作成（名前入力）
+    { key = 'n', mods = 'LEADER', action = act.PromptInputLine {
+        description = 'Workspace name:',
+        action = wezterm.action_callback(function(window, pane, line)
+            if line then
+                window:perform_action(act.SwitchToWorkspace { name = line }, pane)
+            end
+        end),
+    }},
 }
 
 -- ── マウス ───────────────────────────────────
@@ -280,6 +305,21 @@ config.mouse_bindings = {
 }
 
 config.unzoom_on_switch_pane = true
+
+-- ── ワークスペース名をステータスバーに表示 ──────────────
+wezterm.on("update-right-status", function(window, pane)
+    window:set_right_status(wezterm.format {
+        { Foreground = { Color = "#4c4c4c" } }, { Text = wezterm.nerdfonts.ple_lower_right_triangle },
+        { Background = { Color = "#4c4c4c" } },
+        { Foreground = { Color = "#eeeeee" } }, { Text = " " .. window:active_workspace() .. " " },
+    })
+end)
+
+-- ── クイックセレクト ───────────────────────────────
+-- file:line 形式（Claude Codeが出力する形式）を追加
+config.quick_select_patterns = {
+    "[\\w./\\\\-]+:\\d+",
+}
 
 -- 設定を返す
 return config

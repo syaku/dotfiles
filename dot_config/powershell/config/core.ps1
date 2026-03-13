@@ -23,3 +23,5 @@ $env:STARSHIP_SHELL = "pwsh"
 
 # ウィンドウタイトル
 $Host.UI.RawUI.WindowTitle = " pwsh"
+
+$env:CLAUDE_CODE_GIT_BASH_PATH="C:\Users\syaku\scoop\shims\bash.exe"
