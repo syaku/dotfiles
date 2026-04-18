@@ -84,7 +84,7 @@ if is_windows then
 end
 
 if is_macos then
-  config.font_size = 13
+  config.font_size = 15
 end
 
 config.initial_cols = 200

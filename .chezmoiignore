@@ -17,6 +17,15 @@
 .config/zsh/plugins/**/.gitignore
 .config/zsh/plugins/**/cache/
 
+# Claude Code — 動的ファイル（管理不要）
+.claude.json
+.claude/projects/
+.claude/statsig/
+.claude/cache/
+.claude/history.jsonl
+.claude/shell-snapshots/
+.claude/session-env/
+
 # バックアップと一時ファイル
 .config/zsh/*~
 .config/zsh/*.zwc
