@@ -1,4 +1,6 @@
 {
+  "model": "claude-opus-4-7",
+  "effortLevel": "xhigh",
   "permissions": {
     "allow": [
       "Read(*)",
@@ -32,8 +34,8 @@
       "Bash(git branch *)",
       "Bash(git remote *)",
       "Bash(git stash list)",
-      "Edit(~/workspace/develop/tasks/**)",
-      "Write(~/workspace/develop/tasks/**)"
+      "Edit(~/workspace/tasks/**)",
+      "Write(~/workspace/tasks/**)"
     ],
     "deny": []
   }
