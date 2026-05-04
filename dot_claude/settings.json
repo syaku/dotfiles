@@ -37,12 +37,7 @@
       "Edit(~/workspace/tasks/**)",
       "Write(~/workspace/tasks/**)",
       "WebSearch",
-      "WebFetch",
-      "PowerShell(Get-ChildItem *)",
-      "PowerShell(ls *)",
-      "PowerShell(Test-Path *)",
-      "PowerShell(Get-Content *)",
-      "PowerShell(Get-Item *)"
+      "WebFetch"
     ],
     "deny": [
       "WebFetch(domain:localhost)",
