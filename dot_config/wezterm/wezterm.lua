@@ -12,7 +12,10 @@ local config = {}
 
 -- ── ドメイン ───────────────────────────────────────
 config.wsl_domains = wezterm.default_wsl_domains()
-config.default_prog = is_windows and { 'nu.exe', '-l' } or { '/bin/zsh', '-l' }
+if is_windows then
+  config.default_prog = { 'nu.exe', '-l' }
+end
+-- macOS/Linux では default_prog を設定せず、$SHELL → ログインシェルを自動採用
 config.default_domain = 'local'
 config.term = 'xterm-256color'
 
