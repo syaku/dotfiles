@@ -45,7 +45,10 @@
       "WebFetch(domain:0.0.0.0)",
       "WebFetch(domain:169.254.169.254)",
       "WebFetch(domain:*.local)",
-      "WebFetch(domain:*.internal)"
+      "WebFetch(domain:*.internal)"{{ if .denyClaudeAiConnectors | default false }},
+      "mcp__claude_ai_Gmail__*",
+      "mcp__claude_ai_Google_Calendar__*",
+      "mcp__claude_ai_Google_Drive__*"{{ end }}
     ]
   }
 }
