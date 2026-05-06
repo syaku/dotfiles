@@ -13,14 +13,8 @@ alias find "fd"
 
 alias man "tldr"
 
-# lessの代替としてのbat
-function less
-    if test -n "$argv"
-        bat --paging=always $argv
-    else
-        echo "使用方法: less <ファイル名> または パイプで入力"
-    end
-end
+alias diff "delta"
+
 
 # 短縮エイリアス
 alias g "grep"
