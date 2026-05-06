@@ -1,8 +1,6 @@
-# fortune設定ファイル
-# このファイルは起動時のfortune表示を設定します
-# 依存: 10-core.nu (check_commands関数)
+# 起動時バナー設定
+# 対話モードでのみ fastfetch を表示する (fish の 99-banner.fish と同等)
 
-# fortuneの表示
-if (check_commands "fortune" "lolcat") {
-    fortune .config\fortune\* | lolcat
-} 
+if $nu.is-interactive and (which fastfetch | is-not-empty) {
+    fastfetch
+}
