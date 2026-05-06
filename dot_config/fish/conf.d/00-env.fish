@@ -1,5 +1,10 @@
 # 00-env.fish - 環境変数の設定
 
+# Homebrew (Apple Silicon)
+if test -x /opt/homebrew/bin/brew
+    /opt/homebrew/bin/brew shellenv | source
+end
+
 # PATH の設定
 fish_add_path /snap/bin
 fish_add_path $HOME/.local/share/mise/shims
