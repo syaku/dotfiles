@@ -1,0 +1,112 @@
+/* 垂直タブ：ピン留めをアイコンのみ + 横並びグリッドに
+   参照: phi-for-vivaldi (KaKi87), Awesome-Vivaldi/Vivaldi7.9Stable/CSS/FavouriteTabs.css */
+
+:root {
+  --pinned-column-count: 4;
+  --pinned-tab-size: 40px;
+  --pinned-gap: 4px;
+  --pinned-block-top: 4px;
+}
+
+/* タブストリップを grid 化（列数はサイドバー幅に応じて自動） */
+#tabs-container .tab-strip {
+  display: grid !important;
+  grid-template-columns: repeat(var(--pinned-column-count), minmax(0, 1fr));
+  grid-auto-rows: min-content;
+  gap: var(--pinned-gap);
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* grid アイテム側も border-box にして padding/border が cell からはみ出さないように */
+#tabs-container .tab-position,
+#tabs-container .tab-wrapper,
+#tabs-container .tab-position.is-pinned .tab,
+#tabs-container .tab-position.is-pinned .tab.pinned {
+  box-sizing: border-box !important;
+}
+
+/* ピン留めブロック上部スペース */
+#tabs-container .tab-strip::before {
+  content: "" !important;
+  display: block !important;
+  height: var(--pinned-block-top) !important;
+  grid-column: 1 / -1 !important;
+}
+
+/* <span> 匿名ラッパだけ display: contents で透明化
+   （.tab-position は box を残してプレビュー位置計算を保護） */
+#tabs-container .tab-strip > span {
+  display: contents !important;
+}
+
+/* Vivaldi が打つ絶対配置の transform を打ち消し */
+#tabs-container .tab-position,
+#tabs-container .tab-wrapper,
+#tabs-container .tab-strip .separator,
+#tabs-container .tab-strip .newtab {
+  position: relative !important;
+  transform: none !important;
+  top: auto !important;
+  left: auto !important;
+  inset: auto !important;
+  z-index: 0;
+}
+
+/* ピン留めタブ：grid 1 セルぶん、正方形（インライン width/height を強制解除） */
+#tabs-container .tab-position.is-pinned {
+  grid-column: span 1 !important;
+  aspect-ratio: 1.5 !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  justify-self: stretch !important;
+  align-self: stretch !important;
+}
+
+#tabs-container .tab-position.is-pinned .tab-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+/* 通常タブ・新規タブボタン・セパレータは全列スパン */
+#tabs-container .tab-position:not(.is-pinned),
+#tabs-container .tab-strip > .newtab,
+#tabs-container .tab-strip .separator {
+  grid-column: 1 / -1 !important;
+}
+
+/* アクティブ非ピン留めタブの 1px はみ出しを cell 内側でクリップ */
+#tabs-container .tab-position:not(.is-pinned),
+#tabs-container .tab-position:not(.is-pinned) .tab-wrapper,
+#tabs-container .tab-position:not(.is-pinned) .tab {
+  overflow: hidden !important;
+}
+
+/* ピン留めタブのタイトル非表示 */
+#tabs-container .tab-position.is-pinned .title {
+  display: none !important;
+}
+
+/* ピン留め内部：ファビコンの絶対中央配置基準 */
+#tabs-container .tab-position.is-pinned .tab,
+#tabs-container .tab-position.is-pinned .tab.pinned {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+}
+
+/* ファビコンを強制的にセル中央に */
+#tabs-container .tab-position.is-pinned .favicon {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+  margin: 0 !important;
+}
