@@ -42,7 +42,7 @@ function mise {
 
 function Global:_mise_hook {
     if ($env:MISE_SHELL -eq "pwsh"){
-        & C:\Users\syaku\scoop\shims\mise.exe hook-env $args -s pwsh | Out-String | Invoke-Expression -ErrorAction SilentlyContinue
+        & mise.exe hook-env $args -s pwsh | Out-String | Invoke-Expression -ErrorAction SilentlyContinue
     }
 }
 

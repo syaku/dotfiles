@@ -42,6 +42,4 @@ $env.VISUAL = "cursor"
 $env.config.table.mode = 'rounded'
 
 # バナー表示の設定
-$env.config.show_banner = false 
-
-$env.CLAUDE_CODE_GIT_BASH_PATH = 'C:\Users\syaku\scoop\shims\bash.exe'
+$env.config.show_banner = false
