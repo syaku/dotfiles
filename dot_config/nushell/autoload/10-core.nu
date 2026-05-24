@@ -34,6 +34,9 @@ add_to_path $"($env.HOME)/.local/bin"
 # シェル設定
 $env.STARSHIP_SHELL = "nu"
 
+# 文字コード関連
+$env.LESSCHARSET = "utf-8"
+
 # エディタ設定
 $env.EDITOR = "nvim"
 $env.VISUAL = "cursor"

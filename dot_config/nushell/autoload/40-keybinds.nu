@@ -8,9 +8,19 @@ let custom_keybindings = [
         modifier: control
         keycode: char_g
         mode: [emacs, vi_normal, vi_insert]  # すべてのモードで有効
-        event: { 
+        event: {
             send: executehostcommand
             cmd: "ghq-fzf"
+        }
+    }
+    {
+        name: fbr_binding
+        modifier: control
+        keycode: char_b
+        mode: [emacs, vi_normal, vi_insert]
+        event: {
+            send: executehostcommand
+            cmd: "fbr"
         }
     }
     # 追加のキーバインドをここに記述可能
