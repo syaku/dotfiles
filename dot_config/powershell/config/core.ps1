@@ -21,5 +21,4 @@ $env:VISUAL = "cursor"
 # シェル設定
 $env:STARSHIP_SHELL = "pwsh"
 
-# ウィンドウタイトル
-$Host.UI.RawUI.WindowTitle = " pwsh"
+# ウィンドウタイトルは config/shell-integration.ps1 が prompt ごとに動的更新

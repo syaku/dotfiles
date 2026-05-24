@@ -3,3 +3,8 @@
 . "$HOME/.config/powershell/config/keybinds.ps1"
 . "$HOME/.config/powershell/config/aliases.ps1"
 . "$HOME/.config/powershell/config/mise.ps1"
+. "$HOME/.config/powershell/config/atuin.ps1"
+. "$HOME/.config/powershell/config/zoxide.ps1"
+. "$HOME/.config/powershell/config/carapace.ps1"
+. "$HOME/.config/powershell/config/shell-integration.ps1"
+. "$HOME/.config/powershell/config/banner.ps1"
