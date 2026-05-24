@@ -40,7 +40,6 @@
   aliases = !git config --get-regexp '^alias\\.' | sed 's/alias\\.\\([^ ]*\\) \\(.*\\)/\\1\\\t => \\2/' | sort
   
 [include]
-  path = ~/scoop/apps/delta/current/themes.gitconfig
   path = ~/.gitconfig.local
 
 [ghq]
@@ -59,5 +58,3 @@
   line-numbers = true
   hyperlinks = true
   hyperlinks-file-link-format = "vscode://file/{path}:{line}"
-[credential "helperselector"]
-	selected = manager
