@@ -11,25 +11,25 @@ remove-item alias:rmdir -ErrorAction SilentlyContinue
 remove-item function:mkdir -ErrorAction SilentlyContinue
 
 # ディレクトリ表示の関数
-function ls     { & "$HOME\.cargo\bin\eza.exe" --group-directories-first --hyperlink --icons --color=always @args }
-function ll     { & "$HOME\.cargo\bin\eza.exe" -l --group-directories-first --hyperlink --icons --color=always @args }
-function la     { & "$HOME\.cargo\bin\eza.exe" -a --group-directories-first --hyperlink --icons --color=always @args }
+function ls     { & "$HOME\.cargo\bin\eza.exe" --group-directories-first --hyperlink --icons=auto --color=auto @args }
+function ll     { & "$HOME\.cargo\bin\eza.exe" -l --group-directories-first --hyperlink --icons=auto --color=auto --git @args }
+function la     { ll -a @args }
 
 # ファイル操作の関数
 function cat    { & "$HOME\.cargo\bin\bat.exe" @args }
 function grep   { & "$HOME\.cargo\bin\rg.exe" @args }
-function find   { & "$HOME\.cargo\bin\fd.exe" @args }
 function man    { & "$HOME\.cargo\bin\tldr.exe" @args }
 
 # lessの代替としてのbat
+# 引数があればファイルとして開き、なければパイプ入力を $input で全件受ける。
+# （旧実装は ValueFromPipeline パラメータが位置バインドされ、`less file` が
+#  ファイル名文字列を表示してしまう／process ブロック無しでパイプが末尾のみ、
+#  という2つのバグがあった）
 function less {
-    param([Parameter(ValueFromPipeline=$true)]$InputObject)
-    if ($InputObject) {
-        $InputObject | & "$HOME\.cargo\bin\bat.exe" --paging=always
-    } elseif ($args) {
+    if ($args.Count -gt 0) {
         & "$HOME\.cargo\bin\bat.exe" --paging=always @args
     } else {
-        Write-Error "使用方法: less <ファイル名> または パイプで入力"
+        $input | & "$HOME\.cargo\bin\bat.exe" --paging=always
     }
 }
 
