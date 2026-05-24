@@ -9,23 +9,15 @@ return {
     end,
   },
 
-  -- ファイルエクスプローラー
+  -- ファイル操作・ピッカー統合（snacks.nvim）
   {
-    'nvim-tree/nvim-tree.lua',
-    dependencies = { 'nvim-tree/nvim-web-devicons' },
-    config = function()
-      require('nvim-tree').setup({
-        view = {
-          width = 30,
-        },
-        renderer = {
-          group_empty = true,
-        },
-        filters = {
-          dotfiles = true,
-        },
-      })
-    end,
+    'folke/snacks.nvim',
+    priority = 1000,
+    lazy = false,
+    opts = {
+      explorer = { enabled = true },
+      picker = { enabled = true },
+    },
   },
 
   -- ステータスライン
@@ -43,31 +35,13 @@ return {
     end,
   },
 
-  -- ファジーファインダー
-  {
-    'nvim-telescope/telescope.nvim',
-    dependencies = { 'nvim-lua/plenary.nvim' },
-    config = function()
-      local telescope = require('telescope')
-      telescope.setup({
-        defaults = {
-          mappings = {
-            i = {
-              ['<C-u>'] = false,
-              ['<C-d>'] = false,
-            },
-          },
-        },
-      })
-    end,
-  },
-
   -- LSP
   {
     'neovim/nvim-lspconfig',
     dependencies = {
       'williamboman/mason.nvim',
       'williamboman/mason-lspconfig.nvim',
+      'saghen/blink.cmp',
     },
     config = function()
       require('mason').setup()
@@ -80,92 +54,53 @@ return {
         },
       })
 
-      -- LSPの設定を追加
-      local lspconfig = require('lspconfig')
-      local capabilities = require('cmp_nvim_lsp').default_capabilities()
-
-      -- TypeScript LSPの設定
-      lspconfig.ts_ls.setup({
-        capabilities = capabilities,
-      })
-
-      -- Lua LSPの設定
-      lspconfig.lua_ls.setup({
-        capabilities = capabilities,
-      })
-
-      -- Rust LSPの設定
-      lspconfig.rust_analyzer.setup({
-        capabilities = capabilities,
-      })
-
-      -- Python LSPの設定
-      lspconfig.pyright.setup({
-        capabilities = capabilities,
-      })
+      -- Neovim 0.11 標準の vim.lsp.config / vim.lsp.enable を使用。
+      -- 各サーバのデフォルト設定は nvim-lspconfig の lsp/<name>.lua が提供する。
+      local capabilities = require('blink.cmp').get_lsp_capabilities()
+      vim.lsp.config('*', { capabilities = capabilities })
+      vim.lsp.enable({ 'ts_ls', 'lua_ls', 'rust_analyzer', 'pyright' })
     end,
   },
 
-  -- 補完
+  -- 補完（blink.cmp）
   {
-    'hrsh7th/nvim-cmp',
-    dependencies = {
-      'hrsh7th/cmp-nvim-lsp',
-      'hrsh7th/cmp-buffer',
-      'hrsh7th/cmp-path',
-      'hrsh7th/cmp-cmdline',
-      'L3MON4D3/LuaSnip',
-      'saadparwaiz1/cmp_luasnip',
+    'saghen/blink.cmp',
+    version = '1.*',
+    opts = {
+      -- 現状の nvim-cmp に近い操作感：Enter 確定、<C-Space> 表示、<C-e> 閉じる、<C-b>/<C-f> ドキュメントスクロール
+      keymap = { preset = 'enter' },
+      sources = {
+        default = { 'lsp', 'path', 'snippets', 'buffer' },
+      },
     },
-    config = function()
-      local cmp = require('cmp')
-      local luasnip = require('luasnip')
-
-      cmp.setup({
-        snippet = {
-          expand = function(args)
-            luasnip.lsp_expand(args.body)
-          end,
-        },
-        mapping = cmp.mapping.preset.insert({
-          ['<C-b>'] = cmp.mapping.scroll_docs(-4),
-          ['<C-f>'] = cmp.mapping.scroll_docs(4),
-          ['<C-Space>'] = cmp.mapping.complete(),
-          ['<C-e>'] = cmp.mapping.abort(),
-          ['<CR>'] = cmp.mapping.confirm({ select = true }),
-        }),
-        sources = cmp.config.sources({
-          { name = 'nvim_lsp' },
-          { name = 'luasnip' },
-        }, {
-          { name = 'buffer' },
-        }),
-      })
-    end,
   },
 
-  -- シンタックスハイライト
+  -- シンタックスハイライト（nvim-treesitter main ブランチの新API）
   {
     'nvim-treesitter/nvim-treesitter',
+    branch = 'main',
     build = ':TSUpdate',
     config = function()
-      require('nvim-treesitter.configs').setup({
-        ensure_installed = {
-          'lua',
-          'rust',
-          'go',
-          'typescript',
-          'javascript',
-          'python',
-          'markdown',
-          'markdown_inline',
-        },
-        highlight = {
-          enable = true,
-        },
-        indent = {
-          enable = true,
-        },
+      local langs = {
+        'lua',
+        'rust',
+        'go',
+        'typescript',
+        'javascript',
+        'python',
+        'markdown',
+        'markdown_inline',
+      }
+      -- パーサーをインストール（旧 ensure_installed 相当）
+      require('nvim-treesitter').install(langs)
+
+      -- ハイライトとインデントはバッファ単位で起動する（旧 highlight/indent enable 相当）
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = langs,
+        callback = function()
+          pcall(vim.treesitter.start)
+          vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+        end,
       })
     end,
   },

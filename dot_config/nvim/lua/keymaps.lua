@@ -23,14 +23,14 @@ keymap('n', '<leader>tc', ':tabclose<CR>', opts)
 keymap('n', '<leader>th', ':tabprev<CR>', opts)
 keymap('n', '<leader>tl', ':tabnext<CR>', opts)
 
--- ファイルエクスプローラー
-keymap('n', '<leader>e', ':NvimTreeToggle<CR>', opts)
+-- ファイルエクスプローラー（snacks）
+keymap('n', '<leader>e', function() Snacks.explorer() end, opts)
 
--- Telescope
-keymap('n', '<leader>ff', ':Telescope find_files<CR>', opts)
-keymap('n', '<leader>fg', ':Telescope live_grep<CR>', opts)
-keymap('n', '<leader>fb', ':Telescope buffers<CR>', opts)
-keymap('n', '<leader>fh', ':Telescope help_tags<CR>', opts)
+-- ピッカー（snacks）
+keymap('n', '<leader>ff', function() Snacks.picker.files() end, opts)
+keymap('n', '<leader>fg', function() Snacks.picker.grep() end, opts)
+keymap('n', '<leader>fb', function() Snacks.picker.buffers() end, opts)
+keymap('n', '<leader>fh', function() Snacks.picker.help() end, opts)
 
 -- LSP
 keymap('n', 'gd', vim.lsp.buf.definition, opts)
@@ -38,4 +38,4 @@ keymap('n', 'gr', vim.lsp.buf.references, opts)
 keymap('n', 'K', vim.lsp.buf.hover, opts)
 keymap('n', '<leader>ca', vim.lsp.buf.code_action, opts)
 keymap('n', '<leader>rn', vim.lsp.buf.rename, opts)
-keymap('n', '<leader>f', vim.lsp.buf.format, opts) 
+keymap('n', '<leader>cf', vim.lsp.buf.format, opts) 
