@@ -26,6 +26,9 @@
 .claude/shell-snapshots/
 .claude/session-env/
 
+# rules 配下の local-* はこの環境固有の規範。chezmoi に取り込まずローカルに閉じる
+.claude/rules/local-*.md
+
 # リポジトリ用ドキュメント（target に展開しない。先頭 / でルート限定）
 /CLAUDE.md
 
