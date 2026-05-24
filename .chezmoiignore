@@ -26,6 +26,9 @@
 .claude/shell-snapshots/
 .claude/session-env/
 
+# リポジトリ用ドキュメント（target に展開しない。先頭 / でルート限定）
+/CLAUDE.md
+
 # バックアップと一時ファイル
 .config/zsh/*~
 .config/zsh/*.zwc
