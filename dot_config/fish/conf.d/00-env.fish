@@ -16,7 +16,11 @@ set -gx LESSCHARSET utf-8
 
 # エディタ設定
 set -gx EDITOR nvim
-set -gx VISUAL cursor
+set -gx VISUAL "code --wait"
+
+# git 専用のエディタ/ページャ（gitconfig には書かず環境ごとに指定）
+set -gx GIT_EDITOR "code --wait"
+set -gx GIT_PAGER delta
 
 # シェル設定
 set -gx STARSHIP_SHELL fish

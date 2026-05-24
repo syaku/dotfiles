@@ -1,7 +1,5 @@
 [core]
   autocrlf = false
-  pager = delta
-  editor = cursor --wait
   excludesfile = ~/.gitignore_global
 
 [init]

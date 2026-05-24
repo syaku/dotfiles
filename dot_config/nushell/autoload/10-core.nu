@@ -39,7 +39,7 @@ $env.LESSCHARSET = "utf-8"
 
 # エディタ設定
 $env.EDITOR = "nvim"
-$env.VISUAL = "cursor"
+$env.VISUAL = "code --wait"
 
 # テーブルの表示モード
 $env.config.table.mode = 'rounded'

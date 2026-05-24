@@ -16,7 +16,11 @@ $env:LESSCHARSET = "utf-8"
 
 # エディタ設定
 $env:EDITOR = "nvim"
-$env:VISUAL = "cursor"
+$env:VISUAL = "code --wait"
+
+# git 専用のエディタ/ページャ（gitconfig には書かず環境ごとに指定）
+$env:GIT_EDITOR = "code --wait"
+$env:GIT_PAGER = "delta"
 
 # シェル設定
 $env:STARSHIP_SHELL = "pwsh"
