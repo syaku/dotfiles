@@ -66,7 +66,17 @@
   },
   "model": "claude-opus-4-7",
   {{- /* enabledPlugins must stay present (even empty): per anthropics/claude-code#27247, plugin enables declared in a project's settings.local.json are silently ignored unless lower-priority user settings also define enabledPlugins. The slack plugin is enabled in ~/workspace/.claude/settings.local.json. */}}
-  "enabledPlugins": {},
+  "enabledPlugins": {
+    "obsidian@obsidian-skills": true
+  },
+  "extraKnownMarketplaces": {
+    "obsidian-skills": {
+      "source": {
+        "source": "github",
+        "repo": "kepano/obsidian-skills"
+      }
+    }
+  },
   "effortLevel": "xhigh",
   "skipAutoPermissionPrompt": true{{ if eq .chezmoi.os "windows" }},
   "env": {
