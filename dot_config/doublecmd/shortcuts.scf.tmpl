@@ -1,3 +1,6 @@
+{{- /* chezmoi:template:line-endings=native */ -}}
+{{- $isWin := eq .chezmoi.os "windows" -}}
+{{- $mod := ternary "Ctrl" "Cmd" $isWin -}}
 <?xml version="1.0" encoding="UTF-8"?>
 <doublecmd DCVersion="1.1.32 gamma">
   <Hotkeys Version="63">
@@ -57,23 +60,23 @@
         <Command>cm_ShowCmdLineHistory</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Down</Shortcut>
+        <Shortcut>{{ $mod }}+Down</Shortcut>
         <Command>cm_ShowCmdLineHistory</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+B</Shortcut>
+        <Shortcut>{{ $mod }}+B</Shortcut>
         <Command>cm_FlatView</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+D</Shortcut>
+        <Shortcut>{{ $mod }}+D</Shortcut>
         <Command>cm_DirHotList</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F</Shortcut>
+        <Shortcut>{{ $mod }}+F</Shortcut>
         <Command>cm_QuickFilter</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+H</Shortcut>
+        <Shortcut>{{ $mod }}+H</Shortcut>
         <Command>cm_DirHistory</Command>
       </Hotkey>
       <Hotkey>
@@ -81,139 +84,139 @@
         <Command>cm_DirHistory</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+L</Shortcut>
+        <Shortcut>{{ $mod }}+L</Shortcut>
         <Command>cm_CalculateSpace</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+M</Shortcut>
+        <Shortcut>{{ $mod }}+M</Shortcut>
         <Command>cm_MultiRename</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+O</Shortcut>
+        <Shortcut>{{ $mod }}+O</Shortcut>
         <Command>cm_ToggleFullscreenConsole</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+P</Shortcut>
+        <Shortcut>{{ $mod }}+P</Shortcut>
         <Command>cm_AddPathToCmdLine</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Q</Shortcut>
+        <Shortcut>{{ $mod }}+Q</Shortcut>
         <Command>cm_QuickView</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+S</Shortcut>
+        <Shortcut>{{ $mod }}+S</Shortcut>
         <Command>cm_QuickSearch</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+R</Shortcut>
+        <Shortcut>{{ $mod }}+R</Shortcut>
         <Command>cm_Refresh</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+T</Shortcut>
+        <Shortcut>{{ $mod }}+T</Shortcut>
         <Command>cm_NewTab</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+U</Shortcut>
+        <Shortcut>{{ $mod }}+U</Shortcut>
         <Command>cm_Exchange</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+W</Shortcut>
+        <Shortcut>{{ $mod }}+W</Shortcut>
         <Command>cm_CloseTab</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F1</Shortcut>
+        <Shortcut>{{ $mod }}+F1</Shortcut>
         <Command>cm_BriefView</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F2</Shortcut>
+        <Shortcut>{{ $mod }}+F2</Shortcut>
         <Command>cm_ColumnsView</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F3</Shortcut>
+        <Shortcut>{{ $mod }}+F3</Shortcut>
         <Command>cm_SortByName</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F4</Shortcut>
+        <Shortcut>{{ $mod }}+F4</Shortcut>
         <Command>cm_SortByExt</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F5</Shortcut>
+        <Shortcut>{{ $mod }}+F5</Shortcut>
         <Command>cm_SortByDate</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F6</Shortcut>
+        <Shortcut>{{ $mod }}+F6</Shortcut>
         <Command>cm_SortBySize</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Enter</Shortcut>
-        <Command>cm_AddFilenameToCmdLine</Command>
+        <Shortcut>{{ $mod }}+Enter</Shortcut>
+        <Command>cm_ShellExecute</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+PgDn</Shortcut>
+        <Shortcut>{{ $mod }}+PgDn</Shortcut>
         <Command>cm_OpenArchive</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+PgUp</Shortcut>
+        <Shortcut>{{ $mod }}+PgUp</Shortcut>
         <Command>cm_ChangeDirToParent</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+A</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+A</Shortcut>
         <Command>cm_ShowTabsList</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+B</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+B</Shortcut>
         <Command>cm_FlatViewSel</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+C</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+C</Shortcut>
         <Command>cm_CopyFullNamesToClip</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+D</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+D</Shortcut>
         <Command>cm_ConfigDirHotList</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+H</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+H</Shortcut>
         <Command>cm_HorizontalFilePanels</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+X</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+X</Shortcut>
         <Command>cm_CopyNamesToClip</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+F1</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+F1</Shortcut>
         <Command>cm_ThumbnailsView</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+Enter</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+Enter</Shortcut>
         <Command>cm_AddPathAndFilenameToCmdLine</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+Tab</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+Tab</Shortcut>
         <Command>cm_PrevTab</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+F7</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+F7</Shortcut>
         <Command>cm_AddNewSearch</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+F8</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+F8</Shortcut>
         <Command>cm_TreeView</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Tab</Shortcut>
+        <Shortcut>{{ $mod }}+Tab</Shortcut>
         <Command>cm_NextTab</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Up</Shortcut>
+        <Shortcut>{{ $mod }}+Up</Shortcut>
         <Command>cm_OpenDirInNewTab</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+\</Shortcut>
+        <Shortcut>{{ $mod }}+\</Shortcut>
         <Command>cm_ChangeDirToRoot</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+.</Shortcut>
+        <Shortcut>{{ $mod }}+.</Shortcut>
         <Command>cm_ShowSysFiles</Command>
       </Hotkey>
       <Hotkey>
@@ -347,47 +350,47 @@
         <Param>index=-1</Param>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+1</Shortcut>
+        <Shortcut>{{ $mod }}+1</Shortcut>
         <Command>cm_OpenDriveByIndex</Command>
         <Param>index=1</Param>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+2</Shortcut>
+        <Shortcut>{{ $mod }}+2</Shortcut>
         <Command>cm_OpenDriveByIndex</Command>
         <Param>index=2</Param>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+3</Shortcut>
+        <Shortcut>{{ $mod }}+3</Shortcut>
         <Command>cm_OpenDriveByIndex</Command>
         <Param>index=3</Param>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+4</Shortcut>
+        <Shortcut>{{ $mod }}+4</Shortcut>
         <Command>cm_OpenDriveByIndex</Command>
         <Param>index=4</Param>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+5</Shortcut>
+        <Shortcut>{{ $mod }}+5</Shortcut>
         <Command>cm_OpenDriveByIndex</Command>
         <Param>index=5</Param>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+6</Shortcut>
+        <Shortcut>{{ $mod }}+6</Shortcut>
         <Command>cm_OpenDriveByIndex</Command>
         <Param>index=6</Param>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+7</Shortcut>
+        <Shortcut>{{ $mod }}+7</Shortcut>
         <Command>cm_OpenDriveByIndex</Command>
         <Param>index=7</Param>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+8</Shortcut>
+        <Shortcut>{{ $mod }}+8</Shortcut>
         <Command>cm_OpenDriveByIndex</Command>
         <Param>index=8</Param>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+9</Shortcut>
+        <Shortcut>{{ $mod }}+9</Shortcut>
         <Command>cm_OpenDriveByIndex</Command>
         <Param>index=9</Param>
       </Hotkey>
@@ -403,12 +406,12 @@
         <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+A</Shortcut>
+        <Shortcut>{{ $mod }}+A</Shortcut>
         <Command>cm_MarkMarkAll</Command>
         <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Num+</Shortcut>
+        <Shortcut>{{ $mod }}+Num+</Shortcut>
         <Command>cm_MarkMarkAll</Command>
         <Control>Files Panel</Control>
       </Hotkey>
@@ -423,7 +426,7 @@
         <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Num-</Shortcut>
+        <Shortcut>{{ $mod }}+Num-</Shortcut>
         <Command>cm_MarkUnmarkAll</Command>
         <Control>Files Panel</Control>
       </Hotkey>
@@ -443,37 +446,37 @@
         <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Z</Shortcut>
+        <Shortcut>{{ $mod }}+Z</Shortcut>
         <Command>cm_EditComment</Command>
         <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+Home</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+Home</Shortcut>
         <Command>cm_ChangeDirToHome</Command>
         <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Left</Shortcut>
+        <Shortcut>{{ $mod }}+Left</Shortcut>
         <Command>cm_TransferLeft</Command>
         <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Right</Shortcut>
+        <Shortcut>{{ $mod }}+Right</Shortcut>
         <Command>cm_TransferRight</Command>
         <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+C</Shortcut>
+        <Shortcut>{{ $mod }}+C</Shortcut>
         <Command>cm_CopyToClipboard</Command>
         <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+V</Shortcut>
+        <Shortcut>{{ $mod }}+V</Shortcut>
         <Command>cm_PasteFromClipboard</Command>
         <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+X</Shortcut>
+        <Shortcut>{{ $mod }}+X</Shortcut>
         <Command>cm_CutToClipboard</Command>
         <Control>Files Panel</Control>
       </Hotkey>
@@ -571,8 +574,9 @@
       </Hotkey>
       <Hotkey>
         <Shortcut>.</Shortcut>
-        <Command>cm_ShowSysFiles</Command>
-        <Control>Files Panel</Control>
+        <Command>{{ if $isWin }}cm_ExecuteScript{{ else }}cm_ShowSysFiles{{ end }}</Command>
+{{ if $isWin }}        <Param>D:\Tools\doublecmd\scripts\toggle-hiddne.lua</Param>
+{{ end }}        <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
         <Shortcut>Z</Shortcut>
@@ -580,13 +584,28 @@
         <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+Enter</Shortcut>
-        <Command>cm_ShellExecute</Command>
+        <Shortcut>Shift+E</Shortcut>
+        <Command>cm_EditNew</Command>
         <Control>Files Panel</Control>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Shift+E</Shortcut>
-        <Command>cm_EditNew</Command>
+        <Shortcut>Shift+T</Shortcut>
+        <Command>cm_SortByDate</Command>
+        <Control>Files Panel</Control>
+      </Hotkey>
+      <Hotkey>
+        <Shortcut>Shift+N</Shortcut>
+        <Command>cm_SortByName</Command>
+        <Control>Files Panel</Control>
+      </Hotkey>
+      <Hotkey>
+        <Shortcut>V</Shortcut>
+        <Command>cm_QuickView</Command>
+        <Control>Files Panel</Control>
+      </Hotkey>
+      <Hotkey>
+        <Shortcut>{{ $mod }}+,</Shortcut>
+        <Command>cm_SwitchIgnoreList</Command>
         <Control>Files Panel</Control>
       </Hotkey>
     </Form>
@@ -680,7 +699,7 @@
         <Command>cm_ExitViewer</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+F</Shortcut>
+        <Shortcut>{{ $mod }}+F</Shortcut>
         <Command>cm_Find</Command>
       </Hotkey>
       <Hotkey>
@@ -712,23 +731,23 @@
         <Command>cm_Fullscreen</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+P</Shortcut>
+        <Shortcut>{{ $mod }}+P</Shortcut>
         <Command>cm_Print</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+G</Shortcut>
+        <Shortcut>{{ $mod }}+G</Shortcut>
         <Command>cm_GotoLine</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+A</Shortcut>
+        <Shortcut>{{ $mod }}+A</Shortcut>
         <Command>cm_SelectAll</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+C</Shortcut>
+        <Shortcut>{{ $mod }}+C</Shortcut>
         <Command>cm_CopyToClipboard</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+Z</Shortcut>
+        <Shortcut>{{ $mod }}+Z</Shortcut>
         <Command>cm_Undo</Command>
       </Hotkey>
       <Hotkey>
@@ -754,11 +773,11 @@
     </Form>
     <Form Name="Differ">
       <Hotkey>
-        <Shortcut>Ctrl+R</Shortcut>
+        <Shortcut>{{ $mod }}+R</Shortcut>
         <Command>cm_Reload</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+F</Shortcut>
+        <Shortcut>{{ $mod }}+F</Shortcut>
         <Command>cm_Find</Command>
       </Hotkey>
       <Hotkey>
@@ -774,7 +793,7 @@
         <Command>cm_FindPrev</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+G</Shortcut>
+        <Shortcut>{{ $mod }}+G</Shortcut>
         <Command>cm_GotoLine</Command>
       </Hotkey>
       <Hotkey>
@@ -834,29 +853,29 @@
     </Form>
     <Form Name="Synchronize Directories">
       <Hotkey>
-        <Shortcut>Cmd+M</Shortcut>
+        <Shortcut>{{ $mod }}+M</Shortcut>
         <Command>cm_SelectClear</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+D</Shortcut>
+        <Shortcut>{{ $mod }}+D</Shortcut>
         <Command>cm_SelectCopyDefault</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+W</Shortcut>
+        <Shortcut>{{ $mod }}+W</Shortcut>
         <Command>cm_SelectCopyReverse</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+L</Shortcut>
+        <Shortcut>{{ $mod }}+L</Shortcut>
         <Command>cm_SelectCopyLeftToRight</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+R</Shortcut>
+        <Shortcut>{{ $mod }}+R</Shortcut>
         <Command>cm_SelectCopyRightToLeft</Command>
       </Hotkey>
     </Form>
     <Form Name="Editor">
       <Hotkey>
-        <Shortcut>Cmd+F</Shortcut>
+        <Shortcut>{{ $mod }}+F</Shortcut>
         <Command>cm_EditFind</Command>
       </Hotkey>
       <Hotkey>
@@ -868,7 +887,7 @@
         <Command>cm_FileSave</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+S</Shortcut>
+        <Shortcut>{{ $mod }}+S</Shortcut>
         <Command>cm_FileSave</Command>
       </Hotkey>
       <Hotkey>
@@ -888,43 +907,43 @@
         <Command>cm_FileExit</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+X</Shortcut>
+        <Shortcut>{{ $mod }}+X</Shortcut>
         <Command>cm_EditCut</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+N</Shortcut>
+        <Shortcut>{{ $mod }}+N</Shortcut>
         <Command>cm_FileNew</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+O</Shortcut>
+        <Shortcut>{{ $mod }}+O</Shortcut>
         <Command>cm_FileOpen</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+R</Shortcut>
+        <Shortcut>{{ $mod }}+R</Shortcut>
         <Command>cm_EditRplc</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+C</Shortcut>
+        <Shortcut>{{ $mod }}+C</Shortcut>
         <Command>cm_EditCopy</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+Z</Shortcut>
+        <Shortcut>{{ $mod }}+Z</Shortcut>
         <Command>cm_EditUndo</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+V</Shortcut>
+        <Shortcut>{{ $mod }}+V</Shortcut>
         <Command>cm_EditPaste</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+A</Shortcut>
+        <Shortcut>{{ $mod }}+A</Shortcut>
         <Command>cm_EditSelectAll</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Shift+Cmd+Z</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+Z</Shortcut>
         <Command>cm_EditRedo</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+G</Shortcut>
+        <Shortcut>{{ $mod }}+G</Shortcut>
         <Command>cm_EditGotoLine</Command>
       </Hotkey>
     </Form>
@@ -950,15 +969,15 @@
         <Command>cm_CancelClose</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+N</Shortcut>
+        <Shortcut>{{ $mod }}+N</Shortcut>
         <Command>cm_NewSearch</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+N</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+N</Shortcut>
         <Command>cm_NewSearchClearFilters</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+L</Shortcut>
+        <Shortcut>{{ $mod }}+L</Shortcut>
         <Command>cm_LastSearch</Command>
       </Hotkey>
       <Hotkey>
@@ -990,21 +1009,21 @@
         <Command>cm_FreeFromMem</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Cmd+Tab</Shortcut>
+        <Shortcut>{{ $mod }}+Tab</Shortcut>
         <Command>cm_PageNext</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Shift+Cmd+Tab</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+Tab</Shortcut>
         <Command>cm_PagePrev</Command>
       </Hotkey>
     </Form>
     <Form Name="MultiRename">
       <Hotkey>
-        <Shortcut>Ctrl+R</Shortcut>
+        <Shortcut>{{ $mod }}+R</Shortcut>
         <Command>cm_ResetAll</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+I</Shortcut>
+        <Shortcut>{{ $mod }}+I</Shortcut>
         <Command>cm_InvokeEditor</Command>
       </Hotkey>
       <Hotkey>
@@ -1080,7 +1099,7 @@
         <Command>cm_LoadPreset9</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+S</Shortcut>
+        <Shortcut>{{ $mod }}+S</Shortcut>
         <Command>cm_SavePreset</Command>
       </Hotkey>
       <Hotkey>
@@ -1092,67 +1111,67 @@
         <Command>cm_RenamePreset</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+D</Shortcut>
+        <Shortcut>{{ $mod }}+D</Shortcut>
         <Command>cm_DeletePreset</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+S</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+S</Shortcut>
         <Command>cm_SortPresets</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F2</Shortcut>
+        <Shortcut>{{ $mod }}+F2</Shortcut>
         <Command>cm_AnyNameMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F3</Shortcut>
+        <Shortcut>{{ $mod }}+F3</Shortcut>
         <Command>cm_NameNameMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F4</Shortcut>
+        <Shortcut>{{ $mod }}+F4</Shortcut>
         <Command>cm_ExtNameMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F7</Shortcut>
+        <Shortcut>{{ $mod }}+F7</Shortcut>
         <Command>cm_CtrNameMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F5</Shortcut>
+        <Shortcut>{{ $mod }}+F5</Shortcut>
         <Command>cm_DateNameMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F6</Shortcut>
+        <Shortcut>{{ $mod }}+F6</Shortcut>
         <Command>cm_TimeNameMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+F1</Shortcut>
+        <Shortcut>{{ $mod }}+F1</Shortcut>
         <Command>cm_PlgnNameMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+F2</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+F2</Shortcut>
         <Command>cm_AnyExtMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+F3</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+F3</Shortcut>
         <Command>cm_NameExtMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+F4</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+F4</Shortcut>
         <Command>cm_ExtExtMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+F7</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+F7</Shortcut>
         <Command>cm_CtrExtMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+F5</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+F5</Shortcut>
         <Command>cm_DateExtMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+F6</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+F6</Shortcut>
         <Command>cm_TimeExtMask</Command>
       </Hotkey>
       <Hotkey>
-        <Shortcut>Ctrl+Shift+F1</Shortcut>
+        <Shortcut>{{ $mod }}+Shift+F1</Shortcut>
         <Command>cm_PlgnExtMask</Command>
       </Hotkey>
     </Form>

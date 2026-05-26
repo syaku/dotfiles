@@ -1,5 +1,6 @@
+{{- /* chezmoi:template:line-endings=native */ -}}
 [7Z]
-Archiver=7za
+Archiver=7za{{ if eq .chezmoi.os "windows" }}.exe{{ end }}
 Description=7-Zip - www.7-zip.org
 ID=37 7A BC AF 27 1C
 IDPos=0
@@ -23,7 +24,7 @@ Output=0
 Debug=0
 
 [7Z (ro)]
-Archiver=7z
+Archiver=7z{{ if eq .chezmoi.os "windows" }}.exe{{ end }}
 Description=7-Zip - www.7-zip.org
 ID=
 IDPos=
@@ -47,7 +48,7 @@ Output=0
 Debug=0
 
 [ACE]
-Archiver=ace
+Archiver=ace{{ if eq .chezmoi.os "windows" }}.exe{{ end }}
 Description=ACE v2.0.4
 ID=
 IDPos=
@@ -71,7 +72,7 @@ Output=0
 Debug=0
 
 [ARJ]
-Archiver=arj
+Archiver=arj{{ if eq .chezmoi.os "windows" }}.exe{{ end }}
 Description=ARJ 3.15 by ARJ Software, Inc.
 ID=60 EA
 IDPos=0
@@ -98,7 +99,7 @@ Output=0
 Debug=0
 
 [ZPAQ]
-Archiver=zpaq
+Archiver=zpaq{{ if eq .chezmoi.os "windows" }}.exe{{ end }}
 Description=ZPAQ - http://mattmahoney.net/dc/zpaq.html
 ID=
 IDPos=
@@ -122,7 +123,7 @@ Output=0
 Debug=0
 
 [FreeArc]
-Archiver=arc
+Archiver=arc{{ if eq .chezmoi.os "windows" }}.exe{{ end }}
 Description=FreeArc 0.67
 ID=41 72 43 01
 IDPos=0, -38, -39, -40, <SeekID>

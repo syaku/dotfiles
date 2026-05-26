@@ -1,3 +1,23 @@
+{{- /* chezmoi:template:line-endings=native */ -}}
+{{- $isWin := eq .chezmoi.os "windows" -}}
+{{- $sep := "/" -}}
+{{- $fontName := "UDEV Gothic NF" -}}
+{{- $fontQ := "0" -}}
+{{- $fontStyleBold := "0" -}}
+{{- $fontPathEdit := "UDEV Gothic NF" -}}
+{{- $tvmName := "default" -}}
+{{- $viewerBookSize := "14" -}}
+{{- $statusBarSize := "10" -}}
+{{- if $isWin -}}
+{{- $sep = `\` -}}
+{{- $fontName = "UDEV Gothic" -}}
+{{- $fontQ = "1" -}}
+{{- $fontStyleBold = "1" -}}
+{{- $fontPathEdit = "PlemolJP Console Medium" -}}
+{{- $tvmName = "UDEV Gothic" -}}
+{{- $viewerBookSize = "12" -}}
+{{- $statusBarSize = "0" -}}
+{{- end -}}
 <?xml version="1.0" encoding="UTF-8"?>
 <doublecmd DCVersion="1.1.32 gamma" ConfigVersion="15">
   <Toolbars>
@@ -158,10 +178,10 @@
   </Toolbars>
   <MainWindow>
     <Position Save="False">
-      <Left>1722</Left>
-      <Top>736</Top>
-      <Width>1712</Width>
-      <Height>671</Height>
+      <Left>1720</Left>
+      <Top>701</Top>
+      <Width>1703</Width>
+      <Height>653</Height>
       <PixelsPerInch>96</PixelsPerInch>
       <Maximized>False</Maximized>
       <Splitter>50</Splitter>
@@ -174,12 +194,21 @@
     <GoToRoot>False</GoToRoot>
     <ShowCurDirTitleBar>False</ShowCurDirTitleBar>
     <ActiveRight>False</ActiveRight>
+{{- if $isWin }}
+    <RunInTerminalStayOpenCmd>cmd.exe</RunInTerminalStayOpenCmd>
+    <RunInTerminalStayOpenParams>/K {command}</RunInTerminalStayOpenParams>
+    <RunInTerminalCloseCmd>cmd.exe</RunInTerminalCloseCmd>
+    <RunInTerminalCloseParams>/C {command}</RunInTerminalCloseParams>
+    <JustRunTerminal>cmd.exe</JustRunTerminal>
+    <JustRunTermParams/>
+{{- else }}
     <RunInTerminalStayOpenCmd>%COMMANDER_PATH%/scripts/terminal.sh</RunInTerminalStayOpenCmd>
     <RunInTerminalStayOpenParams>'{command}'</RunInTerminalStayOpenParams>
     <RunInTerminalCloseCmd/>
     <RunInTerminalCloseParams/>
     <JustRunTerminal>/System/Applications/Utilities/Terminal.app</JustRunTerminal>
     <JustRunTermParams>%D</JustRunTermParams>
+{{- end }}
     <OnlyOneAppInstance>True</OnlyOneAppInstance>
     <LynxLike>False</LynxLike>
     <FileSizeFormat>0</FileSizeFormat>
@@ -199,19 +228,19 @@
     <MinimizeToTray>False</MinimizeToTray>
     <AlwaysShowTrayIcon>False</AlwaysShowTrayIcon>
     <Mouse>
-      <Selection Enabled="False">
+      <Selection Enabled="{{ if $isWin }}True{{ else }}False{{ end }}">
         <Button>0</Button>
         <IconClick>0</IconClick>
       </Selection>
       <SingleClickStart>0</SingleClickStart>
       <ScrollMode>1</ScrollMode>
-      <WheelScrollLines>1</WheelScrollLines>
+      <WheelScrollLines>{{ if $isWin }}3{{ else }}1{{ end }}</WheelScrollLines>
     </Mouse>
     <AutoFillColumns>True</AutoFillColumns>
     <AutoSizeColumn>0</AutoSizeColumn>
     <CustomColumnsChangeAllColumns>False</CustomColumnsChangeAllColumns>
     <BriefViewFileExtAligned>False</BriefViewFileExtAligned>
-    <DateTimeFormat>yy/mm/dd hh:nn:ss</DateTimeFormat>
+    <DateTimeFormat>{{ if $isWin }}yyyy/MM/dd hh:nn:ss{{ else }}yy/mm/dd hh:nn:ss{{ end }}</DateTimeFormat>
     <ColumnsTitleLikeValues>False</ColumnsTitleLikeValues>
     <CutTextToColumnWidth>True</CutTextToColumnWidth>
     <ExtendCellWidth>False</ExtendCellWidth>
@@ -246,70 +275,70 @@
   </Tools>
   <Fonts>
     <Main>
-      <Name>UDEV Gothic NF</Name>
+      <Name>{{ $fontName }}</Name>
       <Size>10</Size>
-      <Style>0</Style>
-      <Quality>0</Quality>
+      <Style>{{ $fontStyleBold }}</Style>
+      <Quality>{{ $fontQ }}</Quality>
     </Main>
     <Editor>
-      <Name>UDEV Gothic NF</Name>
+      <Name>{{ $fontName }}</Name>
       <Size>10</Size>
       <Style>0</Style>
-      <Quality>0</Quality>
+      <Quality>{{ $fontQ }}</Quality>
     </Editor>
     <Viewer>
-      <Name>UDEV Gothic NF</Name>
+      <Name>{{ $fontName }}</Name>
       <Size>10</Size>
       <Style>0</Style>
-      <Quality>0</Quality>
+      <Quality>{{ $fontQ }}</Quality>
     </Viewer>
     <ViewerBook>
-      <Name>UDEV Gothic NF</Name>
-      <Size>14</Size>
+      <Name>{{ $fontName }}</Name>
+      <Size>{{ $viewerBookSize }}</Size>
       <Style>1</Style>
-      <Quality>0</Quality>
+      <Quality>{{ $fontQ }}</Quality>
     </ViewerBook>
     <Log>
-      <Name>UDEV Gothic NF</Name>
+      <Name>{{ $fontName }}</Name>
       <Size>12</Size>
       <Style>0</Style>
-      <Quality>0</Quality>
+      <Quality>{{ $fontQ }}</Quality>
     </Log>
     <Console>
-      <Name>UDEV Gothic NF</Name>
+      <Name>{{ $fontName }}</Name>
       <Size>12</Size>
       <Style>0</Style>
-      <Quality>0</Quality>
+      <Quality>{{ $fontQ }}</Quality>
     </Console>
     <PathEdit>
-      <Name>UDEV Gothic NF</Name>
+      <Name>{{ $fontPathEdit }}</Name>
       <Size>12</Size>
       <Style>2</Style>
-      <Quality>0</Quality>
+      <Quality>{{ $fontQ }}</Quality>
     </PathEdit>
     <FunctionButtons>
-      <Name>UDEV Gothic NF</Name>
+      <Name>{{ $fontName }}</Name>
       <Size>10</Size>
       <Style>0</Style>
-      <Quality>0</Quality>
+      <Quality>{{ $fontQ }}</Quality>
     </FunctionButtons>
     <SearchResults>
-      <Name>UDEV Gothic NF</Name>
+      <Name>{{ $fontName }}</Name>
       <Size>10</Size>
       <Style>0</Style>
-      <Quality>0</Quality>
+      <Quality>{{ $fontQ }}</Quality>
     </SearchResults>
     <TreeViewMenu>
-      <Name>default</Name>
+      <Name>{{ $tvmName }}</Name>
       <Size>10</Size>
       <Style>0</Style>
-      <Quality>0</Quality>
+      <Quality>{{ $fontQ }}</Quality>
     </TreeViewMenu>
     <StatusBar>
-      <Name>UDEV Gothic NF</Name>
-      <Size>10</Size>
+      <Name>{{ $fontName }}</Name>
+      <Size>{{ $statusBarSize }}</Size>
       <Style>0</Style>
-      <Quality>0</Quality>
+      <Quality>{{ $fontQ }}</Quality>
     </StatusBar>
   </Fonts>
   <Colors>
@@ -331,7 +360,7 @@
     <CustomFields/>
   </ToolTips>
   <Layout>
-    <MainMenu>True</MainMenu>
+    <MainMenu>{{ if $isWin }}False{{ else }}True{{ end }}</MainMenu>
     <ButtonBar Enabled="False">
       <FlatIcons>True</FlatIcons>
       <ButtonHeight>24</ButtonHeight>
@@ -469,7 +498,7 @@
       <MulRenLaunchBehavor>0</MulRenLaunchBehavor>
       <MulRenExitModifiedPreset>0</MulRenExitModifiedPreset>
       <MulRenSaveRenamingLog>0</MulRenSaveRenamingLog>
-      <MulRenLogFilename>%DC_CONFIG_PATH%/multirename.log</MulRenLogFilename>
+      <MulRenLogFilename>%DC_CONFIG_PATH%{{ $sep }}multirename.log</MulRenLogFilename>
       <MultRenDailyIndividualDirLog>True</MultRenDailyIndividualDirLog>
       <MulRenFilenameWithFullPathInLog>False</MulRenFilenameWithFullPathInLog>
       <MulRenPathRangeSeparator>- </MulRenPathRangeSeparator>
@@ -482,7 +511,7 @@
     <ActionOnDoubleClick>2</ActionOnDoubleClick>
   </Tabs>
   <Log Enabled="False" Count="0" LogFileWithDateInName="False">
-    <FileName>%DC_CONFIG_PATH%/doublecmd.log</FileName>
+    <FileName>%DC_CONFIG_PATH%{{ $sep }}doublecmd.log</FileName>
     <Options>1023</Options>
   </Log>
   <Configuration Save="True" SortOrder="1" TreeType="0">
@@ -545,7 +574,7 @@
     <Theme>dctheme</Theme>
     <ShowHiddenDimmed>False</ShowHiddenDimmed>
     <ShowMode>0</ShowMode>
-    <ShowOverlays>True</ShowOverlays>
+    <ShowOverlays>{{ if $isWin }}False{{ else }}True{{ end }}</ShowOverlays>
     <Size>32</Size>
     <DiskSize>16</DiskSize>
     <DiskAlpha>50</DiskAlpha>
@@ -557,12 +586,21 @@
     <ShowInMenus Enabled="False">
       <Size>16</Size>
     </ShowInMenus>
-    <ShowButtonGlyphs>0</ShowButtonGlyphs>
+    <ShowButtonGlyphs>{{ if $isWin }}1{{ else }}0{{ end }}</ShowButtonGlyphs>
   </Icons>
-  <IgnoreList Enabled="False">
-    <IgnoreListFile>%DC_CONFIG_PATH%/ignorelist.txt</IgnoreListFile>
+  <IgnoreList Enabled="{{ if $isWin }}True{{ else }}False{{ end }}">
+    <IgnoreListFile>%DC_CONFIG_PATH%{{ $sep }}ignorelist.txt</IgnoreListFile>
   </IgnoreList>
-  <DirectoryHotList/>
+  <DirectoryHotList>
+{{- if $isWin }}
+    <HotDir Name="1.Home" Path="%HOME%"/>
+    <HotDir Name="2.Desktop" Path="%HOME%\Desktop"/>
+    <HotDir Name="3.Documents" Path="%HOME%\Documents"/>
+    <HotDir Name="4.Downloads" Path="%HOME%\Downloads"/>
+    <HotDir Name="-" Path=""/>
+    <HotDir Name="Workspace" Path="%HOME%\workspace"/>
+{{- end }}
+  </DirectoryHotList>
   <Viewer>
     <PreviewVisible>False</PreviewVisible>
     <ImageStretch>False</ImageStretch>
@@ -698,7 +736,7 @@
     <FavTabsLastUniqueID>{C29A08EC-EEA4-2BE1-26B2-81564E9825FB}</FavTabsLastUniqueID>
   </FavoriteTabsOptions>
   <Lua>
-    <PathToLibrary>liblua5.1.dylib</PathToLibrary>
+    <PathToLibrary>{{ if $isWin }}lua5.1.dll{{ else }}liblua5.1.dylib{{ end }}</PathToLibrary>
   </Lua>
   <NameShortcutFile>shortcuts.scf</NameShortcutFile>
   <HotKeySortOrder>0</HotKeySortOrder>
@@ -719,7 +757,7 @@
       <CustomView>False</CustomView>
       <FileSystem>&lt;General&gt;</FileSystem>
       <PixelsPerInch>96</PixelsPerInch>
-      <CursorBorder Enabled="False"/>
+      <CursorBorder Enabled="{{ if $isWin }}True{{ else }}False{{ end }}"/>
       <Columns>
         <Column>
           <Title>名前</Title>
@@ -728,9 +766,9 @@
           <Width>250</Width>
           <Align>0</Align>
           <Font>
-            <Name>UDEV Gothic NF</Name>
+            <Name>{{ $fontName }}</Name>
             <Size>10</Size>
-            <Style>0</Style>
+            <Style>{{ $fontStyleBold }}</Style>
             <Quality>0</Quality>
           </Font>
           <UseInvertedSelection>False</UseInvertedSelection>
@@ -744,9 +782,9 @@
           <Width>50</Width>
           <Align>0</Align>
           <Font>
-            <Name>UDEV Gothic NF</Name>
+            <Name>{{ $fontName }}</Name>
             <Size>10</Size>
-            <Style>0</Style>
+            <Style>{{ $fontStyleBold }}</Style>
             <Quality>0</Quality>
           </Font>
           <UseInvertedSelection>False</UseInvertedSelection>
@@ -760,9 +798,9 @@
           <Width>70</Width>
           <Align>1</Align>
           <Font>
-            <Name>UDEV Gothic NF</Name>
+            <Name>{{ $fontName }}</Name>
             <Size>10</Size>
-            <Style>0</Style>
+            <Style>{{ $fontStyleBold }}</Style>
             <Quality>0</Quality>
           </Font>
           <UseInvertedSelection>False</UseInvertedSelection>
@@ -776,9 +814,9 @@
           <Width>140</Width>
           <Align>1</Align>
           <Font>
-            <Name>UDEV Gothic NF</Name>
+            <Name>{{ $fontName }}</Name>
             <Size>10</Size>
-            <Style>0</Style>
+            <Style>{{ $fontStyleBold }}</Style>
             <Quality>0</Quality>
           </Font>
           <UseInvertedSelection>False</UseInvertedSelection>
@@ -793,49 +831,168 @@
     <WcxPlugins>
       <WcxPlugin Enabled="True">
         <ArchiveExt>zip</ArchiveExt>
-        <Path>%commander_path%/plugins/wcx/zip/zip.wcx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wcx{{ $sep }}zip{{ $sep }}zip.wcx</Path>
         <Flags>735</Flags>
       </WcxPlugin>
       <WcxPlugin Enabled="True">
         <ArchiveExt>jar</ArchiveExt>
-        <Path>%commander_path%/plugins/wcx/zip/zip.wcx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wcx{{ $sep }}zip{{ $sep }}zip.wcx</Path>
         <Flags>990</Flags>
       </WcxPlugin>
+{{- if $isWin }}
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>7z</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>607</Flags>
+      </WcxPlugin>
+{{- end }}
       <WcxPlugin Enabled="True">
         <ArchiveExt>tar</ArchiveExt>
-        <Path>%commander_path%/plugins/wcx/zip/zip.wcx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wcx{{ $sep }}zip{{ $sep }}zip.wcx</Path>
         <Flags>223</Flags>
       </WcxPlugin>
       <WcxPlugin Enabled="True">
         <ArchiveExt>bz2</ArchiveExt>
-        <Path>%commander_path%/plugins/wcx/zip/zip.wcx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wcx{{ $sep }}zip{{ $sep }}zip.wcx</Path>
         <Flags>91</Flags>
       </WcxPlugin>
       <WcxPlugin Enabled="True">
         <ArchiveExt>tbz</ArchiveExt>
-        <Path>%commander_path%/plugins/wcx/zip/zip.wcx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wcx{{ $sep }}zip{{ $sep }}zip.wcx</Path>
         <Flags>95</Flags>
       </WcxPlugin>
       <WcxPlugin Enabled="True">
         <ArchiveExt>gz</ArchiveExt>
-        <Path>%commander_path%/plugins/wcx/zip/zip.wcx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wcx{{ $sep }}zip{{ $sep }}zip.wcx</Path>
         <Flags>91</Flags>
       </WcxPlugin>
       <WcxPlugin Enabled="True">
         <ArchiveExt>tgz</ArchiveExt>
-        <Path>%commander_path%/plugins/wcx/zip/zip.wcx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wcx{{ $sep }}zip{{ $sep }}zip.wcx</Path>
         <Flags>95</Flags>
       </WcxPlugin>
       <WcxPlugin Enabled="True">
         <ArchiveExt>lzma</ArchiveExt>
-        <Path>%commander_path%/plugins/wcx/zip/zip.wcx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wcx{{ $sep }}zip{{ $sep }}zip.wcx</Path>
         <Flags>1</Flags>
       </WcxPlugin>
       <WcxPlugin Enabled="True">
         <ArchiveExt>tlz</ArchiveExt>
-        <Path>%commander_path%/plugins/wcx/zip/zip.wcx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wcx{{ $sep }}zip{{ $sep }}zip.wcx</Path>
         <Flags>95</Flags>
       </WcxPlugin>
+{{- if $isWin }}
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>xz</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\zip\zip.wcx</Path>
+        <Flags>91</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>zst</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\zip\zip.wcx</Path>
+        <Flags>91</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>txz</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\zip\zip.wcx</Path>
+        <Flags>95</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>zipx</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\zip\zip.wcx</Path>
+        <Flags>223</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>cpio</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>deb</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>arj</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>cab</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>cramfs</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>dmg</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>fat</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>hfs</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>iso</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>lha</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>lzh</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>ntfs</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>squashfs</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>taz</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>vhd</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>wim</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>85</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>xar</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+      <WcxPlugin Enabled="True">
+        <ArchiveExt>z</ArchiveExt>
+        <Path>%commander_path%\plugins\wcx\sevenzip\sevenzip.wcx</Path>
+        <Flags>4</Flags>
+      </WcxPlugin>
+{{- else }}
       <WcxPlugin Enabled="True">
         <ArchiveExt>cpio</ArchiveExt>
         <Path>%commander_path%/plugins/wcx/cpio/cpio.wcx</Path>
@@ -846,51 +1003,70 @@
         <Path>%commander_path%/plugins/wcx/deb/deb.wcx</Path>
         <Flags>4</Flags>
       </WcxPlugin>
+{{- end }}
       <WcxPlugin Enabled="True">
         <ArchiveExt>rpm</ArchiveExt>
-        <Path>%commander_path%/plugins/wcx/rpm/rpm.wcx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wcx{{ $sep }}rpm{{ $sep }}rpm.wcx</Path>
         <Flags>4</Flags>
       </WcxPlugin>
       <WcxPlugin Enabled="True">
         <ArchiveExt>rar</ArchiveExt>
-        <Path>%commander_path%/plugins/wcx/unrar/unrar.wcx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wcx{{ $sep }}unrar{{ $sep }}unrar.wcx</Path>
         <Flags>607</Flags>
       </WcxPlugin>
       <WcxPlugin Enabled="True">
         <ArchiveExt>b64</ArchiveExt>
-        <Path>%commander_path%/plugins/wcx/base64/base64.wcx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wcx{{ $sep }}base64{{ $sep }}base64.wcx</Path>
         <Flags>1</Flags>
       </WcxPlugin>
     </WcxPlugins>
     <WdxPlugins>
       <WdxPlugin>
         <Name>deb_wdx</Name>
-        <Path>%commander_path%/plugins/wdx/deb_wdx/deb_wdx.wdx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wdx{{ $sep }}deb_wdx{{ $sep }}deb_wdx.wdx</Path>
         <DetectString>EXT="DEB"</DetectString>
       </WdxPlugin>
       <WdxPlugin>
         <Name>rpm_wdx</Name>
-        <Path>%commander_path%/plugins/wdx/rpm_wdx/rpm_wdx.wdx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wdx{{ $sep }}rpm_wdx{{ $sep }}rpm_wdx.wdx</Path>
         <DetectString>EXT="RPM"</DetectString>
       </WdxPlugin>
       <WdxPlugin>
         <Name>audioinfo</Name>
-        <Path>%commander_path%/plugins/wdx/audioinfo/audioinfo.wdx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wdx{{ $sep }}audioinfo{{ $sep }}audioinfo.wdx</Path>
         <DetectString>(EXT="MP3") | (EXT="MP2") | (EXT="MP1") | (EXT="OGG") | (EXT="WMA") | (EXT="WAV") | (EXT="VQF") | (EXT="AAC") | (EXT="APE") | (EXT="MPC") | (EXT="FLAC") | (EXT="CDA") | (EXT="TTA") | (EXT="AC3") | (EXT="DTS") | (EXT="WV") | (EXT="WVC") | (EXT="OFR") | (EXT="OFS") | (EXT="M4A") | (EXT="MP4") | (EXT="OPUS")</DetectString>
       </WdxPlugin>
     </WdxPlugins>
     <WfxPlugins>
       <WfxPlugin Enabled="True">
         <Name>FTP</Name>
-        <Path>%commander_path%/plugins/wfx/ftp/ftp.wfx</Path>
+        <Path>%commander_path%{{ $sep }}plugins{{ $sep }}wfx{{ $sep }}ftp{{ $sep }}ftp.wfx</Path>
       </WfxPlugin>
     </WfxPlugins>
     <WlxPlugins>
+{{- if $isWin }}
+      <WlxPlugin Enabled="True">
+        <Name>richview</Name>
+        <Path>%commander_path%\plugins\wlx\richview\richview.wlx</Path>
+        <DetectString>EXT="RTF"</DetectString>
+      </WlxPlugin>
+      <WlxPlugin Enabled="True">
+        <Name>preview</Name>
+        <Path>%commander_path%\plugins\wlx\preview\preview.wlx</Path>
+        <DetectString>(EXT="HTM")|(EXT="HTML")|(EXT="MHT")|(EXT="MHTML")</DetectString>
+      </WlxPlugin>
+      <WlxPlugin Enabled="True">
+        <Name>wmp</Name>
+        <Path>%commander_path%\plugins\wlx\wmp\wmp.wlx</Path>
+        <DetectString>(EXT="WAV")|(EXT="MP3")|(EXT="WMA")|(EXT="MP4")|(EXT="AVI")|(EXT="WMV")</DetectString>
+      </WlxPlugin>
+{{- else }}
       <WlxPlugin Enabled="True">
         <Name>MacPreview</Name>
         <Path>%commander_path%/plugins/wlx/MacPreview/MacPreview.wlx</Path>
         <DetectString>(EXT!="")</DetectString>
       </WlxPlugin>
+{{- end }}
     </WlxPlugins>
     <TweakPluginWidth0>0</TweakPluginWidth0>
     <TweakPluginHeight0>0</TweakPluginHeight0>

@@ -4,6 +4,9 @@
 .config/doublecmd/history.xml
 .config/doublecmd/tabs.xml
 .config/doublecmd/session.ini
+.config/doublecmd/doublecmd.err
+.config/doublecmd/doublecmd.inf
+.config/doublecmd/ignorelist.txt
 
 # zsh キャッシュと履歴
 .config/zsh/.zcompdump*
