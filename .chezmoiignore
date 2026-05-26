@@ -1,6 +1,8 @@
 .config/nushell/history.txt
 .config/nvim/lazy-lock.json
 .glaze-wm/errors.log
+.config/doublecmd/history.xml
+.config/doublecmd/tabs.xml
 
 # zsh キャッシュと履歴
 .config/zsh/.zcompdump*
