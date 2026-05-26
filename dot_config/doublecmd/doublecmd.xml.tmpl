@@ -591,16 +591,18 @@
   <IgnoreList Enabled="{{ if $isWin }}True{{ else }}False{{ end }}">
     <IgnoreListFile>%DC_CONFIG_PATH%{{ $sep }}ignorelist.txt</IgnoreListFile>
   </IgnoreList>
-  <DirectoryHotList>
 {{- if $isWin }}
+  <DirectoryHotList>
     <HotDir Name="1.Home" Path="%HOME%"/>
     <HotDir Name="2.Desktop" Path="%HOME%\Desktop"/>
     <HotDir Name="3.Documents" Path="%HOME%\Documents"/>
     <HotDir Name="4.Downloads" Path="%HOME%\Downloads"/>
     <HotDir Name="-" Path=""/>
     <HotDir Name="Workspace" Path="%HOME%\workspace"/>
-{{- end }}
   </DirectoryHotList>
+{{- else }}
+  <DirectoryHotList/>
+{{- end }}
   <Viewer>
     <PreviewVisible>False</PreviewVisible>
     <ImageStretch>False</ImageStretch>
