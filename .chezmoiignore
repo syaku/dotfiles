@@ -3,6 +3,7 @@
 .glaze-wm/errors.log
 .config/doublecmd/history.xml
 .config/doublecmd/tabs.xml
+.config/doublecmd/session.ini
 
 # zsh キャッシュと履歴
 .config/zsh/.zcompdump*

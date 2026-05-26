@@ -157,7 +157,7 @@
     </MiddleToolbar>
   </Toolbars>
   <MainWindow>
-    <Position Save="True">
+    <Position Save="False">
       <Left>1722</Left>
       <Top>736</Top>
       <Width>1712</Width>
