@@ -13,6 +13,7 @@ brew chezmoi
 brew cloudflared
 brew curl
 brew difftastic
+brew doggo
 brew dust
 brew eza
 brew fastfetch
@@ -31,8 +32,10 @@ brew gmp
 brew gnupg
 brew gnutls
 brew gron
+brew gum
 brew hugo
 brew hyperfine
+brew jless
 brew just
 brew kopia
 brew lazygit
@@ -56,6 +59,7 @@ brew lpeg
 brew luajit
 brew luv
 brew lz4
+brew miller
 brew mise
 brew neovim
 brew nettle
@@ -63,6 +67,7 @@ brew npth
 brew oniguruma
 brew openssl@3
 brew p11-kit
+brew pandoc
 brew pcre2
 brew pinentry
 brew procs
@@ -70,6 +75,9 @@ brew readline
 brew ripgrep
 brew rustup
 brew sd
+brew shellcheck
+brew shfmt
+brew sops
 brew starship
 brew syncthing
 brew tailscale
@@ -84,6 +92,7 @@ brew watchexec
 brew wget
 brew xh
 brew xz
+brew yazi
 brew yq
 brew yyjson
 brew zoxide
