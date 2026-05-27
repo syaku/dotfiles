@@ -45,3 +45,9 @@
 .config/zsh/*.old
 .config/zsh/*.bak
 .config/zsh/*.tmp
+
+# Brewfile はプライベート環境のみ展開。業務端末は ~/Brewfile をローカル管理する
+# （isPrivate 未定義の環境では安全側に倒して ignore する）
+{{ if not (dig "isPrivate" false .) }}
+Brewfile
+{{ end }}
