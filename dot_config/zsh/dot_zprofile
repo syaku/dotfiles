@@ -27,6 +27,9 @@ if [[ "$(uname)" == "Darwin" ]]; then
 fi
 
 # Rustのcargoの設定
+# rustup 導入時は env を source、それ以外（cargo install のバイナリのみ等）は bin を直接追加
 if [[ -f "$HOME/.cargo/env" ]]; then
     source "$HOME/.cargo/env"
+elif [[ -d "$HOME/.cargo/bin" ]]; then
+    export PATH="$HOME/.cargo/bin:$PATH"
 fi
