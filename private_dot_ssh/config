@@ -1,0 +1,15 @@
+Host github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519
+
+HOST pve.syaku.me
+  HostName 192.168.0.10
+  User root
+  IdentityFile ~/.ssh/id_ed25519
+  SetEnv TERM=xterm-256color
+
+HOST app2.syaku.me
+  HostName 192.168.0.51
+  User syaku
+  IdentityFile ~/.ssh/id_ed25519
+  SetEnv TERM=xterm-256color
