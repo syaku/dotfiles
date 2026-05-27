@@ -1,0 +1,121 @@
+
+# tap repositories and their packages
+
+tap homebrew/core
+brew age
+brew ast-grep
+brew atuin
+brew bat
+brew brotli
+brew btop
+brew ca-certificates
+brew chezmoi
+brew cloudflared
+brew curl
+brew difftastic
+brew dust
+brew eza
+brew fastfetch
+brew fd
+brew fish
+brew fortune
+brew fx
+brew fzf
+brew gettext
+brew gh
+brew ghq
+brew git-delta
+brew gitleaks
+brew glow
+brew gmp
+brew gnupg
+brew gnutls
+brew gron
+brew hugo
+brew hyperfine
+brew just
+brew kopia
+brew lazygit
+brew libassuan
+brew libgcrypt
+brew libgit2
+brew libgpg-error
+brew libidn2
+brew libksba
+brew libnghttp2
+brew libnghttp3
+brew libngtcp2
+brew libssh2
+brew libtasn1
+brew libunistring
+brew libusb
+brew libuv
+brew llhttp
+brew lolcat
+brew lpeg
+brew luajit
+brew luv
+brew lz4
+brew mise
+brew neovim
+brew nettle
+brew npth
+brew oniguruma
+brew openssl@3
+brew p11-kit
+brew pcre2
+brew pinentry
+brew procs
+brew readline
+brew ripgrep
+brew rustup
+brew sd
+brew starship
+brew syncthing
+brew tailscale
+brew tealdeer
+brew tokei
+brew tree-sitter
+brew tree-sitter-cli
+brew unibilium
+brew usage
+brew utf8proc
+brew watchexec
+brew wget
+brew xh
+brew xz
+brew yq
+brew yyjson
+brew zoxide
+brew zstd
+
+tap homebrew/cask
+cask alt-tab
+cask arc
+cask bentobox
+cask firefox
+cask google-chrome
+cask karabiner-elements
+cask libndi
+cask linearmouse
+cask macskk
+cask obs
+cask obsidian
+cask orbstack
+cask proton-mail-bridge
+cask raycast
+cask rectangle-pro
+cask visual-studio-code
+cask vivaldi
+cask wezterm
+
+tap homebrew/services
+
+tap mackerelio/mackerel-agent
+
+tap rcmdnk/file
+brew brew-file
+
+# App Store applications
+appstore 545519333 Prime Video (10.84)
+appstore 1475387142 Tailscale (1.98.2)

@@ -46,10 +46,10 @@
 .config/zsh/*.bak
 .config/zsh/*.tmp
 
-# Brewfile はプライベートな mac でのみ展開。業務端末は ~/Brewfile をローカル管理する
+# Brewfile はプライベートな mac でのみ展開。業務端末は ~/.config/brewfile/Brewfile をローカル管理する
 # （isPrivate 未定義の環境では安全側に倒して ignore。mac 以外は brew 非対象なので ignore）
 {{ if or (not (dig "isPrivate" false .)) (ne .chezmoi.os "darwin") }}
-Brewfile
+.config/brewfile/Brewfile
 {{ end }}
 
 # SSH — 頻繁に変化する known_hosts と除外対象の古い .pem は管理しない
