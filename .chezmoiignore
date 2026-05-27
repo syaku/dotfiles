@@ -57,3 +57,8 @@ Brewfile
 .ssh/known_hosts.old
 .ssh/*.pem
 .ssh/*.pem.pub
+
+# config は personal infra のホストを含むため private 環境のみ展開
+{{ if not (dig "isPrivate" false .) }}
+.ssh/config
+{{ end }}
