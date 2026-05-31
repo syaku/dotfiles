@@ -4,7 +4,7 @@ export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
 export PATH="$PATH:$HOME/Library/Application Support/JetBrains/Toolbox/scripts"
 
 # エディタの設定
-export EDITOR="vim"
+export EDITOR="micro"
 export VISUAL="code --wait"
 export PAGER="less -RF"
 
