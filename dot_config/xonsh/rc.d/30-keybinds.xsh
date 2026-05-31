@@ -1,5 +1,5 @@
 # キーバインド (PowerShell keybinds.ps1 相当)
-# Ctrl+b = fbr / Ctrl+g = ghq-list (どちらも 20-functions.xsh で定義)
+# Ctrl+b = fbr / Ctrl+g = ghq-fzf (どちらも 20-functions.xsh で定義)
 # Ctrl+A/E/U/K/L は prompt-toolkit の emacs 既定で効くため未定義
 @events.on_ptk_create
 def _custom_keybindings(bindings, **kw):
@@ -10,5 +10,5 @@ def _custom_keybindings(bindings, **kw):
 
     @bindings.add('c-g')
     def _run_ghq(event):
-        ghq_list()
+        ghq_fzf()
         event.current_buffer.validate_and_handle()

@@ -1,10 +1,13 @@
 # エイリアス設定ファイル
-# このファイルはコマンドのエイリアスとショートカットを定義します
+# xonsh/rc.d/10-aliases.xsh を正本として揃えている。
 # 依存: 10-core.nu (check_command関数)
 
 alias ls-builtin = ls
 
-# ディレクトリ表示の関数
+# ディレクトリ表示
+# ls は eza に置き換え、ll/la は nushell の構造化データ + table を活かす設計 (nu固有)
+alias ls = eza --group-directories-first --hyperlink --icons=auto --color=auto
+
 def ll [] {
     ls-builtin | sort-by type name | table
 }
@@ -13,32 +16,23 @@ def la [] {
     ls-builtin -a | sort-by type name | table
 }
 
-# エイリアスの設定
-alias ls = eza --icons --hyperlink --color=always --group-directories-first
-
-alias cat = bat
+# 引数体系が大きく違うツール (bat/rg/fd/delta 等) は alias を張らず、実体名で使う。
+# 短縮 c/g だけは実体ツールに向ける。
 alias c = bat
 
-# lessの代替としてのbat
-def less [...rest] {
-    if ($rest | is-empty) {
-        # 標準入力がある場合はそれを使用
-        if ($in | is-empty) {
-            echo "使用方法: less <ファイル名> または パイプで入力"
-        } else {
-            $in | bat --paging=always
-        }
-    } else {
-        bat --paging=always ...$rest
-    }
-}
-
-alias grep = rg
 alias g = rg
-
-alias find = fd
 
 alias man = tldr
 
 alias vi = nvim
 alias vim = nvim
+
+# ナビ
+alias .. = cd ..
+
+# git 短縮
+alias gs = git status
+alias ga = git add
+alias gc = git commit
+alias gp = git push
+alias gl = git pull

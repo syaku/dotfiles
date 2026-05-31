@@ -17,11 +17,11 @@ def _fbr(args):
         subprocess.run(['git', 'checkout', sel])
 aliases['fbr'] = _fbr
 
-# ghq-list: ghq リポジトリを fzf で選んで移動
+# ghq-fzf: ghq リポジトリを fzf で選んで移動
 # fzf を Esc 等でキャンセルすると exit 130 を返す。xonsh の $(...) はこれを
 # CalledProcessError にして ptk イベントループで未処理例外になるため、
 # fbr と同様 subprocess.run で受けて returncode を無視する。
-def ghq_list():
+def ghq_fzf():
     root = $(ghq root).strip()
     repos = subprocess.run(['ghq', 'list'], stdout=subprocess.PIPE, text=True).stdout
     preview = 'bat --color=always --style=header,grid --line-range :80 ' + root + '/{}/README.*'
@@ -29,4 +29,4 @@ def ghq_list():
     sel = f.stdout.strip()
     if sel:
         cd @(root + '/' + sel)
-aliases['ghq-list'] = ghq_list
+aliases['ghq-fzf'] = ghq_fzf

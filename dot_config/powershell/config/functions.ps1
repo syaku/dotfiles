@@ -1,40 +1,29 @@
-# functions.ps1 - Unixコマンドの代替定義
+# functions.ps1 - 引数を変えるラッパー
+# 単純リネーム (cat/man/vim/vi/g/c) は aliases.ps1 にある。
+# xonsh/rc.d/10-aliases.xsh + 20-functions.xsh を正本として揃えている。
 
-# 既存のエイリアスと関数を削除
+# function で上書きする builtin alias を削除
 remove-item alias:ls -ErrorAction SilentlyContinue
-remove-item alias:cat -ErrorAction SilentlyContinue
-remove-item alias:man -ErrorAction SilentlyContinue
 remove-item alias:cp -ErrorAction SilentlyContinue
 remove-item alias:mv -ErrorAction SilentlyContinue
 remove-item alias:rm -ErrorAction SilentlyContinue
 remove-item alias:rmdir -ErrorAction SilentlyContinue
+# git 短縮 (gc/gp/gl) は PowerShell builtin alias (Get-Content/Get-ItemProperty/Get-Location) と衝突するので外す
+remove-item alias:gc -ErrorAction SilentlyContinue
+remove-item alias:gp -ErrorAction SilentlyContinue
+remove-item alias:gl -ErrorAction SilentlyContinue
 remove-item function:mkdir -ErrorAction SilentlyContinue
 
+# Unix代替コマンド (eza/bat) は scoop/shims に集約済み。
+# core.ps1 が $HOME\scoop\shims を PATH 先頭に入れるので、コマンド名で解決する。
+
 # ディレクトリ表示の関数
-function ls     { & "$HOME\.cargo\bin\eza.exe" --group-directories-first --hyperlink --icons=auto --color=auto @args }
-function ll     { & "$HOME\.cargo\bin\eza.exe" -l --group-directories-first --hyperlink --icons=auto --color=auto --git @args }
+function ls     { & eza --group-directories-first --hyperlink --icons=auto --color=auto @args }
+function ll     { & eza -l --group-directories-first --hyperlink --icons=auto --color=auto --git @args }
 function la     { ll -a @args }
 
-# ファイル操作の関数
-function cat    { & "$HOME\.cargo\bin\bat.exe" @args }
-function grep   { & "$HOME\.cargo\bin\rg.exe" @args }
-function man    { & "$HOME\.cargo\bin\tldr.exe" @args }
-
-# lessの代替としてのbat
-# 引数があればファイルとして開き、なければパイプ入力を $input で全件受ける。
-# （旧実装は ValueFromPipeline パラメータが位置バインドされ、`less file` が
-#  ファイル名文字列を表示してしまう／process ブロック無しでパイプが末尾のみ、
-#  という2つのバグがあった）
-function less {
-    if ($args.Count -gt 0) {
-        & "$HOME\.cargo\bin\bat.exe" --paging=always @args
-    } else {
-        $input | & "$HOME\.cargo\bin\bat.exe" --paging=always
-    }
-}
-
 # あいまい検索
-function reverse { 
+function reverse {
     $arr = @($input)
     [array]::reverse($arr)
     $arr
@@ -46,10 +35,10 @@ function ghq-fzf {
         Write-Error "ghqまたはfzfがインストールされていません"
         return
     }
-    
+
     $ghq_root = & ghq root
     $selected = & ghq list | & fzf --preview "ls -la $ghq_root/{}"
-    
+
     if ($selected) {
         Set-Location "$ghq_root/$selected"
     }
@@ -61,14 +50,14 @@ function fbr {
         Write-Error "gitまたはfzfがインストールされていません"
         return
     }
-    
+
     if (-not (Test-Path .git)) {
         Write-Error "カレントディレクトリはgitリポジトリではありません"
         return
     }
-    
+
     $selected = & git branch -a | Select-String -NotMatch "HEAD" | ForEach-Object { $_.Line.Trim() -replace ".* ", "" -replace "remotes/origin/", "" } | Sort-Object -Unique | & fzf
-    
+
     if ($selected) {
         & git checkout $selected
     }
@@ -82,3 +71,10 @@ function which($arg) {
 }
 
 function ..() { Set-Location .. }
+
+# git 短縮 (alias は引数を渡せないので function で実装)
+function gs { & git status @args }
+function ga { & git add @args }
+function gc { & git commit @args }
+function gp { & git push @args }
+function gl { & git pull @args }

@@ -2,12 +2,11 @@
 aliases['ls'] = 'eza --group-directories-first --hyperlink --icons=auto --color=auto'
 aliases['ll'] = 'eza -l --group-directories-first --hyperlink --icons=auto --color=auto --git'
 aliases['la'] = 'eza -la --group-directories-first --hyperlink --icons=auto --color=auto --git'
-aliases['cat'] = 'bat'
+# 引数体系が大きく違うツール (bat/rg/fd/delta 等) は alias を張らず、実体名で使う。
+# 短縮 `c`/`g` だけは bat/rg を直接指す (混乱しない範囲のショートカット)。
 aliases['c'] = 'bat'
-aliases['grep'] = 'rg'
 aliases['g'] = 'rg'
 aliases['man'] = 'tldr'
-aliases['less'] = 'bat --paging=always'
 aliases['vim'] = 'nvim'
 aliases['vi'] = 'nvim'
 aliases['..'] = 'cd ..'
