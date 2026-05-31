@@ -27,3 +27,5 @@ set -gx STARSHIP_SHELL fish
 
 # シェルの挨拶を表示しない
 set -gx fish_greeting
+
+set -gx SOPS_AGE_KEY_FILE $HOME/.config/sops/age/keys.txt
