@@ -26,5 +26,5 @@ mkdir ($nu.data-dir | path join "vendor/autoload")
 init_tool "starship" "starship init nu" "プロンプトカスタマイズ"
 init_tool "atuin" "atuin init nu --disable-up-arrow" "コマンド履歴管理"
 init_tool "mise" "mise activate nu" "バージョン管理"
-init_tool "zoxide" "zoxide init nushell" "ディレクトリジャンプ"
+init_tool "zoxide" "zoxide init nushell --cmd cd" "ディレクトリジャンプ"
 init_tool "carapace" "carapace _carapace nushell" "コマンド補完"
