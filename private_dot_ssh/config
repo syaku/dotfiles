@@ -9,7 +9,7 @@ HOST pve.syaku.me
   SetEnv TERM=xterm-256color
 
 HOST app2.syaku.me
-  HostName 192.168.0.51
+  HostName 10.20.20.200
   User syaku
   IdentityFile ~/.ssh/id_ed25519
   SetEnv TERM=xterm-256color
