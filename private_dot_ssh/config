@@ -1,6 +1,6 @@
 Host github.com
-    User git
-    IdentityFile ~/.ssh/id_ed25519
+  User git
+  IdentityFile ~/.ssh/id_ed25519
 
 HOST pve.syaku.me
   User root
