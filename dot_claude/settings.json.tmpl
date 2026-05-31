@@ -6,28 +6,6 @@
   },
   "permissions": {
     "allow": [
-      "Read(*)",
-      "Glob(*)",
-      "Grep(*)",
-      "Bash(ls *)",
-      "Bash(ls)",
-      "Bash(find *)",
-      "Bash(pwd)",
-      "Bash(which *)",
-      "Bash(cat *)",
-      "Bash(head *)",
-      "Bash(tail *)",
-      "Bash(echo *)",
-      "Bash(grep *)",
-      "Bash(rg *)",
-      "Bash(wc *)",
-      "Bash(diff *)",
-      "Bash(file *)",
-      "Bash(stat *)",
-      "Bash(du *)",
-      "Bash(df *)",
-      "Bash(env)",
-      "Bash(printenv *)",
       "Bash(git status)",
       "Bash(git status *)",
       "Bash(git log *)",
@@ -83,5 +61,36 @@
     }
   },
   "effortLevel": "xhigh",
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "windows") }},
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            {{- if eq .chezmoi.os "darwin" }}
+            "command": "osascript -e 'display notification \"確認待ちです\" with title \"Claude Code\" sound name \"Submarine\"'"
+            {{- else if eq .chezmoi.os "windows" }}
+            "command": "powershell -NoProfile -WindowStyle Hidden -Command \"New-BurntToastNotification -Text 'Claude Code','確認待ちです'\""
+            {{- end }}
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            {{- if eq .chezmoi.os "darwin" }}
+            "command": "osascript -e 'display notification \"応答完了\" with title \"Claude Code\" sound name \"Glass\"'"
+            {{- else if eq .chezmoi.os "windows" }}
+            "command": "powershell -NoProfile -WindowStyle Hidden -Command \"New-BurntToastNotification -Text 'Claude Code','応答完了'\""
+            {{- end }}
+          }
+        ]
+      }
+    ]
+  }
+  {{- end }}
 }
