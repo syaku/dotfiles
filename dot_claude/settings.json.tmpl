@@ -71,7 +71,7 @@
             {{- if eq .chezmoi.os "darwin" }}
             "command": "osascript -e 'display notification \"確認待ちです\" with title \"Claude Code\" sound name \"Submarine\"'"
             {{- else if eq .chezmoi.os "windows" }}
-            "command": "powershell -NoProfile -WindowStyle Hidden -Command \"New-BurntToastNotification -Text 'Claude Code','確認待ちです'\""
+            "command": "pwsh -NoProfile -WindowStyle Hidden -Command \"New-BurntToastNotification -Text 'Claude Code','確認待ちです'\""
             {{- end }}
           }
         ]
@@ -85,7 +85,7 @@
             {{- if eq .chezmoi.os "darwin" }}
             "command": "osascript -e 'display notification \"応答完了\" with title \"Claude Code\" sound name \"Glass\"'"
             {{- else if eq .chezmoi.os "windows" }}
-            "command": "powershell -NoProfile -WindowStyle Hidden -Command \"New-BurntToastNotification -Text 'Claude Code','応答完了'\""
+            "command": "pwsh -NoProfile -WindowStyle Hidden -Command \"New-BurntToastNotification -Text 'Claude Code','応答完了'\""
             {{- end }}
           }
         ]
