@@ -116,6 +116,7 @@ brew zoxide
 brew zstd
 
 tap homebrew/cask
+cask alfred
 cask alt-tab
 cask arc
 cask bentobox
@@ -129,7 +130,6 @@ cask obs
 cask obsidian
 cask orbstack
 cask proton-mail-bridge
-cask raycast
 cask rectangle-pro
 cask visual-studio-code
 cask vivaldi
