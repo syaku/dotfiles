@@ -1,6 +1,8 @@
 {
   "env": {
-    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"
+    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"{{ if eq .chezmoi.os "windows" }},
+    "CLAUDE_CODE_GIT_BASH_PATH": "C:\\Program Files\\Git\\bin\\bash.exe",
+    "CLAUDE_CODE_USE_POWERSHELL_TOOL": "0"{{ end }}
   },
   "permissions": {
     "allow": [
@@ -81,9 +83,5 @@
     }
   },
   "effortLevel": "xhigh",
-  "skipAutoPermissionPrompt": true{{ if eq .chezmoi.os "windows" }},
-  "env": {
-    "CLAUDE_CODE_GIT_BASH_PATH": "C:\\Program Files\\Git\\bin\\bash.exe",
-    "CLAUDE_CODE_USE_POWERSHELL_TOOL": "0"
-  }{{ end }}
+  "skipAutoPermissionPrompt": true
 }
