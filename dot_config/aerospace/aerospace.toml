@@ -1,5 +1,24 @@
-# AeroSpace 設定。GlazeWM (~/.glaze-wm/config.yaml) と対称な操作感を目指す。
-# 修飾子は karabiner で Caps Lock を Hyper (Cmd+Opt+Ctrl+Shift) に変換した前提。
+# AeroSpace 設定。Sofle (Vial) 上で WM 操作を左手完結させるためのキーバインド。
+#
+# 修飾子の前提:
+# - 物理 Caps Lock は Vial Layer 4 トリガ (MO(4)) として割当、Layer 4 内のキーが
+#   Hyper (Cmd+Opt+Ctrl+Shift) + 対応キーを送信
+# - 物理 Cmd キー位置 ↔ 物理 Ctrl キー位置 は karabiner の simple_modifications で全アプリ入替
+#   (Karabiner が動作中は OS の Modifier Keys 設定が無効化されるため、入替は karabiner で実現)
+# - したがって AeroSpace は karabiner が入替済みの論理キーを受ける
+#
+# 主軸の運指:
+# - focus:  Fn1(左小指) + LAlt(左親指) + WASD(左中指系)         → OS: alt + Arrow
+# - move:   Fn1 + 物理 Cmd 位置(Fn1 直上、入替後 Ctrl) + WASD   → OS: ctrl + Arrow
+# - resize: Fn1 + 物理 Ctrl 位置(入替後 Cmd) + WASD             → OS: cmd + Arrow
+# - workspace 1-9 切替:    LAlt + 数字 (AeroSpace デフォルト、Fn1 不要)
+# - window を workspace へ: LAlt + LShift + 数字
+#
+# Hyper (Caps Hold) 経由は頻度低のオプション操作 (fullscreen / floating / split / flatten /
+# back-and-forth / reload) に限定。Caps の物理位置が窮屈なため主軸操作には使わない。
+#
+# 副作用: Mac 標準の Alt/Cmd/Ctrl + Arrow (単語移動・行頭末・Space 切替等) は AeroSpace に
+# 明け渡し。代替手段 (Cocoa Emacs バインド / Home/End 再定義 等) は別タスクで整理。
 
 start-at-login = false
 
@@ -7,6 +26,7 @@ after-startup-command = [
     'exec-and-forget borders active_color=0xffe1e3e4 inactive_color=0xff494d64 width=5.0',
 ]
 
+# split opposite は normalization 無効が前提
 enable-normalization-flatten-containers = false
 enable-normalization-opposite-orientation-for-nested-containers = false
 accordion-padding = 30
@@ -24,7 +44,7 @@ outer.bottom = 20
 outer.top = 45
 outer.right = 20
 
-# GlazeWM の bind_to_monitor 1/2 と同様: 奇数 → monitor1, 偶数 → monitor2
+# 奇数 ws → monitor1, 偶数 ws → monitor2 (GlazeWM の bind_to_monitor と同じ感覚)
 [workspace-to-monitor-force-assignment]
 1 = 1
 2 = 2
@@ -34,33 +54,55 @@ outer.right = 20
 6 = 2
 
 [mode.main.binding]
-# focus 方向移動
-cmd-alt-ctrl-shift-h = 'focus left'
-cmd-alt-ctrl-shift-j = 'focus down'
-cmd-alt-ctrl-shift-k = 'focus up'
-cmd-alt-ctrl-shift-l = 'focus right'
+# focus 方向移動: Fn1 + LAlt + WASD → alt + Arrow
+alt-up    = 'focus up'
+alt-down  = 'focus down'
+alt-left  = 'focus left'
+alt-right = 'focus right'
 
-# workspace 切替
-cmd-alt-ctrl-shift-1 = 'workspace 1'
-cmd-alt-ctrl-shift-2 = 'workspace 2'
-cmd-alt-ctrl-shift-3 = 'workspace 3'
-cmd-alt-ctrl-shift-4 = 'workspace 4'
-cmd-alt-ctrl-shift-5 = 'workspace 5'
-cmd-alt-ctrl-shift-6 = 'workspace 6'
+# window move 方向: Fn1 + 物理 Cmd 位置 + WASD → 入替後 ctrl + Arrow
+ctrl-up    = 'move up'
+ctrl-down  = 'move down'
+ctrl-left  = 'move left'
+ctrl-right = 'move right'
+
+# window resize: Fn1 + 物理 Ctrl 位置 + WASD → 入替後 cmd + Arrow (刻み 50px)
+cmd-left  = 'resize width -50'
+cmd-right = 'resize width +50'
+cmd-up    = 'resize height -50'
+cmd-down  = 'resize height +50'
+
+# workspace 切替: LAlt + 数字 (AeroSpace デフォルト、Fn1 不要)
+alt-1 = 'workspace 1'
+alt-2 = 'workspace 2'
+alt-3 = 'workspace 3'
+alt-4 = 'workspace 4'
+alt-5 = 'workspace 5'
+alt-6 = 'workspace 6'
+alt-7 = 'workspace 7'
+alt-8 = 'workspace 8'
+alt-9 = 'workspace 9'
+
+# window を workspace へ送る: LAlt + LShift + 数字
+alt-shift-1 = 'move-node-to-workspace 1'
+alt-shift-2 = 'move-node-to-workspace 2'
+alt-shift-3 = 'move-node-to-workspace 3'
+alt-shift-4 = 'move-node-to-workspace 4'
+alt-shift-5 = 'move-node-to-workspace 5'
+alt-shift-6 = 'move-node-to-workspace 6'
+alt-shift-7 = 'move-node-to-workspace 7'
+alt-shift-8 = 'move-node-to-workspace 8'
+alt-shift-9 = 'move-node-to-workspace 9'
+
+# 以下は Caps Hyper 経由 (右手 OK・頻度低のオプション操作)
 
 # 直前 workspace に戻る
 cmd-alt-ctrl-shift-y = 'workspace-back-and-forth'
 
-# モード遷移
-cmd-alt-ctrl-shift-r = 'mode resize'
-cmd-alt-ctrl-shift-m = 'mode move'
-
-# tiling direction toggle (GlazeWM の Alt+V 相当)
-# フォーカスウィンドウを新コンテナで包み、次に開くウィンドウだけ別方向に分割する。
-# split は normalization 無効が前提（上の 2 つを false にしている）。
+# tiling direction toggle: フォーカスウィンドウを新コンテナで包み、次に開くウィンドウだけ別方向に分割
 cmd-alt-ctrl-shift-v = 'split opposite'
 
-# tree の中間コンテナを潰して整地する。split を多用して構造が複雑になったときに使う。
+# tree の中間コンテナを潰して整地
 cmd-alt-ctrl-shift-f = 'flatten-workspace-tree'
 
 # floating <-> tiling 切替
@@ -73,33 +115,6 @@ cmd-alt-ctrl-shift-x = 'fullscreen'
 cmd-alt-ctrl-shift-slash = 'reload-config'
 
 # Mac 標準は温存: Cmd+Q (close), Cmd+Tab (アプリ切替), Mission Control 等は bind しない
-
-[mode.resize.binding]
-h = 'resize width -50'
-j = 'resize height +50'
-k = 'resize height -50'
-l = 'resize width +50'
-enter = 'mode main'
-esc = 'mode main'
-
-[mode.move.binding]
-# Hyper+M で入って hjkl でウィンドウ移動、数字で workspace 間移動
-h = 'move left'
-j = 'move down'
-k = 'move up'
-l = 'move right'
-
-1 = ['move-node-to-workspace 1', 'mode main']
-2 = ['move-node-to-workspace 2', 'mode main']
-3 = ['move-node-to-workspace 3', 'mode main']
-4 = ['move-node-to-workspace 4', 'mode main']
-5 = ['move-node-to-workspace 5', 'mode main']
-6 = ['move-node-to-workspace 6', 'mode main']
-
-f = 'layout floating tiling'
-
-enter = 'mode main'
-esc = 'mode main'
 
 [[on-window-detected]]
 if.app-id = 'com.apple.systempreferences'

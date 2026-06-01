@@ -4,31 +4,6 @@
             "complex_modifications": {
                 "rules": [
                     {
-                        "description": "Caps Lock → Hyper (Cmd+Opt+Ctrl+Shift) / Escape if alone (for AeroSpace)",
-                        "manipulators": [
-                            {
-                                "from": {
-                                    "key_code": "caps_lock",
-                                    "modifiers": { "optional": ["any"] }
-                                },
-                                "to": [
-                                    {
-                                        "key_code": "left_shift",
-                                        "modifiers": [
-                                            "left_command",
-                                            "left_control",
-                                            "left_option"
-                                        ]
-                                    }
-                                ],
-                                "to_if_alone": [
-                                    { "key_code": "escape" }
-                                ],
-                                "type": "basic"
-                            }
-                        ]
-                    },
-                    {
                         "description": "Change button4,5 to forward,back (rev 1)",
                         "manipulators": [
                             {
@@ -110,7 +85,8 @@
                         ]
                     },
                     {
-                        "description": "CommandとCtrlをWezTermでのみ入れ替え",
+                        "description": "CommandとCtrlをWezTermでのみ入れ替え (無効化中)",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "conditions": [
