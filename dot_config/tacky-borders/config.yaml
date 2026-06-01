@@ -15,12 +15,14 @@ rendering_backend: V2
 # Global configuration options
 global:
   # border_width: Width of the border (in pixels)
-  border_width: 3
+  # Mac 側の JankyBorders (width=10.0) と揃える。
+  border_width: 10
 
   # border_offset: Offset of the border from the window edges (in pixels)
   #   - Negative values shrink the border inwards
   #   - Positive values expand the border outwards
-  border_offset: -1
+  # JankyBorders はウィンドウ縁に沿わせて描画するため 0 で揃える。
+  border_offset: 0
 
   # border-radius: Radius of the border's corners. Supported values:
   #   - Auto: Automatically determine the radius
@@ -28,7 +30,8 @@ global:
   #   - Round: Fully rounded corners
   #   - RoundSmall: Slightly rounded corners
   #   - Or specify any numeric value for a custom radius
-  border_radius: Auto
+  # JankyBorders 側が style=round なので合わせる。
+  border_radius: Round
 
   # border_z_order: Z-order of the border relative to its window. Supported values:
   #   - AboveWindow: Place the border above its window
@@ -86,12 +89,12 @@ global:
   #           light: "#000000"
   #       Each value (dark/light) can be a hex code, "accent", or a gradient.
   #       Borders automatically update when the system theme changes.
-  # Windows 設定のアクセントカラー（UISettings.GetColorValue(Accent) と一致）。
-  # tacky-borders の "accent" は古い DWM API 由来の暗いバリアントを返すため hex で固定。
-  # システム側でアクセント色を変えたら手動で追従が必要。
-  active_color: "#AF6001"
+  # Mac 側 JankyBorders と同じ配色:
+  #   active_color  0xfffe640b → #FE640B (オレンジ)
+  #   inactive_color 0xff585b70 → #585B70 (青灰)
+  active_color: "#FE640B"
 
-  inactive_color: "#888888"
+  inactive_color: "#585B70"
 
   # komorebi_colors: Additional integration for komorebi's special window kinds
   #   - active_color is used for komorebi's "Single" window kind
