@@ -15,9 +15,9 @@ rendering_backend: V2
 # Global configuration options
 global:
   # border_width: Width of the border (in pixels)
-  # Mac 側 JankyBorders は width=10.0 だが Retina pt 単位なので
-  # 物理 px 換算で実機が一致する半分の 5 にする。
-  border_width: 5
+  # Mac 側 JankyBorders は width=10.0 だが Retina pt 単位。
+  # 物理 px 換算で半分の 5 が理論値、実機調整で 4 に落ち着いた。
+  border_width: 4
 
   # border_offset: Offset of the border from the window edges (in pixels)
   #   - Negative values shrink the border inwards
