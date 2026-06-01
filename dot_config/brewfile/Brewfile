@@ -130,7 +130,6 @@ cask obs
 cask obsidian
 cask orbstack
 cask proton-mail-bridge
-cask rectangle-pro
 cask visual-studio-code
 cask vivaldi
 cask wezterm
@@ -142,6 +141,13 @@ tap mackerelio/mackerel-agent
 
 tap rcmdnk/file
 brew brew-file
+
+# AeroSpace (tiling window manager) and ecosystem
+tap nikitabobko/tap
+cask nikitabobko/tap/aerospace
+
+tap felixkratz/formulae
+brew felixkratz/formulae/borders
 
 # App Store applications
 appstore 545519333 Prime Video (10.84)

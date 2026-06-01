@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+# sketchybar 設定。AeroSpace の workspace を menubar に表示する。
+# 公式 wiki (https://nikitabobko.github.io/AeroSpace/goodies) ベース。
+
+CONFIG_DIR="$HOME/.config/sketchybar"
+PLUGIN_DIR="$CONFIG_DIR/plugins"
+
+source "$CONFIG_DIR/colors.sh"
+
+# bar 本体
+sketchybar --bar \
+    height=32 \
+    color=$BAR_COLOR \
+    border_color=$ACCENT_COLOR \
+    border_width=0 \
+    blur_radius=20 \
+    position=top \
+    padding_left=10 \
+    padding_right=10 \
+    sticky=on \
+    topmost=on
+
+# デフォルト
+sketchybar --default \
+    icon.font="SF Pro:Semibold:14.0" \
+    icon.color=$ICON_COLOR \
+    label.font="SF Pro:Semibold:14.0" \
+    label.color=$LABEL_COLOR \
+    padding_left=5 \
+    padding_right=5 \
+    background.corner_radius=5 \
+    background.height=24
+
+# AeroSpace ワークスペース変更イベントを定義
+sketchybar --add event aerospace_workspace_change
+
+# workspace 1..6 を順に追加
+for sid in 1 2 3 4 5 6; do
+    sketchybar --add item space.$sid left \
+        --subscribe space.$sid aerospace_workspace_change \
+        --set space.$sid \
+            background.color=$INACTIVE_BG_COLOR \
+            background.corner_radius=5 \
+            background.height=24 \
+            background.drawing=off \
+            label="$sid" \
+            label.padding_left=8 \
+            label.padding_right=8 \
+            click_script="aerospace workspace $sid" \
+            script="$PLUGIN_DIR/aerospace.sh $sid"
+done
+
+# 右側: 現在の AeroSpace モード等を表示する余地 (今は未使用)
+
+sketchybar --update

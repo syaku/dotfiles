@@ -52,6 +52,18 @@
 .config/brewfile/Brewfile
 {{ end }}
 
+# AeroSpace 系一式 (タイル WM、JankyBorders、sketchybar、karabiner) はプライベートな mac でのみ展開
+# 業務端末では karabiner/borders/sketchybar を別運用する余地があるので Brewfile と同条件で ignore
+{{ if or (not (dig "isPrivate" false .)) (ne .chezmoi.os "darwin") }}
+.config/aerospace
+.config/sketchybar
+.config/borders
+.config/karabiner
+{{ end }}
+
+# karabiner-elements は backup を automatic_backups/ に大量に吐く。展開対象外
+.config/karabiner/automatic_backups
+
 # SSH — 頻繁に変化する known_hosts と除外対象の古い .pem は管理しない
 .ssh/known_hosts
 .ssh/known_hosts.old
