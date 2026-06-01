@@ -15,7 +15,7 @@ fish_add_path $HOME/.local/bin
 set -gx LESSCHARSET utf-8
 
 # エディタ設定
-set -gx EDITOR nvim
+set -gx EDITOR micro
 set -gx VISUAL "code --wait"
 
 # git 専用のエディタ/ページャ（gitconfig には書かず環境ごとに指定）
