@@ -89,3 +89,6 @@
 {{ if not (dig "isPrivate" false .) }}
 .ssh/config
 {{ end }}
+
+# conf.d のローカル専用 drop-in（業務端末の Volta/SDKMAN 初期化等）は同期側に出さずローカルに閉じる
+**/conf.d/*.local.zsh
