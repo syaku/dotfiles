@@ -181,9 +181,9 @@ window_rules:
       - window_process: { equals: 'keypirinha-x64' }
 
       # ATOK IME tooltip windows.
-      - window_class: { equals: 'ATOK33ToolTip' }
-      - window_class: { equals: 'ATOK34ToolTip' }
-      - window_class: { equals: 'ATOK35ToolTip' }
+      - window_class: { regex: '^ATOK' }
+      - window_title: { regex: '^ATOK' }
+      - window_process: { regex: '^ATOK' }
 
   # Launches system dialogs as floating by default (eg. File Explorer
   # save/open dialog).
