@@ -219,6 +219,7 @@ window_rules:
       - window_process: { equals: 'DD2' }
       - window_process: { equals: 'stellaris' }
       - window_process: { equals: 'TheDivision2' }
+      - window_class: { equals: 'POEWindowClass' }
 
   # Steam's window border extends past the normal border size, so trim it
   # back to align with the tiling layout.
