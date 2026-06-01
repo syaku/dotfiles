@@ -41,7 +41,7 @@ inner.horizontal = 20
 inner.vertical = 20
 outer.left = 20
 outer.bottom = 20
-outer.top = 45
+outer.top = 20
 outer.right = 20
 
 # 奇数 ws → monitor1, 偶数 ws → monitor2 (GlazeWM の bind_to_monitor と同じ感覚)
