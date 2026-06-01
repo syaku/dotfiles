@@ -23,7 +23,7 @@
 start-at-login = false
 
 after-startup-command = [
-    'exec-and-forget borders active_color=0xffe1e3e4 inactive_color=0xff494d64 width=5.0',
+    'exec-and-forget borders active_color=0xfffe640b inactive_color=0xff585b70 width=10.0',
 ]
 
 # split opposite は normalization 無効が前提

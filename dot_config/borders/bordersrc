@@ -3,9 +3,9 @@
 # ここでは独立起動向けのパラメータを記す。
 
 options=(
-    active_color=0xffe1e3e4
-    inactive_color=0xff494d64
-    width=5.0
+    active_color=0xfffe640b
+    inactive_color=0xff585b70
+    width=10.0
     style=round
 )
 
