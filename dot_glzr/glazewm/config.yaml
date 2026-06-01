@@ -2,11 +2,17 @@ general:
   # Commands to run when the WM has started. This is useful for running a
   # script or launching another application.
   # Example: The below command launches Zebar.
-  startup_commands: ['shell-exec zebar']
+  startup_commands:
+    - 'shell-exec zebar'
+    # scoop manifest の bin: 未指定により shims は作られないため、実体パスを直接指定。
+    # current は symlink でバージョン更新に追従する。
+    - 'shell-exec %USERPROFILE%/scoop/apps/tacky-borders/current/tacky-borders.exe'
 
   # Commands to run just before the WM is shutdown.
   # Example: The below command kills Zebar.
-  shutdown_commands: ['shell-exec taskkill /IM zebar.exe /F']
+  shutdown_commands:
+    - 'shell-exec taskkill /IM zebar.exe /F'
+    - 'shell-exec taskkill /IM tacky-borders.exe /F'
 
   # Commands to run after the WM config is reloaded.
   config_reload_commands: []
@@ -57,10 +63,10 @@ gaps:
 window_effects:
   # Visual effects to apply to the focused window.
   focused_window:
-    # Highlight the window with a colored border.
-    # ** Exclusive to Windows 11 due to API limitations.
+    # DWM の 1px ボーダーは tacky-borders と二重に描画され視認性に寄与しないため無効化。
+    # フォーカス強調は startup_commands で起動する tacky-borders が担当する。
     border:
-      enabled: true
+      enabled: false
       color: '#3a86ff'
 
     # Remove the title bar from the window's frame. Note that this can
@@ -77,13 +83,12 @@ window_effects:
 
     # Change the transparency of the window.
     transparency:
-      enabled: true
+      enabled: false
       opacity: '100%'
 
   # Visual effects to apply to non-focused windows.
   other_windows:
-    # Border width is fixed at 1px by Windows 11 DWM, so contrast comes
-    # from transparency instead: focused = 100%, other = 80%.
+    # フォーカスのコントラストは tacky-borders の active/inactive 色差で表現する。
     border:
       enabled: false
       color: '#a1a1a1'
@@ -93,8 +98,8 @@ window_effects:
       enabled: false
       style: 'square'
     transparency:
-      enabled: true
-      opacity: '80%'
+      enabled: false
+      opacity: '100%'
 
 window_behavior:
   # New windows are created in this state whenever possible.
