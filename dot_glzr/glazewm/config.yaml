@@ -227,58 +227,40 @@ window_rules:
     match:
       - window_process: { equals: 'steam' }
 
-binding_modes:
-  # When enabled, the focused window can be resized via arrow keys or HJKL.
-  - name: 'resize'
-    keybindings:
-      - commands: ['resize --width -2%']
-        bindings: ['h', 'left']
-      - commands: ['resize --width +2%']
-        bindings: ['l', 'right']
-      - commands: ['resize --height +2%']
-        bindings: ['k', 'up']
-      - commands: ['resize --height -2%']
-        bindings: ['j', 'down']
-      # Press enter/escape to return to default keybindings.
-      - commands: ['wm-disable-binding-mode --name resize']
-        bindings: ['escape', 'enter']
-
 keybindings:
-  # Shift focus in a given direction.
+  # Shift focus in a given direction (AeroSpace alt-Arrow と対称).
   - commands: ['focus --direction left']
-    bindings: ['alt+h', 'alt+left']
+    bindings: ['alt+left']
   - commands: ['focus --direction right']
-    bindings: ['alt+l', 'alt+right']
+    bindings: ['alt+right']
   - commands: ['focus --direction up']
-    bindings: ['alt+k', 'alt+up']
+    bindings: ['alt+up']
   - commands: ['focus --direction down']
-    bindings: ['alt+j', 'alt+down']
+    bindings: ['alt+down']
 
-  # Move focused window in a given direction.
+  # Move focused window in a given direction (AeroSpace ctrl-Arrow と対称、
+  # Karabiner swap 後の物理 Cmd 位置に対応する Windows の Win キー).
+  # 副作用: Windows Snap (Win+Arrow による半分割・最大化・別モニタ移動) を WM に明け渡し.
   - commands: ['move --direction left']
-    bindings: ['alt+shift+h', 'alt+shift+left']
+    bindings: ['win+left']
   - commands: ['move --direction right']
-    bindings: ['alt+shift+l', 'alt+shift+right']
+    bindings: ['win+right']
   - commands: ['move --direction up']
-    bindings: ['alt+shift+k', 'alt+shift+up']
+    bindings: ['win+up']
   - commands: ['move --direction down']
-    bindings: ['alt+shift+j', 'alt+shift+down']
+    bindings: ['win+down']
 
-  # Resize focused window by a percentage or pixel amount.
+  # Resize focused window (AeroSpace cmd-Arrow と対称、Karabiner swap 後の
+  # 物理 Ctrl 位置に対応する Windows の Ctrl キー).
+  # 副作用: アプリのカーソル単語移動を WM に明け渡し.
   - commands: ['resize --width -2%']
-    bindings: ['alt+u']
+    bindings: ['ctrl+left']
   - commands: ['resize --width +2%']
-    bindings: ['alt+p']
-  - commands: ['resize --height +2%']
-    bindings: ['alt+o']
+    bindings: ['ctrl+right']
   - commands: ['resize --height -2%']
-    bindings: ['alt+i']
-
-  # As an alternative to the resize keybindings above, resize mode enables
-  # resizing via arrow keys or HJKL. The binding mode is defined above with
-  # the name 'resize'.
-  - commands: ['wm-enable-binding-mode --name resize']
-    bindings: ['alt+r']
+    bindings: ['ctrl+up']
+  - commands: ['resize --height +2%']
+    bindings: ['ctrl+down']
 
   # Disables window management and all other keybindings until alt+shift+p
   # is pressed again.
