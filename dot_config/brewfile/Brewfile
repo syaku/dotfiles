@@ -120,8 +120,11 @@ cask alfred
 cask alt-tab
 cask arc
 cask bentobox
+cask elgato-stream-deck
 cask firefox
+cask font-biz-udpgothic
 cask google-chrome
+cask jordanbaird-ice
 cask karabiner-elements
 cask libndi
 cask linearmouse
@@ -137,18 +140,18 @@ cask zen
 
 tap homebrew/services
 
+tap felixkratz/formulae
+brew borders
+
 tap mackerelio/mackerel-agent
+
+tap nikitabobko/tap
+cask aerospace
 
 tap rcmdnk/file
 brew brew-file
 
-# AeroSpace (tiling window manager) and ecosystem
-tap nikitabobko/tap
-cask nikitabobko/tap/aerospace
-
-tap felixkratz/formulae
-brew felixkratz/formulae/borders
-
 # App Store applications
 appstore 545519333 Prime Video (10.84)
+appstore 1429033973 RunCat (12.6)
 appstore 1475387142 Tailscale (1.98.2)
