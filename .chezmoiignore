@@ -65,6 +65,17 @@
 # karabiner-elements は backup を automatic_backups/ に大量に吐く。展開対象外
 .config/karabiner/automatic_backups
 
+# zebar は Windows の GlazeWM 用ステータスバーなので Windows でのみ展開
+{{ if ne .chezmoi.os "windows" }}
+.glzr/zebar
+{{ end }}
+
+# zebar 配下の動的ファイル・公式サンプル widget は管理対象外
+.glzr/zebar/errors.log
+.glzr/zebar/tmp-*
+.glzr/zebar/boilerplate-*
+.glzr/zebar/starter
+
 # SSH — 頻繁に変化する known_hosts と除外対象の古い .pem は管理しない
 .ssh/known_hosts
 .ssh/known_hosts.old
