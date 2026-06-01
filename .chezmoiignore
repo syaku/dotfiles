@@ -65,23 +65,18 @@
 # karabiner-elements は backup を automatic_backups/ に大量に吐く。展開対象外
 .config/karabiner/automatic_backups
 
-# zebar は Windows の GlazeWM 用ステータスバーなので Windows でのみ展開
+# GlazeWM (タイル WM) / zebar (ステータスバー) / tacky-borders (フォーカス枠線オーバーレイ)
+# は Windows 専用ツールなので Windows でのみ展開
 {{ if ne .chezmoi.os "windows" }}
-.glzr/zebar
+.glzr
+.config/tacky-borders
 {{ end }}
 
-# zebar 配下の動的ファイル・公式サンプル widget は管理対象外
+# 上記ツールの動的ファイル・公式サンプル widget は Windows 側でも管理対象外
 .glzr/zebar/errors.log
 .glzr/zebar/tmp-*
 .glzr/zebar/boilerplate-*
 .glzr/zebar/starter
-
-# tacky-borders (フォーカス枠線オーバーレイ) も Windows でのみ展開
-{{ if ne .chezmoi.os "windows" }}
-.config/tacky-borders
-{{ end }}
-
-# tacky-borders のログは管理対象外
 .config/tacky-borders/tacky-borders.log
 
 # SSH — 頻繁に変化する known_hosts と除外対象の古い .pem は管理しない
