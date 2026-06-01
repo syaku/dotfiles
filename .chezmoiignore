@@ -76,6 +76,14 @@
 .glzr/zebar/boilerplate-*
 .glzr/zebar/starter
 
+# tacky-borders (フォーカス枠線オーバーレイ) も Windows でのみ展開
+{{ if ne .chezmoi.os "windows" }}
+.config/tacky-borders
+{{ end }}
+
+# tacky-borders のログは管理対象外
+.config/tacky-borders/tacky-borders.log
+
 # SSH — 頻繁に変化する known_hosts と除外対象の古い .pem は管理しない
 .ssh/known_hosts
 .ssh/known_hosts.old
