@@ -1,3 +1,7 @@
+---
+paths: ["**/*.{ts,tsx,js,jsx,mjs,cjs,py,rs,go,rb,java,kt,swift,c,h,cpp,cc,hpp,cs,php,scala,ex,exs,lua,dart,vue,svelte,sh,bash,zsh,fish}"]
+---
+
 # 設計原則
 
 - **過度な抽象化・将来の拡張を見越した設計は避ける（YAGNI）。** 「いつか使うかも」のための interface・generics・コンフィグ化・hook 化は、その「いつか」が来てから入れる。3 つの似たコードを書いてから共通化する方が早道。
