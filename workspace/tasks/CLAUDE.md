@@ -1,19 +1,19 @@
 # CLAUDE.md
 
-このファイルは `tasks/` ディレクトリで作業する際の Claude Code へのガイダンスを提供します。
+このファイルは `tasks/` ディレクトリで作業する際の Claude Code へのガイダンスを提供します。環境固有・業務固有の情報は同階層の `CLAUDE.local.md` を参照。
 
 ## 概要
 
 作業単位ごとにサブディレクトリを切って使う作業スペースです。1サブディレクトリ＝1作業単位とし、その作業に関わる情報（メタ情報・計画・worktree・ログ）を全てそのディレクトリに集約します。
 
+タスクの本筋に関係しない試し書き・脇道コードは `~/workspace/scratch/` に分離します（`tasks/` を散らかさないため）。
+
 ## ディレクトリ命名規則
 
-内容が一目で分かる slug を付けます。`<種別>-<内容>/` の形で種別プレフィックスを付けるのを推奨しますが必須ではなく、内容が明確な slug ならプレフィックスなしでも構いません。
-
-例:
-- `feature-user-auth/`
-- `bug-payment-timeout/`
-- `rss-daily-digest/`
+- 対応するチケットがある作業は、そのチケット ID をディレクトリ名の起点に使う（具体的なチケット体系・例は `CLAUDE.local.md` を参照）
+- `CLAUDE.local.md` が無い等でチケット体系の定義が無い場合は、チケット ID を省略してよい
+- チケット ID を省略した作業は `~/workspace/CLAUDE.md` の「フォルダ命名規則」に従い、内容が分かる日本語名を付ける
+- 既存の命名揺れは現状維持とし、遡ってのリネームはしません
 
 ## 作業スペースの構成
 
@@ -24,11 +24,13 @@
 - `memory.md` — 作業ログ・進捗
 - `worktree/{Issue ID}/` — git worktree
 
+完了したタスクは `tasks/archived/` 配下へ移動し、`tasks/` 直下を進行中のタスクだけに保ちます。
+
 ### CLAUDE.md（メタ情報）
 
 ディレクトリ作成時に以下を記載します。
 
-- Issue ID — Jira のチケット ID など。なければディレクトリの slug をそのまま使う
+- Issue ID — チケット ID。チケット ID を省略した（体系未定義の）作業は、日本語のディレクトリ名を英訳して生成した slug をそのまま Issue ID として使う（Branch 名・worktree 名に展開するため英語 slug にする）
 - Branch 名 — `feature/{Issue ID}`
 - worktree — `worktree/{Issue ID}`
 
