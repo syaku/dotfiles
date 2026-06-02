@@ -118,26 +118,61 @@
                     }
                 ]
             },
-            "name": "Default profile",
-            "selected": true,
-            "simple_modifications": [
+            "devices": [
                 {
-                    "from": { "key_code": "left_command" },
-                    "to": [{ "key_code": "left_control" }]
+                    "identifiers": {
+                        "is_keyboard": true,
+                        "product_id": 17,
+                        "vendor_id": 12901
+                    },
+                    "simple_modifications": [
+                        {
+                            "from": { "key_code": "left_command" },
+                            "to": [{ "key_code": "left_control" }]
+                        },
+                        {
+                            "from": { "key_code": "left_control" },
+                            "to": [{ "key_code": "left_command" }]
+                        }
+                    ]
                 },
                 {
-                    "from": { "key_code": "left_control" },
-                    "to": [{ "key_code": "left_command" }]
+                    "identifiers": { "is_keyboard": true },
+                    "simple_modifications": [
+                        {
+                            "from": { "key_code": "caps_lock" },
+                            "to": [{ "key_code": "left_command" }]
+                        },
+                        {
+                            "from": { "key_code": "left_control" },
+                            "to": [{ "key_code": "caps_lock" }]
+                        },
+                        {
+                            "from": { "key_code": "left_command" },
+                            "to": [{ "key_code": "left_control" }]
+                        }
+                    ]
                 },
                 {
-                    "from": { "key_code": "right_command" },
-                    "to": [{ "key_code": "right_control" }]
-                },
-                {
-                    "from": { "key_code": "right_control" },
-                    "to": [{ "key_code": "right_command" }]
+                    "identifiers": {
+                        "is_keyboard": true,
+                        "product_id": 1636,
+                        "vendor_id": 21972
+                    },
+                    "simple_modifications": [
+                        {
+                            "from": { "key_code": "left_control" },
+                            "to": [{ "key_code": "left_command" }]
+                        },
+                        {
+                            "from": { "key_code": "left_command" },
+                            "to": [{ "key_code": "left_control" }]
+                        }
+                    ]
                 }
             ],
+            "name": "Default profile",
+            "selected": true,
             "virtual_hid_keyboard": { "keyboard_type_v2": "ansi" }
         }
     ]
