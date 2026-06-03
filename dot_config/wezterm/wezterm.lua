@@ -83,7 +83,7 @@ config.font = wezterm.font_with_fallback({
 })
 
 if is_windows then
-  config.font_size = 10
+  config.font_size = 11
 end
 
 if is_macos then
