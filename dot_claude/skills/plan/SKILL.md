@@ -1,6 +1,6 @@
 ---
 name: plan
-description: 依頼を整理して ~/workspace/tasks/<slug>/plan.md に計画を書き、承認まで進めるスキル。standalone でも /dev から呼ばれてもよい。フロントマターで Bash/Edit がツール層ブロックされ、計画フェーズの実行を抑制する。「計画を立てて」「plan して」などの依頼で起動する。
+description: 依頼を整理して ~/workspace/tasks/<slug>/plan.md に計画を書き、承認まで進めるスキル。standalone でも /develop から呼ばれてもよい。フロントマターで Bash/Edit がツール層ブロックされ、計画フェーズの実行を抑制する。「計画を立てて」「plan して」などの依頼で起動する。
 disallowed-tools: Bash Edit
 ---
 
@@ -58,7 +58,7 @@ disallowed-tools: Bash Edit
 
 - plan.md のパスを示し AskUserQuestion で承認可否を取る。
 - 提示時にステップ 3.5 のサマリを添える: 「検証で N 件修正／レビューで M 件の論点（対応済み K 件・要判断 L 件）」。ユーザは検証済みの計画に対して承認判断できる。
-- 承認後はスキル終了。呼び出し元（main セッションまたは /dev）に plan.md のパスを返す。
+- 承認後はスキル終了。呼び出し元（main セッションまたは /develop）に plan.md のパスを返す。
 
 ## やってはいけないこと
 
