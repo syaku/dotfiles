@@ -8,7 +8,7 @@
    - isPrivate は init 時に一度だけ尋ねる。個人インフラのホスト情報・SSH 鍵を
      展開してよい機かどうかの判定に使う (.chezmoiignore 参照)。
 */ -}}
-{{- $isPrivate := promptBoolOnce . "isPrivate" "Is this a private (personal) machine?" false -}}
+{{- $isPrivate := promptBoolOnce . "isPrivate" "Is this a private (personal) machine" false -}}
 encryption = "age"
 
 [age]
