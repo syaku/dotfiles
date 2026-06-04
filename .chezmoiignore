@@ -83,9 +83,12 @@
 .ssh/*.pem
 .ssh/*.pem.pub
 
-# config は personal infra のホストを含むため private 環境のみ展開
+# 個人 SSH 鍵 (id_ed25519) と接続情報 (config, personal infra のホストを含む) は
+# private 環境のみ展開する。isPrivate 未定義の機は false 扱いで安全側に倒し ignore（鍵を置かない）
 {{ if not (dig "isPrivate" false .) }}
 .ssh/config
+.ssh/id_ed25519
+.ssh/id_ed25519.pub
 {{ end }}
 
 # conf.d のローカル専用 drop-in（業務端末の Volta/SDKMAN 初期化等）は同期側に出さずローカルに閉じる
