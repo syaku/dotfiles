@@ -1,0 +1,19 @@
+{{- /*
+   chezmoi の設定 (~/.config/chezmoi/chezmoi.toml) をこのテンプレートから生成する。
+   - encryption は全機共通で "age" を宣言する。これにより非 private 機でも
+     暗号化ソースファイル (encrypted_*.age) の存在チェックを通過し
+     "encryption not configured" エラーを防ぐ。実 identity (key.txt) は同期されず、
+     private 機にのみ手置きする。非 private 機では SSH 鍵が .chezmoiignore で
+     ignore され復号されないため、key.txt が無くても問題ない。
+   - isPrivate は init 時に一度だけ尋ねる。個人インフラのホスト情報・SSH 鍵を
+     展開してよい機かどうかの判定に使う (.chezmoiignore 参照)。
+*/ -}}
+{{- $isPrivate := promptBoolOnce . "isPrivate" "Is this a private (personal) machine?" false -}}
+encryption = "age"
+
+[age]
+    identity = "~/.config/chezmoi/key.txt"
+    recipient = "age17kmycq65hcp4cm9w93l0t96s2zqvmvfjtwja2p3hwglwhvupca0qtrltna"
+
+[data]
+    isPrivate = {{ $isPrivate }}
