@@ -5,11 +5,11 @@ export PATH="$PATH:$HOME/Library/Application Support/JetBrains/Toolbox/scripts"
 
 # エディタの設定
 export EDITOR="micro"
-export VISUAL="code --wait"
+export VISUAL="zed --wait"
 export PAGER="less -RF"
 
 # git 専用のエディタ/ページャ（gitconfig には書かず環境ごとに指定）
-export GIT_EDITOR="code --wait"
+export GIT_EDITOR="micro"
 export GIT_PAGER="delta"
 
 # MySQL client toolsのpath追加
