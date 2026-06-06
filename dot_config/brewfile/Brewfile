@@ -38,6 +38,7 @@ brew gnupg
 brew gnutls
 brew gron
 brew gum
+brew html-to-markdown
 brew hugo
 brew hyperfine
 brew jless
@@ -120,6 +121,7 @@ cask alfred
 cask alt-tab
 cask arc
 cask bentobox
+cask codex
 cask elgato-stream-deck
 cask firefox
 cask font-biz-udpgothic
@@ -135,7 +137,8 @@ cask orbstack
 cask proton-mail-bridge
 cask visual-studio-code
 cask vivaldi
-cask wezterm
+cask wezterm@nightly
+cask zed
 cask zen
 
 tap homebrew/services
