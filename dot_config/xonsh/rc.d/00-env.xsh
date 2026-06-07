@@ -1,6 +1,12 @@
 # 環境変数・PATH (PowerShell core.ps1 相当)
 import os
 
+# プロンプトの描画を非同期（バックグラウンド）で行う
+$ASYNC_PROMPT = True
+
+# 補完の計算を非同期で行い、タイピングが引っかかるのを防ぐ
+$COMPLETIONS_DISPLAY = 'multi'
+
 # 履歴
 $XONSH_HISTORY_FILE = os.path.expanduser('~/.xonsh_history.json')
 $XONSH_HISTORY_SIZE = (1000, 'commands')
