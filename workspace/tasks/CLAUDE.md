@@ -20,6 +20,7 @@
 各サブディレクトリは作成時に以下を用意します。git worktree もこのディレクトリ内に作成します。
 
 - `CLAUDE.md` — 作業のメタ情報（下記）
+- `premise.md` — 前提整理メモ（plan の前段で sear-me スキルが生成・任意。plan.md と同居）
 - `plan.md` — 作業計画（plan スキルが生成）
 - `memory.md` — 作業ログ・進捗
 - `worktree/{Issue ID}/` — git worktree
@@ -63,6 +64,7 @@ Issue ID の決め方:
 ## 構成
 
 - `CLAUDE.md` — 本ファイル（作業メタ情報）
+- `premise.md` — 前提整理メモ（plan の前段で sear-me スキルが生成・任意。plan.md と同居）
 - `plan.md` — 作業計画（plan スキル生成）
 - `memory.md` — 作業ログ・進捗
 - `worktree/<Issue ID>/` — git worktree（着手時に作成）

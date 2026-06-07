@@ -19,6 +19,8 @@ disallowed-tools: Bash Edit
 ### 1. タスクの理解と出力先決定
 
 - 依頼を整理し、曖昧点があれば AskUserQuestion で 1〜2 件に絞って確認する。
+- **同ディレクトリに `premise.md`（sear-me の成果物）があれば読み、その Goal / Scope / Open questions を step1 の確認結果として扱う。premise.md の Open questions に挙がっていない軸は再質問しない**（premise.md が無ければ従来通り 1〜2 問確認する＝疎結合維持）。
+- **Open questions の引き継ぎ規約**: plan は premise.md の Open questions を step2 調査・step3 起草で解消し、**解消できなかったものだけ plan.md の Risks に繰り越す**（未決論点の二重所有を避ける）。
 - タスクスラッグ（kebab-case 短語、例: `add-login-button`）を決める。
 - 出力パス `~/workspace/tasks/<slug>/plan.md` をユーザに提示する。
 
