@@ -1,6 +1,7 @@
 {{- /* chezmoi:template:line-endings=native */ -}}
 {{- $isWin := eq .chezmoi.os "windows" -}}
 {{- $sep := "/" -}}
+{{- $home := "$HOME" -}}
 {{- $fontName := "UDEV Gothic NF" -}}
 {{- $fontQ := "0" -}}
 {{- $fontStyleBold := "0" -}}
@@ -10,6 +11,7 @@
 {{- $statusBarSize := "10" -}}
 {{- if $isWin -}}
 {{- $sep = `\` -}}
+{{- $home = "%HOME%" -}}
 {{- $fontName = "UDEV Gothic" -}}
 {{- $fontQ = "1" -}}
 {{- $fontStyleBold = "1" -}}
@@ -591,18 +593,14 @@
   <IgnoreList Enabled="{{ if $isWin }}True{{ else }}False{{ end }}">
     <IgnoreListFile>%DC_CONFIG_PATH%{{ $sep }}ignorelist.txt</IgnoreListFile>
   </IgnoreList>
-{{- if $isWin }}
   <DirectoryHotList>
-    <HotDir Name="1.Home" Path="%HOME%"/>
-    <HotDir Name="2.Desktop" Path="%HOME%\Desktop"/>
-    <HotDir Name="3.Documents" Path="%HOME%\Documents"/>
-    <HotDir Name="4.Downloads" Path="%HOME%\Downloads"/>
+    <HotDir Name="1.Home" Path="{{ $home }}"/>
+    <HotDir Name="2.Desktop" Path="{{ $home }}{{ $sep }}Desktop"/>
+    <HotDir Name="3.Documents" Path="{{ $home }}{{ $sep }}Documents"/>
+    <HotDir Name="4.Downloads" Path="{{ $home }}{{ $sep }}Downloads"/>
     <HotDir Name="-" Path=""/>
-    <HotDir Name="Workspace" Path="%HOME%\workspace"/>
+    <HotDir Name="Workspace" Path="{{ $home }}{{ $sep }}workspace"/>
   </DirectoryHotList>
-{{- else }}
-  <DirectoryHotList/>
-{{- end }}
   <Viewer>
     <PreviewVisible>False</PreviewVisible>
     <ImageStretch>False</ImageStretch>
