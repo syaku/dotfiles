@@ -11,15 +11,15 @@ $COMPLETIONS_DISPLAY = 'multi'
 $COMPLETION_IN_THREAD = True
 
 # キー入力ごとに補完候補を再評価して表示する（fish 風のライブ補完）
-$UPDATE_COMPLETIONS_ON_KEYPRESS = True
+# $UPDATE_COMPLETIONS_ON_KEYPRESS = True
 
 # コマンドキャッシュをセッション間で保存して起動を速くする
 $COMMANDS_CACHE_SAVE_INTERMEDIATE = True
 
 # 履歴
 $XONSH_HISTORY_FILE = os.path.expanduser('~/.xonsh_history.json')
-$XONSH_HISTORY_SIZE = (1000, 'commands')
-$XONSH_HISTORY_TAIL_SIZE = (1000, 'commands')
+$XONSH_HISTORY_SIZE = (3000, 'commands')
+$XONSH_HISTORY_TAIL_SIZE = (3000, 'commands')
 
 # エディタ・ページャ
 $EDITOR = 'nvim'
