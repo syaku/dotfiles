@@ -1,6 +1,7 @@
 {
   "env": {
-    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"{{ if eq .chezmoi.os "windows" }},
+    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"{{ if eq .chezmoi.os "windows" }},
     "CLAUDE_CODE_GIT_BASH_PATH": "C:\\Program Files\\Git\\bin\\bash.exe",
     "CLAUDE_CODE_USE_POWERSHELL_TOOL": "0"{{ end }}
   },
@@ -51,7 +52,8 @@
   {{- /* enabledPlugins must stay present (even empty): per anthropics/claude-code#27247, plugin enables declared in a project's settings.local.json are silently ignored unless lower-priority user settings also define enabledPlugins. The slack plugin is enabled in ~/workspace/.claude/settings.local.json. */}}
   "enabledPlugins": {
     "obsidian@obsidian-skills": true,
-    "arscontexta@agenticnotetaking": true
+    "arscontexta@agenticnotetaking": true,
+    "playwright@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "obsidian-skills": {
