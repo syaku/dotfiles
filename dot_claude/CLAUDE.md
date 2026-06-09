@@ -7,6 +7,11 @@
 
 @~/.claude/persona.md
 
+## ユーザプロフィール（協働相手）
+協働相手の人物像・判断軸。態度ペルソナ（アシスタント側）と対になる基盤文脈として import する。応答の framing と提案の評価軸に効く。可変な個別状態（進行中の移行・採否の個別事例）は auto memory 側に置く。
+
+@~/.claude/user-profile.md
+
 ## Workspace
 - メインの作業ディレクトリは `~/workspace`
 - 詳細は各ディレクトリの CLAUDE.md を参照
