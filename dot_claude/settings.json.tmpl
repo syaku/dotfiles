@@ -45,7 +45,6 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "claude-opus-4-8",
   {{- if and (or (eq .chezmoi.os "darwin") (eq .chezmoi.os "windows")) .isPrivate }}
   "autoMemoryDirectory": "{{ .chezmoi.homeDir }}/workspace/notes/obsidian/Life/claude-memory",
   {{- end }}
@@ -69,7 +68,9 @@
       }
     }
   },
-  "skipAutoPermissionPrompt": true{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "windows") }},
+  "skipAutoPermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "tui": "fullscreen"{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "windows") }},
   "hooks": {
     "Notification": [
       {
