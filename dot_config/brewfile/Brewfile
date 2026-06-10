@@ -65,6 +65,7 @@ brew libyaml
 brew llhttp
 brew lolcat
 brew lpeg
+brew lsd
 brew luajit
 brew luv
 brew lz4
