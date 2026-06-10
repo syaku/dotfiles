@@ -1,30 +1,43 @@
 # 環境変数設定ファイル
-# このファイルは基本的な環境変数の設定を行います
+# 各ツールの init 出力を vendor/autoload に書き出し、
+# autoload フェーズで source させる (nushell には stdin を eval する手段がないため、
+# xonsh の execx / pwsh の Invoke-Expression に相当する位置に置く)。
 
-# ベンダーディレクトリのパスを生成する関数
-def get_vendor_path [name: string] {
-    $nu.data-dir | path join "vendor/autoload" $name
+let vendor_autoload = ($nu.data-dir | path join "vendor/autoload")
+mkdir $vendor_autoload
+
+# starship (プロンプト)
+if (which starship | is-not-empty) {
+    starship init nu | save -f ($vendor_autoload | path join "starship.nu")
+} else {
+    print "Warning: starship is not installed"
 }
 
-# ツールの初期化を行う関数
-def init_tool [name: string, init_command: string, description: string] {
-    if not (which $name | is-empty) {
-        try {
-            nu -c $init_command | save -f (get_vendor_path $"($name).nu")
-        } catch { |e| 
-            print $"Failed to initialize ($name): ($e)"
-        }
-    } else {
-        print $"Warning: ($name) is not installed"
-    }
+# atuin (履歴管理。Ctrl+R を担当)
+# --disable-up-arrow: 上キーは atuin を起動せず通常の履歴ナビにする
+if (which atuin | is-not-empty) {
+    atuin init nu --disable-up-arrow | save -f ($vendor_autoload | path join "atuin.nu")
+} else {
+    print "Warning: atuin is not installed"
 }
 
-# ベンダーディレクトリの作成
-mkdir ($nu.data-dir | path join "vendor/autoload")
+# mise (ランタイム版管理)
+if (which mise | is-not-empty) {
+    mise activate nu | save -f ($vendor_autoload | path join "mise.nu")
+} else {
+    print "Warning: mise is not installed"
+}
 
-# 各ツールの初期化
-init_tool "starship" "starship init nu" "プロンプトカスタマイズ"
-init_tool "atuin" "atuin init nu --disable-up-arrow" "コマンド履歴管理"
-init_tool "mise" "mise activate nu" "バージョン管理"
-init_tool "zoxide" "zoxide init nushell --cmd cd" "ディレクトリジャンプ"
-init_tool "carapace" "carapace _carapace nushell" "コマンド補完"
+# zoxide (ディレクトリジャンプ): cd を zoxide で置き換え
+if (which zoxide | is-not-empty) {
+    zoxide init nushell --cmd cd | save -f ($vendor_autoload | path join "zoxide.nu")
+} else {
+    print "Warning: zoxide is not installed"
+}
+
+# carapace (マルチシェル補完)
+if (which carapace | is-not-empty) {
+    carapace _carapace nushell | save -f ($vendor_autoload | path join "carapace.nu")
+} else {
+    print "Warning: carapace is not installed"
+}
