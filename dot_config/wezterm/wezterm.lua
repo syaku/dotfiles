@@ -13,7 +13,7 @@ local config = {}
 -- ── ドメイン ───────────────────────────────────────
 config.wsl_domains = wezterm.default_wsl_domains()
 if is_windows then
-  config.default_prog = { wezterm.home_dir .. '\\xonsh-env\\python.exe', '-m', 'xonsh' }
+  config.default_prog = { 'nu.exe' }
 end
 -- macOS/Linux では default_prog を設定せず、$SHELL → ログインシェルを自動採用
 config.default_domain = 'local'
