@@ -56,15 +56,77 @@ disallowed-tools: Bash Edit
   - `prompt`: plan.md パス＋元の依頼文＋（あれば）**前ラウンドの未解決論点リスト**を渡し、以下を全て満たすこと:
     - **指摘の数より質を優先せよ。各指摘は plan.md の特定の文・節に紐づき、改修可能なアクションに紐づくこと。指摘ゼロでも問題なければそれは正当な出力**。「観点 N 個ずつ何か言う」「観点ごとに 1 件以上」の網羅は不要。**失敗接地**: 観点を増やすほど指摘下限が機械的に上がる（観点インフレ）→ 同じ plan を 3 ラウンド回しても medium が減らない。観点を増やさない＝指摘下限を上げない。
     - **ラウンドごとに観点を絞る**: ラウンド 1 は計画全体の前提・Verification の十分性を重点に見る。ラウンド 2 以降は**前ラウンドで残った懸念だけに観点を絞り、新しい観点を持ち込まない**。前ラウンド指摘が `problem-none` に転じたかどうかを優先評価する。
-    - **指摘は必ず番号付き項目で 1 件ずつ返す**（『問題なし／supportive（変更不要）』も独立番号を振る）。これにより母数＝最大項目番号で機械確定し、「どこからどこまでが 1 項目か」の認定裁量をメインから外す。
-    - **各項目には状態トークンを機械可読に併記**:
-      - `problem`: 改修が必要。さらに severity を `high` / `medium` / `low` の三段で併記する。
-        - `high` = **plan の Verification が不可能になる／スコープ外の再計画が必要／plan の前提を覆す事実誤り**。リトライおよび per-item ゲートの「前提を覆す」基準はこの severity:high を指す。ただし `Critical files` のパス実在・`Reusable utilities` の所在/シグネチャ等の repo level 事実誤りは検証 subagent (3.5-1 上段) の grounding 領分。レビュー subagent は plan の内部整合（前提と Verification が噛み合わない、Approach の依存関係矛盾 等）に範囲を限定し、repo を独自に grep しない（レビュー subagent には repo アクセス前提を入力していないため事実上独立検証は不能だが、明示しておく）。
-        - `medium` = 改修すべきだが Verification は通る範囲の不備。
-        - `low` = nice-to-have。
-      - `problem-none`: 現状が plan の Verification・要件を既に満たし、当該提案は追加の luxury（あれば良いが必須でない）／観測前提の未決を「曖昧」と読み替えただけのもの。「supportive」もこちらに含める。
-      - `problem-none` のサブタイプ `deferred-by-design`: plan が learning loop 設計で v1 観測前提の未決を**故意に**残している論点。**この論点に対する唯一の対応は「観測してから決める」を plan に明文化すること**で、追加の決定や reword を要求しない。**失敗接地**: distill のような observe-driven 設計では v1 で未決を残すのが意図だが、レビュー側がそれを「曖昧 → medium」と読み替えて medium を量産する paradigm mismatch が起きた。`deferred-by-design` を明示することで「決め切らない」を「曖昧」と読み替える ambiguity を機構的に拒否する。**`deferred-by-design` を付ける場合、plan の本文に「v1 観測項目として未決を残す」「観測してから決める」等の明示的な observe-driven 宣言がある節をパス・行番号で引用すること。引用できなければ `deferred-by-design` を付けてはならない**（`problem` または `problem-none`/`luxury` 等を付ける）。**失敗接地**: subagent 自己申告のみだと判断困難な medium を `deferred-by-design` に流す escape valve になりうるため、引用根拠を main 側で cross-check する設計にする（cross-check 本体は 3.5-3 直後の main 側手順を参照）。
-    - **前ラウンド指摘 ID への参照を返す**: ラウンド 2 以降では、各指摘に対して「前ラウンドで対応した指摘 ID（なければ `new` / `carry-over`）」を併記する。`carry-over` は前ラウンドで `problem` だったものが今ラウンドも `problem` のまま、`new` は今ラウンドで新たに立ち上がった懸念。
+    - **出力末尾に必ず ```` ```json ```` で始まる fenced block を 1 つ含めること**（自然言語 reasoning は block の前に書いてよい。最終判定は JSON block を真とし、自然言語と矛盾したら JSON 側に揃える）。これにより main の集計・比較を自然言語段落の解釈でなく field 読みに置換する。「指摘は番号付き項目で 1 件ずつ返す」要件は `findings[].id` を 1 から連番で振ることに置換する（`findings.length`＝母数で機械確定）。**`status=problem-none` の項目（supportive / 変更不要 / 観測前提の未決）も `findings` に必ず含めること**——「指摘事項」だけを列挙すると `findings.length`（母数）が縮み、観点インフレ予防の母数認定が崩れる。**失敗接地**: 旧版 prompt の「問題なし／supportive も独立番号を振る」要件が JSON 化で曖昧になると、subagent が supportive を吸収して「指摘事項」だけを返す経路が開く（母数を自己申告で絞る抜け穴）。**JSON block が複数出力された場合、出力末尾の block を真とする**——exemplar 引用などで複数 block が混在しても参照規約が一意に決まる。
+    - JSON schema は以下の exemplar に従う:
+
+      ```json
+      {
+        "round": 1,
+        "findings": [
+          {
+            "id": 1,
+            "summary": "Approach の節 X で Verification 手段が不足している",
+            "status": "problem",
+            "severity": "high",
+            "subtype": null,
+            "prev_round_ref": null,
+            "quote": null
+          },
+          {
+            "id": 2,
+            "summary": "v1 観測前提の論点。観測してから決める方針が plan に明示されている",
+            "status": "problem-none",
+            "severity": null,
+            "subtype": "deferred-by-design",
+            "prev_round_ref": null,
+            "quote": {"path": "~/workspace/tasks/<slug>/plan.md", "line": 45}
+          }
+        ],
+        "totals": {
+          "problem_high": 1,
+          "problem_medium": 0,
+          "problem_low": 0,
+          "problem_none": 0,
+          "deferred_by_design": 1,
+          "count": 2
+        }
+      }
+      ```
+
+      各 field の意味:
+
+      | field | 値 | 意味 |
+      |---|---|---|
+      | `round` | 整数 (1, 2, 3) | 何ラウンド目のレビューか |
+      | `findings` | 配列 | 各指摘 1 件 1 要素。番号付き箇条書きの代替 |
+      | `findings[].id` | 整数 (1, 2, 3, ...) | 連番。配列 index+1 と一致 |
+      | `findings[].summary` | 文字列 | 指摘の自然言語要約 (1-2 文) |
+      | `findings[].status` | `"problem"` / `"problem-none"` | 状態トークン |
+      | `findings[].severity` | `"high"` / `"medium"` / `"low"` / null | `status=problem` のときのみ非 null |
+      | `findings[].subtype` | `"deferred-by-design"` / null | `status=problem-none` のときのみ非 null |
+      | `findings[].prev_round_ref` | `"new"` / `"carry-over"` / `"F<id>"` / null | ラウンド 2 以降のみ非 null（用途は下記参照） |
+      | `findings[].quote` | `{path, line}` / null | `subtype=deferred-by-design` のときのみ非 null |
+      | `totals.problem_high` | 整数 | `status=problem, severity=high` の件数 |
+      | `totals.problem_medium` | 整数 | 同 medium |
+      | `totals.problem_low` | 整数 | 同 low |
+      | `totals.problem_none` | 整数 | `status=problem-none, subtype=null` の件数 |
+      | `totals.deferred_by_design` | 整数 | `status=problem-none, subtype=deferred-by-design` の件数 |
+      | `totals.count` | 整数 | findings 配列の要素数（= 全件数） |
+
+    - **`status` / `severity` / `subtype` / `prev_round_ref` は固定 enum 値のみ。スキーマ表外の値を入れない**（field 値の予測可能性を担保）。
+    - **各項目の状態トークン定義**（`findings[].status` / `findings[].severity` / `findings[].subtype` に encode する）:
+      - `status=problem`: 改修が必要。さらに `severity` を `high` / `medium` / `low` の三段で併記する。
+        - `severity=high` = **plan の Verification が不可能になる／スコープ外の再計画が必要／plan の前提を覆す事実誤り**。リトライおよび per-item ゲートの「前提を覆す」基準はこの severity:high を指す。ただし `Critical files` のパス実在・`Reusable utilities` の所在/シグネチャ等の repo level 事実誤りは検証 subagent (3.5-1 上段) の grounding 領分。レビュー subagent は plan の内部整合（前提と Verification が噛み合わない、Approach の依存関係矛盾 等）に範囲を限定し、repo を独自に grep しない（レビュー subagent には repo アクセス前提を入力していないため事実上独立検証は不能だが、明示しておく）。
+        - `severity=medium` = 改修すべきだが Verification は通る範囲の不備。
+        - `severity=low` = nice-to-have。
+      - `status=problem-none`: 現状が plan の Verification・要件を既に満たし、当該提案は追加の luxury（あれば良いが必須でない）／観測前提の未決を「曖昧」と読み替えただけのもの。「supportive」もこちらに含める（`subtype=null`）。
+      - `status=problem-none` のサブタイプ `subtype=deferred-by-design`: plan が learning loop 設計で v1 観測前提の未決を**故意に**残している論点。**この論点に対する唯一の対応は「観測してから決める」を plan に明文化すること**で、追加の決定や reword を要求しない。**失敗接地**: distill のような observe-driven 設計では v1 で未決を残すのが意図だが、レビュー側がそれを「曖昧 → medium」と読み替えて medium を量産する paradigm mismatch が起きた。`deferred-by-design` を明示することで「決め切らない」を「曖昧」と読み替える ambiguity を機構的に拒否する。**`subtype=deferred-by-design` を付ける場合、plan の本文に「v1 観測項目として未決を残す」「観測してから決める」等の明示的な observe-driven 宣言がある節を `findings[].quote.path` / `findings[].quote.line` で引用すること。引用できなければ `subtype=deferred-by-design` を付けてはならない**（`status=problem` または `status=problem-none, subtype=null` を付ける）。**失敗接地**: subagent 自己申告のみだと判断困難な medium を `deferred-by-design` に流す escape valve になりうるため、引用根拠を main 側で cross-check する設計にする（cross-check 本体は 3.5-3 直後の main 側手順を参照）。
+    - **`findings[].prev_round_ref` の enum 値域と用途**:
+      - `null`: ラウンド 1 のときの既定値（前ラウンドが無い）。
+      - `"new"`: 今ラウンドで新たに立ち上がった懸念（前ラウンドに対応指摘が無い）。
+      - `"carry-over"`: 前ラウンドから引き継いだが、特定の前ラウンド ID を辿らない汎用マーカー（同型の懸念が継続している場合等）。
+      - `"F<id>"`: 前ラウンドで `status=problem` だった**特定の指摘 ID への明示参照**（例 `"F2"` は前ラウンドの `id=2` 指摘を指す）。3.5-3 step 5 (a) のラウンド間追跡（「対応済み」判定）はこの値で行う。
+    - **`status=problem` だった前ラウンド指摘 ID が今ラウンドで `status=problem-none` に転じたと判断する場合は、必ず `prev_round_ref="F<id>"` で前ラウンドの該当 id を参照すること**（`carry-over` で済ませてはならない）。これにより main は step 5 (a) のラウンド間追跡で field 読みのみで「対応済み」を判定できる。**失敗接地**: F<id> 参照を任意にすると、subagent が carry-over で済ませた場合に main が「対応済み」を取りこぼし、観測上は「解消したのに対応済みに上がらない」状況になる。
 
 #### 3.5-2. 結果の取り込み
 
@@ -76,10 +138,16 @@ disallowed-tools: Bash Edit
 
 レビュー subagent の出力を受け取った直後、main 側で以下を**明示ステップ**として実行する。**失敗接地**: 2026-06-09、5 論点を自動反映し要判断 0 で承認を取った（恒等式が破れたが事故時点では検出されなかった）。「破ったら露見する」設計でも、main にアサーションがなければ実際は露見しない。
 
-1. 生指摘件数を機械確定する: レビュー subagent が立てた番号の最大値＝生指摘件数。番号付きで返らなかった場合、レビュー subagent を**一度だけ**再実行して取り直す。再実行しても番号が立たなければ、main では項目を切らず**全行を独立項目として保守的に最大数で数える（少なく丸めない）**。
-2. 各項目の状態を集計する: `対応済み件数 ＋ 要判断件数 ＋ 対応不要件数 ＋ 保留-設計上意図件数 ＝ 生指摘件数`（grounding＝検証 subagent の事実誤り訂正は別系統で恒等式に含めない）。「対応不要」はレビュー subagent が `problem-none` を付け、かつ `deferred-by-design` でない項目に限る。「保留-設計上意図」は `problem-none` のサブタイプ `deferred-by-design` に一致する項目に限る。
-3. 恒等式が成立しなければ、**レビュー subagent をもう一度実行して取り直す**（再実行は最大 1 回）。それでも不成立なら、状態未定の項目は保守的に「要判断」に倒してから per-item 列挙に進む。
-4. **`deferred-by-design` の引用 cross-check**: `deferred-by-design` ラベルが付いた項目について、subagent が引用した plan の observe-driven 宣言（パス・行番号）が現実に plan.md に存在するかを Read で確認する。引用が見当たらない／plan に observe-driven 宣言が無いのに `deferred-by-design` が付いている項目は、状態を `要判断` に倒して per-item 列挙へ進む（subagent の分類を main で上書きする。escape valve 化を予防する main 側の砦）。
+1. レビュー subagent 出力末尾の ```` ```json ```` fenced block を Read で読み取る。**JSON block が複数出力された場合、出力末尾の block を真とする**（exemplar 引用などで複数 block が混在しても参照規約が一意に決まる。3.5-1 下段 prompt と同一規約）。`findings` 配列の要素数を field 読みで確定する＝これが生指摘件数（`findings.length`）。JSON block が出力に無い／schema 逸脱で主要 field が読めない場合、レビュー subagent を**一度だけ**再実行して取り直す。再実行しても読めなければ、main では項目を切らず**自然言語段落の全行を独立項目として保守的に最大数で数える（少なく丸めない）**。
+2. `totals.count == findings.length` の自己整合を field 読みで確認する。次に `totals.problem_high + totals.problem_medium + totals.problem_low + totals.problem_none + totals.deferred_by_design == totals.count` の恒等式を field 値の加算で確認する（grounding＝検証 subagent の事実誤り訂正は別系統で恒等式に含めない）。
+3. 上記いずれかの恒等式が成立しなければ、**レビュー subagent をもう一度実行して取り直す**（再実行は最大 1 回）。それでも不成立なら、状態未定の項目は保守的に「要判断」に倒してから per-item 列挙に進む。
+4. **`deferred-by-design` の引用 cross-check**: `findings[].subtype == "deferred-by-design"` が付いた項目について、`findings[].quote.path` / `findings[].quote.line` で参照された plan の observe-driven 宣言が現実に plan.md に存在するかを Read で確認する。引用が見当たらない／plan に observe-driven 宣言が無いのに `subtype=deferred-by-design` が付いている項目は、状態を `要判断` に倒して per-item 列挙へ進む（subagent の分類を main で上書きする。escape valve 化を予防する main 側の砦）。
+5. 4 状態への振り分け（対応済み・要判断・対応不要・保留-設計上意図）は `status` / `subtype` / `prev_round_ref` を field 読みで判定する。**以下の priority 順で上から評価し、最初にマッチした状態に振り分ける（排他化）**——例: 前ラウンド `status=problem` だった指摘が今ラウンド `status=problem-none, subtype=null, prev_round_ref="F<id>"` に転じた項目は (a) と「対応不要」の両方に形式上当てはまるが、priority 順で先に評価される (a) に倒れる:
+   1. **「対応済み」(a)**: ラウンド 2 以降で、前ラウンド `status=problem` だった指摘 ID を今ラウンドの `prev_round_ref="F<id>"` で参照し、当該項目が `status=problem-none` に転じたもの。
+   2. **「対応済み」(b)**: 3.5-2 の出典付き自動修正の**直後に走る 3.5-5 再レビュー**で `status=problem-none` に転じた項目。**この判定は field 読みのみでは決定できない**ため、main は 3.5-2 で plan を書き直した際の「どの自動修正 → どの per-item 指摘に対応するか」の対応関係を context に保持し、3.5-5 再レビュー結果と突き合わせて (b) を認定する。ラウンド 1 の 3.5-5 では `prev_round_ref` が null のため、(b) と「対応不要」の区別はこの main 側 context 突き合わせでのみ可能。per-item に「(b) どの出典付き訂正で解消」根拠を併記する規約（ステップ 4 の line 「(b) 3.5-2 の出典付き自動修正…」）は、この main 側 context を根拠にする。
+   3. **「保留-設計上意図」**: `status=problem-none, subtype=deferred-by-design`（step 4 の cross-check を通過したものに限る）。
+   4. **「対応不要」**: `status=problem-none, subtype=null` で上記いずれにも該当しないもの（メインが解釈で要判断から振り分けない）。
+   5. **「要判断」**: 上記いずれにも該当しないもの。
 
 このアサーションを省略してはいけない。
 
@@ -87,14 +155,14 @@ disallowed-tools: Bash Edit
 
 リトライの停止判定は「**指摘の質的減少**」（主則）と「**ハードリミット 2 回**」（保険）の 2 段構え。質的減少が満たされなくなった時点で停止し、それより前にハードリミットに当たれば暴走防止として強制停止する。背景: 履歴メタ（再実行ログの有無）でなく、対象（指摘の質的解消）でリトライ効果を測ることで、儀式化されたリトライ（ログだけあって質的に減っていない）を防ぐ。
 
-- リトライ実行の条件: severity:high の指摘（= 前提を覆す）が残っている。medium/low だけならリトライせず、ステップ 4 の per-item ゲートに合流させる。
+- リトライ実行の条件: `curr.totals.problem_high > 0`（= 前提を覆す指摘が残っている）。`problem_high == 0` で `problem_medium` / `problem_low` だけならリトライせず、ステップ 4 の per-item ゲートに合流させる。
 - リトライ後は、変更された plan.md に対して**残懸念のみ**で再レビューを回す（観点を絞る運用＝ステップ 3.5-1 の prompt で前ラウンド未解決論点リストを渡す）。
-- **質的減少の判定**: 再レビュー結果に対して以下を比較する:
-  - 前ラウンドで `problem` だった指摘 ID のうち、今ラウンドで `problem-none` に転じたもの＝「対応済み」候補。
-  - 以下の**両方**を満たすときに「質的減少した」と判定する（AND）:
-    - **(a) severity:high の件数が前ラウンドより減っている**（厳密な減少。0 でも前ラウンドより減っていれば可）。
-    - **(b) `problem` 件数の合計が前ラウンドより増えていない**（同数または減少。前ラウンドより増加していたら停止）。
-  - どちらかを満たさなければ、リトライしても効果が無いと判定し**停止する**（例: high 1→0 だが medium 3→5 のケースは (a) 達成・(b) 不達成で停止に倒れる）。
+- **質的減少の判定**: 前ラウンドと今ラウンドの JSON block を両方 Read（main context に保持された前ラウンド出力を参照）し、以下を比較する:
+  - 前ラウンドで `status=problem` だった指摘 ID のうち、今ラウンドで `prev_round_ref="F<id>"` 参照付きで `status=problem-none` に転じたもの＝「対応済み」候補。
+  - 以下の**両方**を満たすときに「質的減少した」と判定する（AND・どちらも JSON field 値の不等式で判定）:
+    - **(a) severity:high の件数が前ラウンドより厳密減少**: `prev.totals.problem_high > curr.totals.problem_high`（0 でも前ラウンドより減っていれば可）。
+    - **(b) `problem` 件数の合計が前ラウンドより非増加**: `prev.totals.problem_high + prev.totals.problem_medium + prev.totals.problem_low >= curr.totals.problem_high + curr.totals.problem_medium + curr.totals.problem_low`（同数または減少。前ラウンドより増加していたら停止）。
+  - どちらかを満たさなければ、リトライしても効果が無いと判定し**停止する**（例: `problem_high` 1→0 だが `problem_medium` 3→5 のケースは (a) 達成・(b) 不達成で停止に倒れる）。
 - 停止後、未解決の論点は per-item 列挙に「要判断」または「保留-設計上意図」状態で合流させる（別経路で添えず、列挙を単一の出口にする）。
 - **ハードリミット（暴走防止の保険・主則ではない）**: リトライは最大 2 回まで。観点を絞る運用（3.5-1）が機能していれば、回数を増やしても観点インフレは起きない設計だが、暴走防止としてハードリミットも残す。**失敗接地**: 旧設計の「最大 1 回」は履歴メタで打ち止める設計だったため、実装上は 1 ラウンドで承認に直行する儀式化が起きた。質的減少で停止に置き換えると、回数を保険にできる。
 
@@ -141,6 +209,7 @@ disallowed-tools: Bash Edit
 - レビュー指摘を（3.5-2 の出典付き自動修正、または 3.5-4 のリトライで `problem-none` に転じたことを確認した書き直し以外で）plan.md に自動反映し、**母数を絞る／「対応済み・対応不要・保留-設計上意図」に畳んで**要判断を 0 件にして単一承認で済ませる（判断ゲートの消失。失敗接地: 2026-06-09、5論点を自動反映し要判断0で承認を取った。母数絞り・状態畳みは予防的封じ。3.5-2／3.5-3／ステップ4 の per-item ゲート・件数保存則参照）
 - レビュー subagent の生出力を要約・取捨・マージして件数を減らしてから提示する（指摘を列挙の手前で消す＝ゲートの迂回。生の N 件＝提示の N 件）
 - ステップ 3.5-3 の件数保存則アサーションを省略して、レビュー subagent の出力をそのままステップ 4 に流す（恒等式不成立が露見しなくなる。失敗接地: 「破ったら露見する」設計でも main にアサーションがなければ実際は露見しなかった＝2026-06-09 事故）
+- レビュー subagent prompt から JSON 出力形式（fenced ```` ```json ```` block）を省略して自然言語のみで返させる（main の集計が自然言語段落の解釈に戻り、解釈裁量が再混入する。3.5-3 / 3.5-4 が JSON field 読みを前提に書かれているため、JSON 省略は機構全体を旧設計に巻き戻す）
 - レビュー subagent prompt に「観点 N 個」「観点ごとに 1 件以上」の網羅指示を入れ、観点を増やすほど指摘下限が機械的に上がる prompt design にする（観点インフレ。失敗接地: 同じ plan を 3 ラウンド回しても medium が減らない正のフィードバックループを引き起こす）
 - `deferred-by-design`（learning loop で v1 観測前提に故意に未決を残した論点）を「要判断」に統合して per-item の質問数を増やす（observe-driven 設計を ambiguity と読み替える paradigm mismatch を再生産する。`deferred-by-design` は「v1 観測項目として plan に明示する」が唯一の対応で、追加決定を求めない）
 - subagent が引用無しで `deferred-by-design` を付け、main がそれを検証せずに per-item で「保留-設計上意図」として通す（escape valve の経路。失敗接地: subagent 自己申告のみだと判断困難な medium を `deferred-by-design` に流す escape valve になりうる。main 側 cross-check は 3.5-3 step 4 で必須化済み）
