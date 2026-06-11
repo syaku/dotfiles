@@ -2,9 +2,9 @@
 # xonsh/rc.d/10-aliases.xsh を正本として揃えている。
 
 # ディレクトリ表示
-alias ls='eza --group-directories-first --hyperlink --icons=auto --color=auto'
-alias ll='eza -l --group-directories-first --hyperlink --icons=auto --color=auto --git'
-alias la='eza -la --group-directories-first --hyperlink --icons=auto --color=auto --git'
+alias ls='lsd --group-dirs first --hyperlink auto --icon auto --color auto'
+alias ll='lsd -l --group-dirs first --hyperlink auto --icon auto --color auto --git'
+alias la='lsd -la --group-dirs first --hyperlink auto --icon auto --color auto --git'
 
 # tldr を man 代わりに（man ページ本体は `command man <x>` で参照できる）
 alias man='tldr'

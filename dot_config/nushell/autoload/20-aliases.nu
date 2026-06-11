@@ -5,10 +5,10 @@
 #alias ls-builtin = ls
 
 # ディレクトリ表示
-# ls は eza に置き換え、ll/la は nushell の構造化データ + table を活かす設計 (nu固有)
-#alias ls = eza --group-directories-first --hyperlink --icons=auto --color=auto
+# ls は nushell builtin (構造化データ + table) を残し、ll/la のみ lsd に差し替える設計 (nu固有)
+#alias ls = lsd --group-dirs first --hyperlink auto --icon auto --color auto
 
-alias ll = eza -l --group-directories-first --hyperlink --icons=auto --color --git
+alias ll = lsd -l --group-dirs first --hyperlink auto --icon auto --color auto --git
 alias la = ll -a
 
 # 引数体系が大きく違うツール (bat/rg/fd/delta 等) は alias を張らず、実体名で使う。

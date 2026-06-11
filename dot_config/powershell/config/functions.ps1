@@ -14,12 +14,12 @@ remove-item alias:gp -ErrorAction SilentlyContinue
 remove-item alias:gl -ErrorAction SilentlyContinue
 remove-item function:mkdir -ErrorAction SilentlyContinue
 
-# Unix代替コマンド (eza/bat) は scoop/shims に集約済み。
+# Unix代替コマンド (lsd/bat) は scoop/shims に集約済み。
 # core.ps1 が $HOME\scoop\shims を PATH 先頭に入れるので、コマンド名で解決する。
 
 # ディレクトリ表示の関数
-function ls     { & eza --group-directories-first --hyperlink --icons=auto --color=auto @args }
-function ll     { & eza -l --group-directories-first --hyperlink --icons=auto --color=auto --git @args }
+function ls     { & lsd --group-dirs first --hyperlink auto --icon auto --color auto @args }
+function ll     { & lsd -l --group-dirs first --hyperlink auto --icon auto --color auto --git @args }
 function la     { ll -a @args }
 
 # あいまい検索
