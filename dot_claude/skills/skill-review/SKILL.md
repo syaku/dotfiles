@@ -46,7 +46,7 @@ Agent tool で read-only の subagent を1つ起こす（`subagent_type`: `Explo
   - 精読可の委譲先 SKILL.md は読み込んで評価に使う。精読不可は呼び出し記述＋ description のみで評価し、**「SKILL.md 不在で精読不可」をレポートに明記**させる（委譲構造軸の評価範囲の穴を隠さない）。
   - **検算ハンドル**: **自動抽出した委譲先リスト（skill 委譲先名＋精読可否＋抽出根拠の行番号と逐語引用、subagent 起動の有無、外部 IO の種類）を、評価本体に入る前に中間出力としてレポート冒頭に必ず吐く**。これで対象 SKILL.md の実態と抽出結果が一致しているかを目視チェックできる。**中間出力を受け取った main context（オーケストレータ）側は、評価本体に進む前に抽出リストと対象 SKILL.md 実態を目視照合する。照合で違和感（例示と実呼び出しの混同・委譲先の漏れ）があれば subagent に再抽出を依頼**してから評価本体に進む。
 - **(b) トレース分析** — `<対象 skill 名>` の実走セッションを読み、詰まり・無駄・フェーズ間ロスト・ガード破りを抽出する:
-  - **対象セッションは固定せず動的に解決する**: `~/.claude/projects/*/**/*.jsonl` を `Launching skill: <対象 skill 名>` で Grep し、cwd を限定しない（jsonl path は `~/.claude/projects/<encoded-cwd>/` で cwd 依存のため、`-Users-syaku-workspace` 配下に絞ると他 cwd セッションのトレース（例: vault cwd で動いた distill）を取りこぼす）。ヒットした全セッション（メイン `<session>.jsonl` ＋ `<session>/subagents/agent-*.jsonl`、jsonl は1行1イベント）を対象にする。session ID をハードコードすると古いトレース1件しか読まず、「繰り返し当てられる型」という目的を自分で損なう。この評価を回したセッション自身も含めて自動で拾う。
+  - **対象セッションは固定せず動的に解決する**: `~/.claude/projects/*/**/*.jsonl` を `Launching skill: <対象 skill 名>` で Grep し、cwd を限定しない（jsonl path は `~/.claude/projects/<encoded-cwd>/` で cwd 依存のため、`-Users-syaku-workspace` 配下に絞ると他 cwd セッションのトレース（例: vault cwd で動いた harvest）を取りこぼす）。ヒットした全セッション（メイン `<session>.jsonl` ＋ `<session>/subagents/agent-*.jsonl`、jsonl は1行1イベント）を対象にする。session ID をハードコードすると古いトレース1件しか読まず、「繰り返し当てられる型」という目的を自分で損なう。この評価を回したセッション自身も含めて自動で拾う。
   - **トレースが少数のうちは、実運用の統計ではなく「ケーススタディ」と正直に位置づける**よう指示に明記する（件数が少なければ「N 件のケーススタディ」と書き、統計的一般化をしない）。ヒットゼロなら「トレース未取得」と明記する。
 - **(c) 3軸で批評** — (a)(b) を上記3軸（フェーズ設計・委譲構造 / プロンプト・指示の品質 / 失敗・抜け穴の堅牢性）で批評させる。**各指摘に根拠の「逐語引用」併記を必須**にする（grounding。空中戦・hallucination 防止）。行番号だけの併記は不可——`SKILL.md:行` なら**その行の本文をそのまま引用**させ、trace 主張なら**該当 jsonl イベントの逐語テキスト（要約でなく原文）＋ファイルパス**を引用させる。理由: finder は実在の行番号を引きつつ中身を捏造しうる（失敗接地: 2026-06-09、develop 評価で finder が L30/L52 を「ガード無し」と断じたが実ファイルには当該ガードが実在。行番号だけの根拠では「引用したが内容が指摘を支持しない」を検出できない）。逐語引用なら後段の再照合が機械的に効く。深刻度案は、下記フェーズ3の3段ルーブリック（高＝ガード破り・データ／context ロスト／中＝指示の曖昧さ・冗長・住み分け不明／低＝文体・可読性）を subagent prompt に渡して付けさせる。
   - **委譲構造軸の縮退ルール**: 対象 skill が委譲ゼロ（skill 委譲・subagent 起動なし、外部 IO のみで完結する単発型）の場合は「委譲構造: `N/A: 委譲先なし（subagent 起動・外部 IO のみで完結）`」と書かせ、軸を抹消はしない。フェーズ設計＝内部ステップの分割妥当性はどの skill にも問えるため、軸全体を落とさない。
@@ -76,7 +76,7 @@ Agent tool で read-only の subagent を1つ起こす（`subagent_type`: `Explo
   - **中** — 指示の曖昧さ・冗長・委譲の住み分けが不明。
   - **低** — 文体・可読性。
 - **レポート冒頭にソースの重みを明示** — 既定の1回は**静的（主体）＋トレース（補助）の2ソース**、実走観察（フェーズ2）は承認時に加わる3つ目、と書く（description の「3ソース」を名目でなく実態に合わせる）。トレースが少数なら「N 件のケーススタディ」と件数も添える。**自動抽出された精読不可委譲先（あれば）**は評価範囲の穴として明記する。
-- **出力先は呼び出し時に指定**できるが、**既定は Obsidian の `~/workspace/notes/obsidian/Life/input/`**（人＋AI 成果物の capture inbox。会話文脈に依らない生成物はまず input/ に着地し、後で `/distill` が `pages/` ノードへ昇格させる運用）。frontmatter は付けてよいが pages テンプレ強制はなく、本文 H1 は置かない。永続化を Obsidian にするのは `~/workspace/tasks/` が削除されうるため（`tasks/CLAUDE.md` 規範に整合）。中間作業物のみ `~/workspace/tasks/<slug>/` 配下に置く。呼び出し時に明示パスがあればそれで上書きする。
+- **出力先は呼び出し時に指定**できるが、**既定は Obsidian の `~/workspace/notes/obsidian/Life/input/`**（人＋AI 成果物の capture inbox。会話文脈に依らない生成物はまず input/ に着地し、後で `/harvest` が `pages/` ノードへ昇格させる運用）。frontmatter は付けてよいが pages テンプレ強制はなく、本文 H1 は置かない。永続化を Obsidian にするのは `~/workspace/tasks/` が削除されうるため（`tasks/CLAUDE.md` 規範に整合）。中間作業物のみ `~/workspace/tasks/<slug>/` 配下に置く。呼び出し時に明示パスがあればそれで上書きする。
 - **出力ファイル名（basename）規約**:
   - 既定 basename: `<YYYY-MM-DD> skill-review-<対象 skill 名>.md`（日付プレフィックスで時系列ソート、skill 名で衝突回避）。
   - 同日同 skill の再評価で既存ファイルがある場合は時刻サフィックス `<YYYY-MM-DD>T<HH:mm> skill-review-<対象 skill 名>.md` を付ける（上書きを避ける）。
