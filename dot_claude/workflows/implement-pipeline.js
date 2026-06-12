@@ -129,7 +129,7 @@ function buildResult(review, overrides) {
       test_executions: [],
       self_review: { findings: [], totals: { count: 0, unimplemented: 0, deviation: 0, none: 0 } },
       retry_log: { retries: 0, stopped_by: 'implement-failed' },
-      worktree_cwd: WORKTREE,
+      worktree_cwd: WORKTREE, // args の機械エコー (LLM の申告チャネルを持たない。overrides でも上書きしない)
     },
     overrides,
   )
@@ -188,7 +188,12 @@ ${PLAN_PATH ? `一次ソース: ${PLAN_PATH} — サマリでなくこの plan.m
 依頼: ${REQUEST}
 作業ツリー (cwd): ${WORKTREE} — すべての編集・コマンド実行はこのツリー内で行う。
 副作用禁止: ${SIDE_EFFECT_BAN}
-${TDD ? '~/.claude/skills/tdd-workflow/SKILL.md を Read し、テスト先行 (Red-Green-Refactor) で進めること。ただし tdd-workflow 内のコミット指示には従わない——上記の副作用禁止が優先する (コミットしない。Red-Green-Refactor の進め方のみ従う)。\n' : ''}
+${TDD ? `~/.claude/skills/tdd-workflow/SKILL.md を Read し、テスト先行 (Red-Green-Refactor) で進めること。ただし、あなたは workflow 内 agent であり依頼者と対話できない。tdd-workflow の指示のうち従うのは Red-Green-Refactor の進め方のみで、次は上書きされる:
+- コミット指示には従わない——上記の副作用禁止が優先する (コミットしない)。
+- 対話前提の指示 (既存 red 混在時の「依頼者に共有してから進めるかを判断」・TDD 不適合時の「依頼者に切り替えを提案」等) には従わない——中断・確認待ちをしない。代わりに次のとおり申告して続行する (隠さない・勝手に握りつぶさない):
+  - 既存テストの red を発見した場合: red の存在を summary / tests_attempted に申告し、依頼スコープのテスト先行は継続する (既存 red を黙って直さない)。
+  - TDD 不適合 (tdd-workflow の「使わない」場面に該当) と判断した場合: その判断と理由を summary に申告し、通常実装に切り替えて続行する。
+` : ''}
 実装後、テスト/ビルド/lint の実行を試み、結果を tests_attempted に申告する (独立の検証 agent が別途再実行するので、結果の粉飾は意味がない)。
 返却: summary (変更概要) / changed_files (変更したファイルの絶対パス一覧) / tests_attempted。`
 
