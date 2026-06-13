@@ -1,5 +1,5 @@
 {
-  "model": "claude-opus-4-7",
+  "model": "claude-opus-4-8",
   "env": {
     "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"{{ if eq .chezmoi.os "windows" }},
@@ -73,6 +73,19 @@
   "skipWorkflowUsageWarning": true,
   "tui": "fullscreen"{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "windows") }},
   "hooks": {
+    {{- if eq .chezmoi.os "darwin" }}
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/chezmoi-source-guard.sh"
+          }
+        ]
+      }
+    ],
+    {{- end }}
     "Notification": [
       {
         "hooks": [
