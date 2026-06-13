@@ -33,7 +33,11 @@ const PLUGINS_GLOB = CLAUDE_DIR + '/plugins/marketplaces/*/skill-sources'
 const PROJECTS_DIR = CLAUDE_DIR + '/projects'
 
 // ---- 照合ヘルパ (空白差を吸収した逐語包含。捏造引用はここで構造的に落ちる) ----
-const norm = (s) => (s || '').replace(/\s+/g, ' ').trim()
+// markdown 装飾記号 (バッククォート・強調 */_) を削除でなく空白に置換 → 空白正規化 (順序が
+// load-bearing: 記号置換で生じた連続空白を後段の \s+ 畳み込み＋trim で吸収する)。空白置換により
+// トークン境界が保たれ (raw_text→raw text、融合させない)、snake_case/glob を含む引用の誤一致を防ぐ。
+// 両辺対称にかかるため本文捏造は依然 includes で落ちる。
+const norm = (s) => (s || '').replace(/[`*_]/g, ' ').replace(/\s+/g, ' ').trim()
 const quoteIn = (hay, needle) => !!norm(needle) && norm(hay).includes(norm(needle))
 
 const AXES = ['フェーズ設計・委譲構造', 'プロンプト・指示の品質', '失敗・抜け穴の堅牢性']
