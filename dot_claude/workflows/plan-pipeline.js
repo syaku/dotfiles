@@ -11,7 +11,7 @@ export const meta = {
 }
 
 // ---- 入力 ----
-// args: { plan_path, repo_path, request, premise_path? }
+// args: { plan_path, repo_path, request, premise_path?, skill_review_report_path? }
 // 呼び出し側が JSON 文字列で渡してしまった場合の fallback (本来は実 JSON object で渡す)
 let input = args
 if (typeof input === 'string') {
@@ -28,6 +28,7 @@ const PLAN_PATH = input.plan_path
 const REPO = input.repo_path
 const REQUEST = input.request
 const PREMISE = input.premise_path || null
+const SKILL_REVIEW_REPORT = input.skill_review_report_path || null // 既存 skill 改修の pre-plan 評価レポート (任意の参照入力。premise と並ぶ別チャネル)
 
 // ---- schema (enum に null を使わず 'none' を番兵にする) ----
 const EXPLORE_SCHEMA = {
@@ -169,6 +170,7 @@ const explore = await agent(
   `対象リポジトリ: ${REPO}
 依頼: ${REQUEST}
 ${PREMISE ? `前提整理 (premise.md): ${PREMISE} を Read して Goal / Scope / Open questions を踏まえること。` : ''}
+${SKILL_REVIEW_REPORT ? `skill-review レポート: ${SKILL_REVIEW_REPORT} を Read し、既存 skill の改善点 (逐語引用付き findings) を改善対象として踏まえること。機械照合は skill-review 側で済んでいるので再照合は不要、散文として読めばよい。` : ''}
 
 この依頼の計画立案に必要な現状調査を行い、構造化して返せ:
 - relevant_files: 変更・参照対象になりそうなファイル (path と理由)
@@ -190,6 +192,7 @@ const draft = await agent(
 依頼: ${REQUEST}
 対象リポジトリ: ${REPO}
 ${PREMISE ? `前提整理 (premise.md): ${PREMISE} を Read して踏まえること。premise の Open questions は調査・起草で解消し、解消できなかったものだけ plan の Risks に繰り越す。` : ''}
+${SKILL_REVIEW_REPORT ? `skill-review レポート: ${SKILL_REVIEW_REPORT} を Read し、既存 skill の改善点を計画の改善対象として踏まえること (散文として読む。再照合不要)。` : ''}
 出力先 (参考情報): ${PLAN_PATH}
 
 調査結果 (構造化済み):
