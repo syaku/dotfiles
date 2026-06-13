@@ -44,6 +44,11 @@
       "WebFetch(domain:*.local)",
       "WebFetch(domain:*.internal)"
     ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git -C * push *)",
+      "Bash(gh pr create *)"
+    ],
     "defaultMode": "auto"
   },
   {{- if and (or (eq .chezmoi.os "darwin") (eq .chezmoi.os "windows")) .isPrivate }}
