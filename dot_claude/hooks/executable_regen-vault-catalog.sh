@@ -10,12 +10,16 @@
 # 失敗は握り潰す（カタログ更新の失敗で session 開始をブロックしない。stale でも @import は機能する）。
 set -uo pipefail
 
-VAULT="$HOME/workspace/notes/obsidian/Life"
+# $HOME 末尾スラッシュを除去（Windows Git Bash は $HOME=/c/Users/name/ のように
+# 末尾スラッシュ付きで来ることがあり、"$HOME/workspace" が // を含むと PWD glob に
+# マッチせず no-op になる。macOS の $HOME は末尾スラッシュ無しなのでこの正規化は no-op）。
+home="${HOME%/}"
+VAULT="$home/workspace/notes/obsidian/Life"
 
 case "$PWD" in
-  "$HOME/workspace"*) ;;
+  "$home/workspace"*) ;;
   *) exit 0 ;;
 esac
 
-python3 "$HOME/.claude/scripts/vault_catalog.py" --vault "$VAULT" --format md >/dev/null 2>&1 || true
+python3 "$home/.claude/scripts/vault_catalog.py" --vault "$VAULT" --format md >/dev/null 2>&1 || true
 exit 0

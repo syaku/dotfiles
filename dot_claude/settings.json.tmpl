@@ -79,7 +79,7 @@
   "skipWorkflowUsageWarning": true,
   "tui": "fullscreen"{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "windows") }},
   "hooks": {
-    {{- if eq .chezmoi.os "darwin" }}
+    {{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "windows") }}
     "PreToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
