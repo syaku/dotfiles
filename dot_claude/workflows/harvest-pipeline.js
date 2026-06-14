@@ -1,12 +1,12 @@
 export const meta = {
   name: 'harvest-pipeline',
-  description: 'drain/harvest の蒸留パイプライン: 素材整理→既存突き合わせ→候補生成→命名ゲート (機械 regex＋別 context 点検＋再命名ループ)→洞察検出→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない',
+  description: 'drain (即時 ingestion)・backfill (期間 reconciliation) の 2 層蒸留パイプライン: 素材整理→既存突き合わせ→候補生成→命名ゲート (機械 regex＋別 context 点検＋再命名ループ)→洞察検出→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない',
   whenToUse: 'drain / harvest スキル本体 (SKILL.md) から scriptPath 指定で起動される。単体起動は想定しない',
   phases: [
-    { title: '素材整理', detail: 'input 昇格候補 / 会話素材 / 期間素材の構造化と既存ノード突き合わせ (drain=sonnet・daily/backfill=opus)' },
+    { title: '素材整理', detail: 'input 昇格候補 (drain=sonnet) / 期間素材 (backfill=opus) の構造化と既存ノード突き合わせ' },
     { title: '命名ゲート', detail: '機械 regex → 別 context 点検 agent → 再命名 → 再点検 (最大 2 ラウンド・未解決は人ゲートへ持ち越し)' },
-    { title: '洞察検出', detail: 'ノード間の繋がりから第三の知見を検出 (opus・0 件は正当)' },
-    { title: 'タスク・完了検出', detail: '既存タスクの done 候補検出 (証拠引用は script が素材への包含で機械照合)' },
+    { title: '洞察検出', detail: 'ノード間の繋がりから第三の知見を検出 (opus・0 件は正当・backfill は蓄積グラフの創発/メタ洞察が主眼)' },
+    { title: 'タスク・完了検出', detail: '既存タスクの done 候補検出。証拠は drain=input 連結・backfill=期間内作業レポート本文。引用は script が素材への包含で機械照合' },
     { title: '集計', detail: 'ノート規約の機械検証 (frontmatter/更新履歴/ラベル残存/タグ整合) と totals 計算' },
   ],
 }
@@ -24,26 +24,26 @@ if (!input || !input.mode || !input.vault || !input.now || !input.today) {
   throw new Error('args に mode / vault / now / today が必要 (script は Date 不可なので時刻は呼び出し側が渡す)')
 }
 const MODE = input.mode
-if (!['drain', 'daily', 'backfill'].includes(MODE)) throw new Error('mode は drain | daily | backfill のいずれか')
+if (!['drain', 'backfill'].includes(MODE)) throw new Error('mode は drain | backfill のいずれか')
 const VAULT = input.vault
 const NOW = input.now // ISO-T (YYYY-MM-DDTHH:mm)
 const TODAY = input.today // YYYY-MM-DD
 const INPUT_FILES = input.input_files || [] // drain: [{path, content}] — content は done 照合・素材渡しのため呼び出し側が Read して渡す
-const MATERIALS = input.materials || '' // daily: 会話素材ダイジェスト (逐語抜粋ベース)
-const CURSOR_PAGES = input.cursor_pages || [] // daily: カーソル以降 createdAt の pages パス一覧 (drain 産見直し対象)
 const PERIOD = input.period || null // backfill: {from, to}
 const STYLE_TITLES = input.style_titles || [] // 既存 #気づき/#洞察 ノートのタイトル一覧 (家風の実例。呼び出し側が rg で機械取得して渡す)
 if (MODE === 'drain' && !INPUT_FILES.length) throw new Error('drain には input_files ([{path, content}]) が必要')
-if (MODE === 'daily' && !MATERIALS && !CURSOR_PAGES.length) throw new Error('daily には materials か cursor_pages の少なくとも一方が必要')
 if (MODE === 'backfill' && !(PERIOD && PERIOD.from && PERIOD.to)) throw new Error('backfill には period ({from, to}) が必要')
 
 // ---- モデル固定 (モデル出し分けを /model 手動運用から script へ移す) ----
-const M_EXTRACT = MODE === 'drain' ? 'sonnet' : 'opus' // drain の昇格・整形はモデル差が小さい / daily・backfill は洞察前段の素材判断が重い
+const M_EXTRACT = MODE === 'drain' ? 'sonnet' : 'opus' // drain の昇格・整形はモデル差が小さい / backfill は洞察前段の素材判断が重い
 const M_INSIGHT = 'opus' // 洞察検出はモデル差が最大
 const M_CHECK = 'sonnet' // 命名点検は基準照合で軽い
 
 // ---- backfill のタスクラベル封鎖: schema enum で ②③ を表現不能にする (散文の 3 重ゲートを置換) ----
 const TASK_LABELS = MODE === 'backfill' ? ['①'] : ['①', '②', '③']
+
+// ---- 層タグ集合 (done sweep の作業レポート判別・層仕分けの共有タクソノミ。リテラル二重定義を避ける) ----
+const LAYER_TAGS = ['気づき', '洞察', 'タスク']
 
 // ---- schema (enum に null を使わず 'none' を番兵にする) ----
 const BACKLINK_EDIT = {
@@ -82,34 +82,23 @@ const EXTRACT_SCHEMA = {
   },
 }
 
-const REVISION_ITEM = {
-  type: 'object',
-  required: ['path', 'kind', 'field', 'current', 'proposed', 'reason', 'source_excerpt'],
-  properties: {
-    path: { type: 'string' },
-    kind: { enum: ['気づき', '洞察', 'タスク', '作業レポート・事実'] },
-    field: { enum: ['title', 'tags', 'layer'] },
-    current: { type: 'string' },
-    proposed: { type: 'string' },
-    reason: { type: 'string' },
-    source_excerpt: { type: 'string', description: '当該ノート本文の該当箇所抜粋 (title 見直しの命名点検に使う元記述)' },
-  },
-}
-
-const DAILY_SCHEMA = {
-  type: 'object',
-  required: ['candidates', 'revisions'],
-  properties: {
-    candidates: { type: 'array', items: candidateItem(['気づき', 'タスク', '作業レポート・事実']) },
-    revisions: { type: 'array', items: REVISION_ITEM },
-  },
-}
-
 const BACKFILL_SCHEMA = {
   type: 'object',
   required: ['period_pages', 'journal_notes', 'candidates'],
   properties: {
-    period_pages: { type: 'array', items: { type: 'object', required: ['path', 'gist'], properties: { path: { type: 'string' }, gist: { type: 'string' } } } },
+    period_pages: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['path', 'gist', 'tags', 'body'],
+        properties: {
+          path: { type: 'string' },
+          gist: { type: 'string' },
+          tags: { type: 'array', items: { type: 'string' }, description: 'frontmatter tags の全要素 (done sweep の作業レポート判別を script が行うため。気づき/洞察/タスク を含むかで層を仕分ける)' },
+          body: { type: 'string', description: 'ノート本文の逐語 (done sweep の証拠照合の母体。要約・truncate せず原文全文を返す。長大でも省略しない——truncate すると done-scan の引用が corpus に当たらず quote_verified が系統的に false になる)' },
+        },
+      },
+    },
     journal_notes: { type: 'array', items: { type: 'string' } },
     candidates: { type: 'array', items: candidateItem(['タスク']) },
   },
@@ -405,28 +394,6 @@ ${VAULT_RULES}
 ${NAMING_POLICY}`
 }
 
-function dailyPrompt() {
-  return `あなたは日次蒸留の素材整理担当。以下の素材から、気づき(A) のノード化候補・タスク抽出・drain 産ノートの見直しを構造化して返せ。ファイルへの書き込みは一切しない (Read/Grep/Glob のみ)。
-
-vault: ${VAULT}
-
-素材 1 — 当日セッションの会話素材ダイジェスト (逐語抜粋ベース。ここに無い感覚を想像で補完しない):
-${MATERIALS || '(なし)'}
-
-素材 2 — 前回日次蒸留以降に drain で昇格した pages (見直し対象。Read して命名・層判定・タグを点検する):
-${CURSOR_PAGES.length ? CURSOR_PAGES.map((p) => '- ' + p).join('\n') : '(なし)'}
-
-手順:
-1. 素材 1 から気づき(A) 候補を拾い、名付けられる粒度でノード化候補にする。既存ノートと Grep/Read で突き合わせ、明白に同一物の既出だけ fold_into で畳む。
-2. 素材 1 からタスクを抽出する (ラベル ① 明示 TODO / ② 次タスク候補 / ③ ノート分析で出た課題。③ は why_important 必須)。
-3. 素材 2 の各ノートを Read し、命名規約・層判定 (気づき/事実の取り違え)・タグの誤りがあれば revisions に提案する (field: title|tags|layer)。正しければ提案しない。source_excerpt にそのノート本文の該当箇所を抜粋する。
-4. 事実・作業レポートに該当する素材は kind=作業レポート・事実 とし、気づき/洞察タグを付けない。
-
-洞察はここで作らない (後段の専用 agent が担う)。素材が無ければ candidates 空配列が正当 (でっち上げない)。
-${VAULT_RULES}
-${NAMING_POLICY}`
-}
-
 function backfillPrompt() {
   return `あなたは backfill (過去期間の遡り蒸留) の素材収集担当。ファイルへの書き込みは一切しない (Read/Grep/Glob のみ)。
 
@@ -434,16 +401,22 @@ vault: ${VAULT}
 対象期間: ${PERIOD.from} 〜 ${PERIOD.to}
 
 手順:
-1. pages/ の frontmatter createdAt が期間内のノートを Grep で洗い、period_pages に path と 1 行要旨を返す (createdAt を正とする。filesystem の時刻は使わない——mv で birthtime がずれる)。
+1. pages/ の frontmatter createdAt が期間内のノートを Grep で洗い、period_pages に path / 1 行要旨 (gist) / frontmatter tags の全要素 (tags) / 本文の逐語 (body) を返す (createdAt を正とする。filesystem の時刻は使わない——mv で birthtime がずれる)。body は done sweep の証拠照合の母体になるので要約・truncate せず原文全文を返す (長大でも省略しない。完了記述が truncate されると後段 done 判定の引用が照合に落ちる)。
 2. 期間内の journals/<YYYY-MM-DD>.md の「## 作業メモ」に手書き記述があれば journal_notes に抜粋を返す (空の日も多い。空を想像で埋めない)。
 3. タスク抽出は ① 明示 TODO のみ (ノート本文に TODO/未実施/やる 等が plain にある未着手記述)。②③ は抽出しない (過去日の感覚を想像で埋める捏造リスク。schema 上も ① しか表現できない)。
 
-気づき(A) の新規ノード化はこのモードでは行わない (会話文脈が無く捏造になる)。過去 journal を埋めることもしない。
+気づき(A) の新規ノード化はこのモードでは行わない (会話文脈が無く捏造になる)。過去 journal を埋めることもしない。done 判定はこの agent では行わない (後段の専用 done agent が period_pages の body を素材に証拠ベースで判定する)。
 ${VAULT_RULES}
 ${NAMING_POLICY}`
 }
 
 function insightPrompt(newNotesList, extraMaterial) {
+  const backfillFocus =
+    MODE === 'backfill'
+      ? `
+
+backfill の主眼 (このモードの洞察の取り分): 即時 drain は新着ノードが片足でも乗る関係を発火時に回収済み。backfill が拾うのはその残差——全構成ノードが過去に drain 済みで「今になって繋がって見える」創発メタ・既存洞察の束ね直し・高次の再発パターンである。具体的には (a) 期間内に独立して立った複数の気づき/洞察が後から見ると同じ機序を指している束ね直し、(b) 過去の洞察と同じ筋の再発それ自体を一段上の「再発パターン」として名指す洞察、を主に探す。単発で発火しなかった narrow な創発だけが残差なので、無理に数を作らない (0 件も正当)。`
+      : ''
   return `あなたは洞察(B) の検出担当。「個別には既知だが、繋ぐと第三の知見が出る」関係だけを洞察候補として返せ。ファイルへの書き込みは一切しない (Read/Grep/Glob のみ)。
 
 vault: ${VAULT}
@@ -452,6 +425,7 @@ vault: ${VAULT}
 ${newNotesList || '(なし)'}
 
 ${extraMaterial}
+${backfillFocus}
 
 手順:
 1. 新規ノードと既存ノート (pages/ の #気づき #洞察・概念ノート。MOC/洞察.md も入口に使える) の繋がりを Grep/Read で探す。
@@ -480,14 +454,13 @@ ${corpus}
 
 // ============================================================
 phase('素材整理')
-log(`mode=${MODE} / 素材: ${MODE === 'drain' ? INPUT_FILES.length + ' input files' : MODE === 'daily' ? `会話ダイジェスト${MATERIALS ? 'あり' : 'なし'}・cursor_pages ${CURSOR_PAGES.length} 件` : `${PERIOD.from}〜${PERIOD.to}`}`)
+log(`mode=${MODE} / 素材: ${MODE === 'drain' ? INPUT_FILES.length + ' input files' : `${PERIOD.from}〜${PERIOD.to}`}`)
 
 let candidates = []
-let revisions = []
 let linkRewrites = []
 let backfillMaterial = null
 let corpus = '' // done 検出の証拠照合用テキスト (script が手元に持つ素材だけが照合対象)
-const flags = { extraction_failed: [], insight_failed: false, done_failed: false }
+const flags = { extraction_failed: [], insight_failed: false, done_failed: false, done_skipped_no_reports: false }
 
 if (MODE === 'drain') {
   corpus = INPUT_FILES.map((f) => `===== ${f.path} =====\n${f.content}`).join('\n')
@@ -513,35 +486,26 @@ if (MODE === 'drain') {
       return ex
     },
   )
-} else if (MODE === 'daily') {
-  corpus = MATERIALS
-  const r = await agent(dailyPrompt(), { schema: DAILY_SCHEMA, model: M_EXTRACT, label: 'daily-extract', phase: '素材整理' })
-  if (!r) throw new Error('日次素材整理 agent が結果を返さなかった')
-  candidates = r.candidates
-  revisions = r.revisions
-  await parallel(candidates.filter(needsGate).map((c) => () => runGate(c)))
-  // drain 産ノートのタイトル見直し提案にも同じ命名ゲートを通す
-  await parallel(
-    revisions
-      .filter((v) => v.field === 'title' && v.kind !== '作業レポート・事実')
-      .map((v) => () => {
-        const wrap = { kind: v.kind, title: v.proposed, source_excerpt: v.source_excerpt, content: '', backlink_edits: [] }
-        return nameGate(wrap, M_INSIGHT).then((g) => {
-          v.proposed = wrap.title
-          v.gate = g
-        })
-      }),
-  )
 } else {
-  // backfill: done 検出なし (過去素材からの完了推測は捏造リスク)
+  // backfill: 期間素材を収集し、done sweep の corpus を作業レポート系ノート本文から script が組む
   const r = await agent(backfillPrompt(), { schema: BACKFILL_SCHEMA, model: M_EXTRACT, label: 'backfill-collect', phase: '素材整理' })
   if (!r) throw new Error('backfill 素材収集 agent が結果を返さなかった')
-  backfillMaterial = { period_pages: r.period_pages, journal_notes: r.journal_notes }
+  const periodPages = r.period_pages || []
+  backfillMaterial = { period_pages: periodPages, journal_notes: r.journal_notes }
+  // done sweep の corpus: 作業レポート系ノート (気づき/洞察/タスク タグを持たない無印) の本文だけを
+  // script が決定論フィルタで組む (LLM に「どれが作業レポートか」を委ねない)。証跡は揮発しない期間内 pages 本文。
+  const reportPages = periodPages.filter((p) => !(p.tags || []).some((t) => LAYER_TAGS.includes(t)))
+  corpus = reportPages.map((p) => `===== ${p.path} =====\n${p.body || ''}`).join('\n')
+  // backfill の主眼は done reconcile。作業レポート系ノートが期間内に 0 件だと corpus 空で done-scan が走れない。
+  // 「走査して 0 件」と「対象ゼロで走らせていない」を戻りで区別するため明示フラグを立てる (decision: 決定論の件数判定)。
+  if (reportPages.length === 0) flags.done_skipped_no_reports = true
   // schema enum (['①']) で ②③ は表現不能だが、script 側でも二重に防御する
   candidates = r.candidates.filter((c) => c.kind !== 'タスク' || c.label === '①')
   await parallel(candidates.filter(needsGate).map((c) => () => runGate(c)))
+  log(`done sweep corpus: 作業レポート系 ${reportPages.length} 件 / 期間内 pages ${periodPages.length} 件`)
+  if (flags.done_skipped_no_reports) log('期間内に作業レポート系ノート (無印) が無く done sweep をスキップ (reconcile 対象ゼロ)')
 }
-log(`素材整理: 候補 ${candidates.length} 件 (うち fold ${candidates.filter((c) => c.fold_into).length})${revisions.length ? ` / 見直し提案 ${revisions.length} 件` : ''}`)
+log(`素材整理: 候補 ${candidates.length} 件 (うち fold ${candidates.filter((c) => c.fold_into).length})`)
 
 // ============================================================
 phase('洞察検出')
@@ -550,9 +514,16 @@ const newNotesList = nonTask
   .map((c) => `- [${c.kind}] ${c.title}${c.fold_into ? ` (→ ${c.fold_into} へ畳む)` : ''}`)
   .join('\n')
 let extraMaterial = ''
-if (MODE === 'daily') extraMaterial = `会話素材ダイジェスト:\n${MATERIALS}`
 if (MODE === 'drain') extraMaterial = `昇格元 input の内容 (素材):\n${corpus}`
-if (MODE === 'backfill') extraMaterial = `期間素材 (素材収集の結果。これを正とする):\n${JSON.stringify(backfillMaterial, null, 2)}`
+if (MODE === 'backfill') {
+  // body 全量は注入しない (done sweep の証跡照合は corpus 側が full body で担うので insight に body は不要)。
+  // period_pages を {path, gist} に絞った軽量版＋journal_notes だけ渡す (広期間でのトークン肥大を避ける)。
+  const lightMaterial = {
+    period_pages: (backfillMaterial.period_pages || []).map((p) => ({ path: p.path, gist: p.gist })),
+    journal_notes: backfillMaterial.journal_notes,
+  }
+  extraMaterial = `期間素材 (path と 1 行要旨の一覧。これを入口に Grep/Read で本文を辿る):\n${JSON.stringify(lightMaterial, null, 2)}`
+}
 
 const ir = await agent(insightPrompt(newNotesList, extraMaterial), {
   schema: INSIGHT_SCHEMA,
@@ -578,7 +549,8 @@ log(`洞察検出: ${ir ? ir.insights.length : '失敗'} 件`)
 // ============================================================
 phase('タスク・完了検出')
 let doneCandidates = []
-if (MODE !== 'backfill' && corpus) {
+// drain は input 連結・backfill は期間内作業レポート本文が corpus。corpus が空なら done sweep をスキップ (証拠ゼロ)。
+if (corpus) {
   const dr = await agent(donePrompt(corpus), { agentType: 'Explore', schema: DONE_SCHEMA, model: 'sonnet', label: 'done-scan', phase: 'タスク・完了検出' })
   if (!dr) {
     flags.done_failed = true
@@ -589,7 +561,11 @@ if (MODE !== 'backfill' && corpus) {
     }))
   }
 }
-log(`done 候補: ${doneCandidates.length} 件 (引用照合落ち ${doneCandidates.filter((d) => !d.quote_verified).length})`)
+if (flags.done_skipped_no_reports) {
+  log('done 候補: 走査せず (期間内に作業レポート系ノートが無く reconcile 対象ゼロ)')
+} else {
+  log(`done 候補: ${doneCandidates.length} 件 (引用照合落ち ${doneCandidates.filter((d) => !d.quote_verified).length})`)
+}
 
 // ============================================================
 phase('集計')
@@ -608,7 +584,6 @@ const totals = {
   renamed: candidates.filter((c) => c.gate && c.gate.final_title !== c.gate.initial_title).length,
   gate_unresolved: candidates.filter((c) => c.gate && (c.gate.unresolved || c.gate.undecidable)).length,
   validation_failed: candidates.filter((c) => (c.validation_errors || []).length).length,
-  revisions: revisions.length,
   done_candidates: doneCandidates.length,
 }
 log(
@@ -618,7 +593,6 @@ log(
 return {
   mode: MODE,
   candidates,
-  revisions,
   link_rewrites: linkRewrites,
   done_candidates: doneCandidates,
   totals,
