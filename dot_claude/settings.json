@@ -50,7 +50,6 @@
     ],
     "defaultMode": "auto"
   },
-  "autoMemoryDirectory": "~/workspace/notes/obsidian/Life/claude-memory",
   "enabledPlugins": {
     "obsidian@obsidian-skills": true,
     "arscontexta@agenticnotetaking": true,
