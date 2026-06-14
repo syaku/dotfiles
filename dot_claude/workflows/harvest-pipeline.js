@@ -31,6 +31,10 @@ const TODAY = input.today // YYYY-MM-DD
 const INPUT_FILES = input.input_files || [] // drain: [{path, content}] — content は done 照合・素材渡しのため呼び出し側が Read して渡す
 const PERIOD = input.period || null // backfill: {from, to}
 const STYLE_TITLES = input.style_titles || [] // 既存 #気づき/#洞察 ノートのタイトル一覧 (家風の実例。呼び出し側が rg で機械取得して渡す)
+// Obsidian 起動の有無 (タグ列挙・被リンク洗いを obsidian-cli にするか rg にするかの分岐)。起動判定は run 中で不変なので
+// SKILL.md step 1 が pgrep -x Obsidian で一度だけ判定して渡す。分岐は決定論なので script がコマンド文字列を解決し、
+// プロンプトには解決済みの単一コマンドだけを埋める (各 subagent に pgrep+分岐を委ねない)。未指定 (harvest 等) は false=rg/Grep。
+const OBSIDIAN_AVAILABLE = !!input.obsidian_available
 if (MODE === 'drain' && !INPUT_FILES.length) throw new Error('drain には input_files ([{path, content}]) が必要')
 if (MODE === 'backfill' && !(PERIOD && PERIOD.from && PERIOD.to)) throw new Error('backfill には period ({from, to}) が必要')
 
@@ -78,7 +82,7 @@ const EXTRACT_SCHEMA = {
   required: ['promotions', 'old_name_referrers'],
   properties: {
     promotions: { type: 'array', items: candidateItem(['気づき', 'タスク', '作業レポート・事実']) },
-    old_name_referrers: { type: 'array', items: { type: 'string' }, description: '昇格でこの input 名が変わる/分割される場合、元 input 名を wikilink で指す既存ノートの path (rg -l の結果)' },
+    old_name_referrers: { type: 'array', items: { type: 'string' }, description: '昇格でこの input 名が変わる/分割される場合、元 input 名を wikilink で指す既存ノートの path (obsidian backlinks / rg -l の結果)' },
   },
 }
 
@@ -374,6 +378,10 @@ ${c.content}
 
 // ---- プロンプト (モード別素材整理) ----
 function drainExtractPrompt(f) {
+  // 被リンク洗いコマンドは script が決定論で解決する (起動判定は SKILL.md step 1 が渡した flag)。agent は実行のみ。
+  const backlinkCmd = OBSIDIAN_AVAILABLE
+    ? 'obsidian backlinks file=<元 input 名 (拡張子なし)> (実リンクグラフを解決するので alias・heading リンクも拾う)'
+    : `rg -l '\\[\\[<元 input 名 (拡張子なし)>\\]\\]' ${VAULT}`
   return `あなたは vault inbox 排出 (drain) の昇格担当。以下の input ノート 1 件を読み、pages/ へ昇格させる候補を構造化して返せ。ファイルへの書き込みは一切しない (Read/Grep/Glob のみ。Write は呼び出し元の責務)。
 
 vault: ${VAULT}
@@ -386,7 +394,7 @@ ${f.content}
 1. この input の内容を「名付けられる粒度」で昇格候補に分ける (1 input から複数可)。作業レポート・調査記録はそれ自体を 1:1・具体タイトルのまま kind=作業レポート・事実 として昇格する。ただし 1:1 で終わらせず、下記「気づき抽出」を必ず併走させる (1 input が 作業レポート＋気づき＋タスク を同時に生むのは正常)。
 2. 各候補について vault 既存ノードを突き合わせ、関連ノート・既出を洗う。一次索引は、あなたの context に読み込まれている「Vault Catalog」(pages/ の機械生成索引＝各行 'title · layer · #tags · →[outlinks]')。タイトル一致・タグ共有・リンク近傍で当たりを付け、fold 判定や本文確認が要るものだけ Read する (全 pages の Grep fan-out はしない)。カタログに該当が無ければ新しい主題＝新規候補。カタログが context に無い場合に限り Grep で代替する (MOC/ は Dataview 集約でカタログに出ないので必要時のみ別途 Read)。
 3. 新規候補は content に frontmatter＋本文の完成形を書く。関連既存ノード側からの逆リンク 1 行を backlink_edits に列挙する (双方向リンク。関連が実在するものだけ・弱い繋がりを強引に張らない)。
-4. この input のファイル名が昇格で変わる/分割される場合、rg -l '\\[\\[<元 input 名 (拡張子なし)>\\]\\]' ${VAULT} で被リンクを機械的に洗い old_name_referrers に返す (0 ヒットなら空配列。同名昇格なら洗わなくてよい)。
+4. この input のファイル名が昇格で変わる/分割される場合、元 input 名を wikilink で指す既存ノートを ${backlinkCmd} で機械的に洗い old_name_referrers に返す (path のリスト。0 ヒットなら空配列。同名昇格なら洗わなくてよい)。
 
 気づき抽出 (作業レポートでも必ず行う): input が作業レポート・調査記録であっても、その作業を通じて立ち上がった主観的な学び・判断・方針・再発パターン・踏んだ罠の教訓が本文にあれば、作業レポート本体の 1:1 昇格とは別に kind=気づき の独立ノードとして切り出す。「作業レポートだから 1:1 で終わり」にしない——層は 作業 (レポート) → 気づき で分けるのであって、作業レポートが気づきの抽出元にならないわけではない (作業レポートは洞察の source になれないだけ)。対象は主語をツール固有から一般化できる教訓 (特定ツールの狭いスペック・手順そのものの記述は事実なので切り出さない)。素材に書かれた学びだけを根拠にし、無い学びを想像で足さない (捏造禁止・本当に学びが無ければ 0 件が正当)。作業レポート本体には気づきタグを付けず洞察 source にもしない。切り出した気づきが後段で洞察の素材になりうる。
 タスク抽出: input 中の未着手の行動を kind=タスク で抽出する。ラベルは ① 明示 TODO (「TODO」「未実施」「やる」等が plain にある) / ② 次タスク候補 (「次は〜」等の先送り表明) / ③ ノート分析で出た課題 (論理ギャップ・矛盾・未解決。why_important 必須)。
@@ -451,10 +459,15 @@ ${NAMING_POLICY}`
 }
 
 function donePrompt(corpus) {
+  // タグ列挙コマンドと progress 判定手段は script が決定論で解決する (起動判定は呼び出し側が渡した flag)。agent は実行のみ。
+  const taskListing = OBSIDIAN_AVAILABLE
+    ? 'obsidian tag name=タスク の ^pages/ 行で tags に タスク を含むノートを洗い (実タグ索引で速く・過剰一致しない)'
+    : 'pages/ を Grep して tags に タスク を含むノートを洗い'
+  const progressCheck = OBSIDIAN_AVAILABLE ? 'obsidian property:read name=progress path=<path> または各ノートの frontmatter を Read' : '各ノートの frontmatter を Read'
   return `あなたは既存タスクの完了検出担当。vault の未完了タスクノートを洗い、下の作業素材に完了の証拠があるものだけ返せ。書き込みはしない。
 
 vault: ${VAULT}
-未完了タスクの洗い方: pages/ を Grep して tags に タスク を含み progress が done でないノートを特定し、各ノートの ## やること を Read する。
+未完了タスクの洗い方: ${taskListing}、progress が done でないものを特定し (progress 判定は ${progressCheck})、各ノートの ## やること を Read する。
 
 作業素材 (この中の逐語引用だけが証拠になる):
 --- 素材ここから ---
