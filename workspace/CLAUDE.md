@@ -9,13 +9,19 @@
 ## ディレクトリ構成
 
 - `repos/` — 開発リポジトリ。詳細は `repos/CLAUDE.md` を参照。
-- `tasks/` — タスクごとの作業領域。詳細は `tasks/CLAUDE.md` を参照。
-- `scratch/` — 使い捨ての実験・検証コード。詳細は `scratch/CLAUDE.md` を参照。
 - `notes/` — ノート。詳細は `notes/CLAUDE.md` を参照。
+- `notes/obsidian/Life/input` — Lifeボルトに格納したいノートや作業レポートの保存先。特に指定が無い場合はこのフォルダに保存する。
+- `worktree/` — Git worktreeの作成先。
 
 各領域固有のルール（命名規則・運用方針・作業対象範囲等）は配下の CLAUDE.md を参照。
 
-## フォルダ命名規則（`tasks/`・`scratch/` 共通）
+### 作業ディレクトリ
+
+ベース: notes/obsidian/Life/workbench
+
+ベースフォルダ以下にタスク用のフォルダを作って作業スペースとする。
+
+## フォルダ命名規則
 
 - 内容が一目で分かる**日本語名**を付ける
   - 例: `購入履歴ページ404調査/`, `BigQueryコスト試算/`

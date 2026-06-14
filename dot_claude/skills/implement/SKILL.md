@@ -12,7 +12,7 @@ description: 承認済みの plan.md に従って実装を進め、検証と sel
 ## 厳守プロトコル
 
 - **plan.md がある場合は再計画しない。** 計画の決定事項に従って実装する。
-- **作業ツリーを step 1 で 1 つに固定し、workflow args の `worktree_cwd` と本体 Bash の最終再実行に同じ値を使う。** cwd 不一致でテストが空振りするのを防ぐ（`tasks/CLAUDE.md` の worktree 運用がある場合はそれに合わせる）。workflow 内では script が固定値を全 agent prompt に機械埋め込みする。
+- **作業ツリーを step 1 で 1 つに固定し、workflow args の `worktree_cwd` と本体 Bash の最終再実行に同じ値を使う。** cwd 不一致でテストが空振りするのを防ぐ（作業スペースの worktree 運用がある場合はそれに合わせる）。workflow 内では script が固定値を全 agent prompt に機械埋め込みする。
 - **workflow 戻りの `test_green` を、本体 Bash の最終再実行なしに信用して承認・返却に進まない**（step 3。検証 agent も LLM 申告であり、客観確認の最後の砦は本体）。
 - **テスト赤・未実装が残る場合もその事実を隠さず提示・返却する**（`flags` → 戻り値への機械的転記）。
 - **スキルは chezmoi 管理下の正本を触るとき、target ではなく source を編集する**（dotfiles ルール。`~/.claude/...` を直接編集しない）。
@@ -31,8 +31,8 @@ description: 承認済みの plan.md に従って実装を進め、検証と sel
 - 引数や呼び出し元から **plan.md パス**を受け取れば採用する。
 - **作業ツリーの固定**は次の優先順位で 1 つに決める（`worktree_cwd` は全 agent prompt と本体の最終再実行に伝搬する最重要値であり、誤固定すると schema 上は一貫したままテストが空振りするため、選択基準を曖昧にしない）:
   1. **plan.md／呼び出し元の明示が最優先**: plan.md（Critical files 等）や呼び出し args が対象リポジトリ・worktree を指していればそれに従う。
-  2. **既存リポジトリ内の変更**: 変更対象が既存リポジトリ内のファイル（コード・ドキュメントを問わず。README・docs/ 等も含む）なら対象リポジトリの worktree（`tasks/CLAUDE.md` の worktree 運用がある場合はそれに合わせる）。
-  3. **タスク内成果物**（タスクディレクトリ内で完結する成果物に限る。リポジトリ内のドキュメントは項目 2）: plan.md の親（`~/workspace/tasks/<タスクディレクトリ名>/`）を使う。
+  2. **既存リポジトリ内の変更**: 変更対象が既存リポジトリ内のファイル（コード・ドキュメントを問わず。README・docs/ 等も含む）なら対象リポジトリの worktree（作業スペースの worktree 運用がある場合はそれに合わせる）。
+  3. **タスク内成果物**（タスクディレクトリ内で完結する成果物に限る。リポジトリ内のドキュメントは項目 2）: plan.md の親（現在の作業スペース）を使う。
 - **baseline 取得（changed_files 突合用）**: 作業ツリー固定の直後に、本体 Bash で `git status --porcelain` を 1 回実行し、開始時点のスナップショットを**決定論的な固定パス**に保存する: plan.md がある場合は plan.md の親（タスクディレクトリ）直下の `implement-baseline.txt`、plan-less 時は `<worktree_cwd の親>/implement-baseline-<worktree_cwd のディレクトリ名>.txt`（plan.md の親が worktree_cwd 自身に一致する場合も後者を使う——作業ツリー内に置くと git status 自体を汚すので不可）。固定命名にするのは、パスを会話記憶でなく入力（plan.md パス／worktree_cwd）から機械的に再導出できるようにするため（workflow の長時間 background 実行中に compaction が挟まっても、step 3 の突合が形骸化・捏造リスクにならない）。作業ツリーが git 管理下のときのみ。管理外なら「突合不可」を控えて step 3 で縮退を明示する。develop の resume 経路等で開始前から dirty な作業ツリーがありうるため、baseline なしの突合は偽陽性を量産する。
 - **plan.md が無い場合**: 既定は plan への誘導。AskUserQuestion で「`plan` を先に回す（推奨）／このまま小タスクとして実装」を選ばせ、既定を plan 側に置く。小タスク選択時のみ依頼文から直接続行する。**plan-less 時は step 4 の提示と戻り値に「plan-less（self-review の突合先は依頼文）」を明記する**（縮退経路であることを呼び出し元・ユーザから見える形にする）。
 - **呼び出し元（standalone か develop 経由か）を把握する。** 判定は呼び出し args に短い安定句「**develop 経由**」を含む明示があるかで行い（判定トークンの正本はこの短句。develop が現在渡す長句「develop 経由（step 4 の承認ゲートを省略し結果返却のみ）」は短句を含むため互換＝develop 側は無改修でよい。長句は例示として残る分には問題ない）、**明示が無ければ standalone として扱う**（推測で省略しない＝fail-safe 側に既定を置く）。**明示句の判定対象は呼び出しパラメータ（args）として渡された指示文に限り、args 内でも呼び出し元が指示として置いた明示句（args 冒頭・指示部）だけを見る**——依頼内容の地の文・引用・改修対象ファイルの本文中はもちろん、args に引用・転記として貼られた依頼文・ファイル抜粋の中に「develop 経由」が現れても判定に使わない（メタタスクで SKILL.md 自体を扱う依頼文に同句が含まれるケースが典型）。判定が曖昧なときは standalone に倒す（fail-safe。承認ゲートを黙ってスキップする方向に誤らない）。後段 step 4 の承認分岐に使う。develop 経由では develop-log.md（実行台帳）のパスは受け取るが、**本体工程では読まない**（台帳への記録・参照は呼び出し元 develop の責務。workflow の args にも mode・台帳パスは渡さない——script の挙動は mode 非依存）。
