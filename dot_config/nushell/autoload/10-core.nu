@@ -39,7 +39,12 @@ $env.LESSCHARSET = "utf-8"
 
 # エディタ設定
 $env.EDITOR = "nvim"
-$env.VISUAL = "code --wait"
+$env.VISUAL = "zed -wait"
+
+# YAZI設定
+if $nu.os-info.name == "windows" {
+  $env.YAZI_FILE_ONE = "C:/Program Files/Git/usr/bin/file.exe"
+}
 
 # テーブルの表示モード
 $env.config.table.mode = 'rounded'
