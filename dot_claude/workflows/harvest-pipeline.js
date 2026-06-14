@@ -472,7 +472,7 @@ ${backfillFocus}
 手順:
 1. 繋がりを探す対象は (a) 今回の新規ノード同士 (上記「今回の新規/更新ノード」の #気づき/#洞察 を束ねる)、(b) 新規ノードと既存ノート (pages/ の #気づき #洞察・概念ノート) の両方。同じバッチで立った新規 #気づき も source 候補に含めてよい——特に drain は 1 input から複数の気づきが同時に立つので、それらを束ねた洞察がこのフェーズの主な取り分になる (新規気づきはまだファイル化されていないが、承認後に pages/ に作られる前提で source 候補にしてよい)。入口は、context に読み込まれた「Vault Catalog」のリンク近傍 (各ノード行の →[outlinks]) と同タグ共有 (#気づき/#洞察 を持つ行)。カタログで近傍を絞ってから、繋がりの確証に要るノートだけ Read する。カタログは実 wikilink/タグしか持たないので、MOC/洞察.md (Dataview 集約) は別途 Read で入口に使える。カタログが context に無い場合に限り Grep で代替する。
 2. 単一観測・単一ノートの感想は洞察ではない (それは気づき止まり)。繋いで初めて見える第三の知見だけ。既出洞察の焼き直しも作らない。「過去の洞察と同じ筋」の再発はそれ自体が再発パターンの洞察になりうる。
-3. 各候補: claim に洞察を一文で言い切る (複文可)。title は claim から述語を 1 つ選び、条件節を捨てて圧縮する。connected_notes に繋いだ実在ノートの path (実在を Read で確認する)。content は templates/insight.md の構造 (AI Context callout / ## 見えた洞察 / ## なぜ重要 / ## 応用・次アクション) で frontmatter＋本文の完成形。source: に繋いだ元ノートを '  - "[[ノート名]]"' 形式で列挙。
+3. 各候補: claim に洞察を一文で言い切る (複文可)。**title は claim からでなく、手順 5(3) で導く derivation.common_axis を判断軸の形で言い切ったものにする** (claim 起点は失敗形/内的手順に流れ命名ゲートを通らない——common_axis を先に確定させてから命名する。順序: derivation→common_axis→命名)。connected_notes に繋いだ実在ノートの path (実在を Read で確認する)。content は templates/insight.md の構造 (AI Context callout / ## 見えた洞察 / ## なぜ重要 / ## 応用・次アクション) で frontmatter＋本文の完成形。source: に繋いだ元ノートを '  - "[[ノート名]]"' 形式で列挙。
 4. source の規律 (満たせない候補は出さない):
    - 洞察は複数 (2 件以上) の #気づき / #洞察 ノードから生まれる。単一ノート由来は洞察ではない (気づき止まり)。source に列挙できるのは #気づき / #洞察 ノードだけで、タスク・作業レポート・事実/仕様ノートは source にしない (それらを本文 wikilink や connected_notes で参照するのは可)。**同じバッチの新規 #気づき / #洞察 もこの「#気づき / #洞察 ノード」に含む**——source: には wikilink (\`[[タイトル]]\`) で、connected_notes には承認後の path (\`pages/<タイトル>.md\`) で列挙する。この新規分だけは Read 実在確認を免除する (newNotesList に在ることが実在の代わり。既存ノートは従来どおり Read で実在確認)。
    - 新しい洞察は source のどのノートよりも上位の抽象度・概念でなければならない (再発パターンを名指す・複数機序を束ねる等)。これは source に #洞察 を含む場合に限らない——source が #気づき のみでも同じで、気づきを束ねた結果が source の 1 つと同位なら洞察ではない。同位・下位の言い換えは source でなく本文リンクで繋ぐ。「リンクでなく source に置く」＝「その元ノートを一段上から束ねた」という主張になる。
@@ -598,7 +598,10 @@ if (!ir) {
     i.kind = '洞察'
     i.label = 'none'
     i.fold_into = ''
-    i.source_excerpt = i.claim
+    // 命名は common_axis から導く (title=判断軸)。命名点検 (nameGate) の元記述に claim でなく common_axis を渡す
+    // ——claim 起点だと失敗形/内的手順に流れ命名ゲートを通らない (失敗接地 2026-06-15: ID8 を claim/手元の像で
+    // 命名し④内的手順・存在論言い直しで 2R 未解決→common_axis 起点で 2R 通過)。common_axis 欠落時のみ claim に退避。
+    i.source_excerpt = i.derivation && i.derivation.common_axis && i.derivation.common_axis.trim() ? i.derivation.common_axis : i.claim
     // 導出チェックリストが毎回実施されたかを機械チェック (自己申告でなく出力の充足で検証)。
     // source_avoidances は 2 件以上 (洞察は 2+ source)・common_point/common_axis 非空。未充足は triage で明示する。
     const d = i.derivation || {}
