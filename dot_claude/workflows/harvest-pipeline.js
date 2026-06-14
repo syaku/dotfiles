@@ -116,8 +116,18 @@ const INSIGHT_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        required: ['claim', 'connected_notes', 'title', 'content', 'why_important', 'backlink_edits'],
+        required: ['claim', 'connected_notes', 'title', 'content', 'why_important', 'backlink_edits', 'derivation'],
         properties: {
+          derivation: {
+            type: 'object',
+            required: ['source_avoidances', 'common_point', 'common_axis'],
+            description: '洞察を立てる前に毎回必ず実施する導出チェックリスト (行き詰まり時でなく全候補)。埋められない＝第三知見が立っていない＝洞察にしない',
+            properties: {
+              source_avoidances: { type: 'array', items: { type: 'string' }, description: '各 source 気づきの失敗を回避する方法を 1 つずつ (source と同数・2 件以上)' },
+              common_point: { type: 'string', description: '回避法に共通する点' },
+              common_axis: { type: 'string', description: '共通点から出る共通の対処/確認 (1 つの事前判断 or 1 つのレビュー観点)。title=判断軸 の元。出せないなら洞察にしない' },
+            },
+          },
           claim: { type: 'string', description: '見えた洞察の一文の言い切り (複文可。タイトルの元記述になる)' },
           connected_notes: { type: 'array', items: { type: 'string' }, description: '繋いだ実在ノートの path' },
           title: { type: 'string', description: 'claim から述語を 1 つ選び条件節を捨てて圧縮したタイトル' },
@@ -184,22 +194,21 @@ vault 規約 (ノート生成時に厳守):
 - 突き合わせ: 明白に同一物の既出だけ既存ノードへ畳む (fold_into)。迷ったら分けて作りリンクする (失敗は重複でなく orphan。重複生成は主題が繰り返すシグナル)。
 - imports/kindle/ imports/wallabag/ はリンク先に使ってよいが編集対象にしない。`
 
-const NAMING_POLICY = `
-命名規約 (気づき・洞察):
-- 1 タイトル＝1 要点。避けたい失敗・問題を plain な確立語で名指す (解・抽象的な徳・jargon・造語・狭い実装語を避ける。解や徳は本文へ逃がす)。
+// 命名規約は kind 共通の craft（複文禁止・plain・scope・接地）と kind 固有の作法（気づき=失敗を名指す／洞察=判断軸を名指す）に分割する。
+// 各 prompt には共通＋当該 kind だけを注入する（無関係 kind の作法でプロンプトを膨らませない）。失敗接地: 2026-06-14 気づき・洞察を一括ポリシーにし、命名層が洞察にも失敗形を要求して rule5（判断軸）と矛盾していた。
+const NAMING_COMMON = `
+命名規約 (kind 共通の craft):
+- 1 タイトル＝1 要点。plain な確立語で名指す (jargon・造語・狭い実装語・抽象的な徳を避ける)。
 - 条件と結果の複文にしない。要点を 1 動詞に圧縮する (「〜すると」「〜して〜する」「Xは Y で Z する」は 2 主張の混在)。説明文型の長文にせず短い言い切りにする。
 - scope は固有名詞で狭めず hedge で合わせる (「場合がある」等)。ただしツール固有のクセ・仕様は固有名詞を残す。
 - 抽象は本文/リンクが事例で接地している時だけ。作業ログ・調査記録のタイトルは具体のまま据え置く (抽象化すると何を調べたか消える実害)。
-- 気づき/洞察の「なぜ重要」「応用」はソフトウェア開発に転用できる形を最低 1 つ接地させる (読み手は SWE)。
+- 「なぜ重要」「応用」はソフトウェア開発に転用できる形を最低 1 つ接地させる (読み手は SWE)。
 タスクの命名 (別軸): 動詞主体の短句 (「〜する」「〜を確認する」) で何の行動かを言い切る。複文化しないのは共通。
 
-命名の実例 (✗→○。この差が家風を定義する。抽象規則より実例を優先して倣うこと):
+共通 craft の実例 (✗→○。複文回避・plain・length・nuance の家風。抽象規則より実例を優先):
 - 複文・長文を 1 要点に: 「整合を後追いの横断パスに切り出すと責務が二箇所に割れる」✗ → 「整合を後から足すと責務が割れる」○
 - 手段でなく本質: 「手段で指定された依頼を額面で受けると枠組みが崩れる」✗ → 「手段で来た依頼は真の課題を隠す」○
 - 硬い比喩より日常語: 「概念は軸に割ると例外が見える」✗ → 「別物を同じ名前で呼ぶと噛み合わない」○
-- 解でなく失敗を名指す: 「単一オーナー化が解」✗ → 「順序の決まらない同期はどの基盤でも正統を奪い合う」○
-- 徳でなく失敗を名指す: 「誠実さは件数ノルマに優先」✗ → 「数合わせのために中身を水増ししない」○
-- 解の指示形を捨て失敗の機序を名指す: 「機械検証の完結には非発火の観察も要る」✗ → 「一部を確認しただけで全部が正しいと思い込む」○
 - 説明文型の長文を短い言い切りに: 「ツール境界の引数型は呼び出し側の渡し方に依存して検証で即死する場合がある」✗ → 「境界の引数は渡し方で型が変わる」○
 - 条件節を捨て 1 動詞に: 「機械検証できるものを prompt に書いたまま規約文書が肥大化する」✗ → 「コードにできる規約は文書を太らせる」○
 - 連用形 2 動詞を 1 動詞に: 「決定論で済む検証を LLM 本体に負わせ対症療法の防御規約が肥大する」✗ → 「LLM 任せの検証は対症療法を積み上げる」○
@@ -213,6 +222,23 @@ const NAMING_POLICY = `
 ${STYLE_TITLES.map((t) => `- ${t}`).join('\n')}`
     : ''
 }`
+
+const NAMING_KIZUKI = `
+気づきの命名: 避けたい失敗・問題を名指す (解の指示形・肯定形を避け、解は本文へ逃がす)。
+実例 (✗→○):
+- 解でなく失敗を名指す: 「単一オーナー化が解」✗ → 「順序の決まらない同期はどの基盤でも正統を奪い合う」○
+- 徳でなく失敗を名指す: 「誠実さは件数ノルマに優先」✗ → 「数合わせのために中身を水増ししない」○
+- 解の指示形を捨て失敗の機序を名指す: 「機械検証の完結には非発火の観察も要る」✗ → 「一部を確認しただけで全部が正しいと思い込む」○`
+
+const NAMING_INSIGHT = `
+洞察の命名: 失敗形でなく判断軸・規則を名指す (「次にどう振る舞うか／何で判断するか」)。失敗の再記述「〜と損する/間違える/死ぬ」は気づき側の作法で洞察では不可。判断軸は次を満たす: (a) source 気づきの単純合算・症状の相関の言い切り (「X も Y も決まる」等) でなく、その上に立つ第三の軸。(b) 成果物に対して観測できる規則・境界 (レビュー観点・設計制約に使える)。作者の内的手順 (「〜する前に確かめる」等・成果物に現れず自己申告に退化する) は不可。(c) 「良い◯◯は…で決まる」等の型を中身なく当てない (対象と基準の関係が芯にあること)。判断軸が要る根拠 (例: 失敗が沈黙する) はタイトルでなく本文へ。
+実例 (✗→○):
+- 失敗形を判断軸に: 「構造を文字列で探すと黙って間違える」✗ → 「文字列検索は構造のないデータにだけ使う」○
+- 相関の言い切りを第三の軸に: 「構造解釈力で速度も精度も決まる」✗ → 「文字列検索は構造のないデータにだけ使う」○
+- 既存の良い洞察に倣う: 「良い索引かは生成、参照、命名で決まる」「同じ意味のものは同じ内容でなければならない」`
+
+const NAMING_FOR_KIZUKI = NAMING_COMMON + NAMING_KIZUKI
+const NAMING_FOR_INSIGHT = NAMING_COMMON + NAMING_INSIGHT
 
 // ---- 命名ゲート (3 層: 機械 regex → 別 context 点検 agent → 再命名ループ) ----
 const FUKUBUN = /、|すると|したら|つつ|（|\(/g
@@ -228,6 +254,12 @@ function checkerPrompt(kind, title, excerpt) {
 ③ 不自然な動詞-目的語結合が無いか: 圧縮で生じる不自然結合 (「過剰を取り込む」等) は元記述の意味を消すシグナル。
 ④ 元記述の単純な圧縮になっていないか: 述語・名詞の順序入替・短縮だけで語彙構成が変わっていなければ要点が抽出されていない。
 ⑤ 条件結果の 2 動詞構造になっていないか: 連用形「〜して〜する」、主述 1 文の条件結果型。要点を 1 動詞に圧縮できるかで判定する (できなければ 2 主張の混在＝複文)。`
+  // 洞察は気づきと作法が逆: 失敗形でなく判断軸を名指す。noteCriteria① (失敗を据えよ) を洞察に当てると正しい軸形を誤って弾くため別基準にする (失敗接地: 2026-06-14 洞察タイトルを失敗形/相関/型空当てで 4 回外した)
+  const insightCriteria = `① 判断軸を名指しているか: 「次にどう振る舞うか／何で判断するか」の規則・観点になっているか。失敗の再記述 (「〜と損する/間違える/死ぬ」等の失敗形) は気づき側の作法で、洞察では不可 (失敗形=該当)。
+② 平易な日常語か: jargon・英語混入・造語・狭い実装語が無いか (vault で確立した技術術語は許容)。
+③ source の単純合算・症状の相関の言い切りでないか: 複数 source 気づきを足しただけ・症状を並べた相関 (「X も Y も決まる」等) は第三知見でない。source の上に立つ一段上の軸か。
+④ 観測できる規則・境界か: 成果物に対して確認できる規則 (レビュー観点・設計制約に使える) か。作者の内的手順 (「〜する前に確かめる」等・成果物に現れず自己申告に退化する) は不可 (内的手順=該当)。
+⑤ 型の空当てでないか: 「良い◯◯は…で決まる」等の形を中身なく当てただけで、対象と基準の関係が芯に無い、になっていないか。`
   return `あなたはタイトル案の指摘者である。書き直さない・代替案を出さない・違反の指摘だけ返す。ツールは一切使わない (判断のみ)。生成時の確信は手元に無くてよい・無いまま per-item で独立に判断する。
 
 種別: ${kind}
@@ -236,7 +268,7 @@ function checkerPrompt(kind, title, excerpt) {
 ${excerpt || '(元記述なし)'}
 
 判断基準:
-${kind === 'タスク' ? taskCriteria : noteCriteria}
+${kind === 'タスク' ? taskCriteria : kind === '洞察' ? insightCriteria : noteCriteria}
 
 verdict: 違反あり=該当 / 違反なし=非該当 / 元記述が薄く判定できない=判断不能 (note に理由を 1 行)。`
 }
@@ -248,7 +280,7 @@ function renamePrompt(kind, title, excerpt, issues) {
 現タイトル: ${title}
 元記述: ${excerpt || '(なし)'}
 指摘: ${issues}
-${NAMING_POLICY}
+${kind === '洞察' ? NAMING_FOR_INSIGHT : kind === 'タスク' ? NAMING_COMMON : NAMING_FOR_KIZUKI}
 機械ゲート (正規表現 、|すると|したら|つつ|（|\\( ) にもかからないこと。`
 }
 
@@ -400,7 +432,7 @@ ${f.content}
 タスク抽出: input 中の未着手の行動を kind=タスク で抽出する。ラベルは ① 明示 TODO (「TODO」「未実施」「やる」等が plain にある) / ② 次タスク候補 (「次は〜」等の先送り表明) / ③ ノート分析で出た課題 (論理ギャップ・矛盾・未解決。why_important 必須)。
 洞察はここで作らない (後段の専用 agent が担う)。
 ${VAULT_RULES}
-${NAMING_POLICY}`
+${NAMING_FOR_KIZUKI}`
 }
 
 function backfillPrompt() {
@@ -416,7 +448,7 @@ vault: ${VAULT}
 
 気づき(A) の新規ノード化はこのモードでは行わない (会話文脈が無く捏造になる)。過去 journal を埋めることもしない。done 判定はこの agent では行わない (後段の専用 done agent が period_pages の body を素材に証拠ベースで判定する)。
 ${VAULT_RULES}
-${NAMING_POLICY}`
+${NAMING_COMMON}`
 }
 
 function insightPrompt(newNotesList, extraMaterial) {
@@ -441,7 +473,7 @@ ${backfillFocus}
 2. 単一観測・単一ノートの感想は洞察ではない (それは気づき止まり)。繋いで初めて見える第三の知見だけ。既出洞察の焼き直しも作らない。「過去の洞察と同じ筋」の再発はそれ自体が再発パターンの洞察になりうる。
 3. 各候補: claim に洞察を一文で言い切る (複文可)。title は claim から述語を 1 つ選び、条件節を捨てて圧縮する。connected_notes に繋いだ実在ノートの path (実在を Read で確認する)。content は templates/insight.md の構造 (AI Context callout / ## 見えた洞察 / ## なぜ重要 / ## 応用・次アクション) で frontmatter＋本文の完成形。source: に繋いだ元ノートを '  - "[[ノート名]]"' 形式で列挙。
 4. source の規律 (満たせない候補は出さない):
-   - 洞察は複数 (2 件以上) の #気づき / #洞察 ノードから生まれる。単一ノート由来は洞察ではない (気づき止まり)。source に列挙できるのは #気づき / #洞察 ノードだけで、タスク・作業レポート・事実/仕様ノートは source にしない (それらを本文 wikilink や connected_notes で参照するのは可)。**同じバッチの新規 #気づき / #洞察 もこの「#気づき / #洞察 ノード」に含む**——source: には wikilink (`[[タイトル]]`) で、connected_notes には承認後の path (`pages/<タイトル>.md`) で列挙する。この新規分だけは Read 実在確認を免除する (newNotesList に在ることが実在の代わり。既存ノートは従来どおり Read で実在確認)。
+   - 洞察は複数 (2 件以上) の #気づき / #洞察 ノードから生まれる。単一ノート由来は洞察ではない (気づき止まり)。source に列挙できるのは #気づき / #洞察 ノードだけで、タスク・作業レポート・事実/仕様ノートは source にしない (それらを本文 wikilink や connected_notes で参照するのは可)。**同じバッチの新規 #気づき / #洞察 もこの「#気づき / #洞察 ノード」に含む**——source: には wikilink (\`[[タイトル]]\`) で、connected_notes には承認後の path (\`pages/<タイトル>.md\`) で列挙する。この新規分だけは Read 実在確認を免除する (newNotesList に在ることが実在の代わり。既存ノートは従来どおり Read で実在確認)。
    - 新しい洞察は source のどのノートよりも上位の抽象度・概念でなければならない (再発パターンを名指す・複数機序を束ねる等)。これは source に #洞察 を含む場合に限らない——source が #気づき のみでも同じで、気づきを束ねた結果が source の 1 つと同位なら洞察ではない。同位・下位の言い換えは source でなく本文リンクで繋ぐ。「リンクでなく source に置く」＝「その元ノートを一段上から束ねた」という主張になる。
    - 単一 source 充足テスト (失格判定): source のどれか 1 件**単独**で claim が言い切れてしまうなら、それは束ねでなくその 1 件の言い換え＝洞察として出さない (その気づき/洞察ノートに留める)。【注意】source 間に重複・近接があっても束ねる価値はある——冗長な source を 1 つ抜いても claim が残ること自体は失格ではない。失格は「1 件だけで全部言える」ケースに限る。
    - 同バッチ重複ガード: 今回の新規ノード一覧 (上記「今回の新規/更新ノート」) に出ている #気づき の 1 件と claim が同義になる洞察は出さない。同じバッチで気づきと洞察が同じことを言うなら、気づきを残して洞察は出さない (特に drain は 1 input 内の単発昇格で束ねの母数が足りないことが多い)。
@@ -449,13 +481,14 @@ ${backfillFocus}
 5. 【洞察生成の核・最重要】失敗事例を「二度と失敗しないための判断軸」に変換する。これが洞察の本質であり、失敗の再記述・原因論の一般化・1 つの軸への言い換えで終えてはならない。やり方:
    - (1) 束ねる複数の失敗気づきが、より上位の同一カテゴリの「異なる側面」として括れないか探す (例: 生成・参照・命名 という 3 つの索引失敗は「索引の外側の境界条件」の 3 側面)。この共通カテゴリを名指すのが第三知見であって、条件の並置 (チェックリスト) でも 1 軸への collapse (言い換え) でもない。
    - (2) 括れた共通カテゴリを「次に何を確認するか／どこに投資するか」の行動可能な判断軸に変換する (例: 索引が効かないとき索引エンジンでなく 3 境界のどれが律速かを切り分ける)。claim は失敗の説明でなく次の行動を指す一文にする。
+   - (3) 【毎回必須・全候補で実施し derivation に記録する。行き詰まり時だけでない】導出チェックリスト: ①各 source 気づきの失敗の回避法を 1 つずつ書く (source と同数・2 件以上＝derivation.source_avoidances) → ②回避法の共通点を書く (derivation.common_point) → ③共通点から共通の対処/確認 (1 つの事前判断 or 1 つのレビュー観点＝derivation.common_axis) を書く。③が出れば洞察・出ず合算止まりなら洞察にしない。title は derivation.common_axis を判断軸の形で言い切ったものにする (命名規約は別途注入。失敗接地: 2026-06-14 速度/精度 2 気づきを症状の相関で言い換えて空回り→この分解で「答えが構造にある問いに走査を当てた一機序の二症状」と判明)。
    - 直近の具体例 (vault に実在・余裕があれば Read して倣う): [[良い索引かは生成、参照、命名で決まる]] (生成/参照/命名 の 3 失敗を「索引の外側の境界条件」に括り、投資先の判断軸に変換)。[[同じ意味のものは同じ内容でなければならない]] (drift/残留/分割/並走 の 4 失敗を「同じ意味を担う実体は他に無いか・内容は一致しているか」というレビュー観点に変換)。
    - 【手本の使い方】この具体例・insight.md・既存洞察ノートから倣うのは畳み方/トーン/体裁であって主張内容ではない。手本の主張をなぞって似た洞察を作るな——内容は上記 source 規律 (4) に従い目の前の素材から立てる。
 6. なぜ重要・応用にはソフトウェア開発に転用できる接地を最低 1 つ入れる (読み手は SWE)。
 
 繋がりが弱ければ 0 件が正当な出力 (「A 止まりですらない」もありうる)。無理に B をでっち上げない。
 ${VAULT_RULES}
-${NAMING_POLICY}`
+${NAMING_FOR_INSIGHT}`
 }
 
 function donePrompt(corpus) {
@@ -565,6 +598,14 @@ if (!ir) {
     i.label = 'none'
     i.fold_into = ''
     i.source_excerpt = i.claim
+    // 導出チェックリストが毎回実施されたかを機械チェック (自己申告でなく出力の充足で検証)。
+    // source_avoidances は 2 件以上 (洞察は 2+ source)・common_point/common_axis 非空。未充足は triage で明示する。
+    const d = i.derivation || {}
+    i.derivation_ok =
+      Array.isArray(d.source_avoidances) &&
+      d.source_avoidances.filter((s) => s && s.trim()).length >= 2 &&
+      !!(d.common_point && d.common_point.trim()) &&
+      !!(d.common_axis && d.common_axis.trim())
   }
   await parallel(insights.map((i) => () => runGate(i)))
   candidates.push(...insights)
@@ -609,10 +650,11 @@ const totals = {
   renamed: candidates.filter((c) => c.gate && c.gate.final_title !== c.gate.initial_title).length,
   gate_unresolved: candidates.filter((c) => c.gate && (c.gate.unresolved || c.gate.undecidable)).length,
   validation_failed: candidates.filter((c) => (c.validation_errors || []).length).length,
+  insights_derivation_incomplete: candidates.filter((c) => c.kind === '洞察' && !c.derivation_ok).length,
   done_candidates: doneCandidates.length,
 }
 log(
-  `集計: ${totals.count} 候補 (気づき ${totals.kizuki} / 洞察 ${totals.insights} / タスク ${totals.tasks} / レポート・事実 ${totals.reports} / fold ${totals.folds}) 再命名 ${totals.renamed} / ゲート未解決 ${totals.gate_unresolved} / 検証落ち ${totals.validation_failed}`,
+  `集計: ${totals.count} 候補 (気づき ${totals.kizuki} / 洞察 ${totals.insights} / タスク ${totals.tasks} / レポート・事実 ${totals.reports} / fold ${totals.folds}) 再命名 ${totals.renamed} / ゲート未解決 ${totals.gate_unresolved} / 検証落ち ${totals.validation_failed} / 洞察導出未完 ${totals.insights_derivation_incomplete}`,
 )
 
 return {
