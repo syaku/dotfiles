@@ -63,7 +63,7 @@ const VERIFY_SCHEMA = {
           how_verified: { type: 'string' },
           severity: { enum: ['high', 'medium', 'low'] },
           has_source: { type: 'boolean' },
-          source: { type: 'string', description: 'origin/master 上の path:line / sha。出典が無ければ空文字' },
+          source: { type: 'string', description: 'origin/main 上の path:line / sha。出典が無ければ空文字' },
           corrected_text: { type: 'string', description: '出典に基づく訂正文。出典が無ければ空文字' },
         },
       },
@@ -174,7 +174,7 @@ ${SKILL_REVIEW_REPORT ? `skill-review レポート: ${SKILL_REVIEW_REPORT} を R
 
 この依頼の計画立案に必要な現状調査を行い、構造化して返せ:
 - relevant_files: 変更・参照対象になりそうなファイル (path と理由)
-- reusable_utilities: 再利用できる既存実装。各項目について統合ブランチ (既定 origin/master) 上に実在するかを確認し on_integration_branch に boolean で返す。作業ツリーや未マージの feature ブランチ・並走 worktree を根拠に「実在」と断定しない (確認手段は git -C <repo> grep -n <symbol> origin/master 等、裁量でよい)。branch_note に所在ブランチ・未マージなら「先行マージ待ちか自前新設か」の所見を書く。
+- reusable_utilities: 再利用できる既存実装。各項目について統合ブランチ (既定 origin/main) 上に実在するかを確認し on_integration_branch に boolean で返す。作業ツリーや未マージの feature ブランチ・並走 worktree を根拠に「実在」と断定しない (確認手段は git -C <repo> grep -n <symbol> origin/main 等、裁量でよい)。branch_note に所在ブランチ・未マージなら「先行マージ待ちか自前新設か」の所見を書く。
 - current_behavior: 依頼に関係する現状挙動の要点
 - notes: 計画立案者に伝えるべき注意点・未決事項
 
@@ -224,8 +224,8 @@ const [verify, review1] = await parallel([
 照合規約:
 - 照合対象は「現状こうなっている」という現状認識の主張 (Critical files のパス実在・Reusable utilities の所在/シグネチャ・現状挙動の前提) に限る。Approach / 編集案の「変更後こうする」という文は未施行の提案であり、現状ファイルに無くて当然＝不一致ではない (事実誤りに数えない)。
 - アプローチの良し悪しは判断しない。
-- 「実在」「再利用可」の確認は統合ブランチ (既定 origin/master) を基準にする。作業ツリーや並走 worktree の grep で「実在」と断定しない。
-- 訂正に出典を出せる場合のみ has_source=true とし、source に origin/master 上の path:line / sha、corrected_text に訂正文を書く。出典を出せなければ has_source=false (source / corrected_text は空文字) とする。それらしい推測で訂正文を作らない。
+- 「実在」「再利用可」の確認は統合ブランチ (既定 origin/main) を基準にする。作業ツリーや並走 worktree の grep で「実在」と断定しない。
+- 訂正に出典を出せる場合のみ has_source=true とし、source に origin/main 上の path:line / sha、corrected_text に訂正文を書く。出典を出せなければ has_source=false (source / corrected_text は空文字) とする。それらしい推測で訂正文を作らない。
 
 --- plan ここから ---
 ${plan}

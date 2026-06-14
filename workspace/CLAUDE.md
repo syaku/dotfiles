@@ -27,4 +27,4 @@
   - 例: `購入履歴ページ404調査/`, `BigQueryコスト試算/`
 - 英語スラッグ（`investigate-xxx/`, `try-xxx/` 等）や、英語スラッグに日本語を継ぎ足しただけの命名（`ticket-book-tickets-404調査/` 等）をデフォルトにしない
 
-チケット ID を起点にする等、領域固有の命名追加ルールは各 `CLAUDE.md` を参照（例: `tasks/CLAUDE.md`）。
+チケット ID を起点にする等、領域固有の命名追加ルールは各 `CLAUDE.md` を参照（例: `notes/obsidian/Life/workbench/CLAUDE.md`）。
