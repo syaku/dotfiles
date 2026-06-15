@@ -639,6 +639,31 @@ if (flags.done_skipped_no_reports) {
 
 // ============================================================
 phase('集計')
+// 候補またぎの旧タイトル参照を最終タイトルへ一括張り替え。
+// renameCandidate は自候補内 (content/backlink_edits) しか直さないため、別候補が旧タイトルで張ったリンク
+// (作業レポートの本文リンク・洞察の source/connected_notes・他候補への backlink_edits.path) が残る。
+// 命名ゲート確定後に全候補へ全 rename ペアを冪等適用する (自候補分の再適用は無害)。fix 前に行い fix 入力を正にする。
+const renamePairs = candidates
+  .filter((c) => c.gate && c.gate.initial_title && c.gate.initial_title !== c.title)
+  .map((c) => ({ from: c.gate.initial_title, to: c.title }))
+if (renamePairs.length) {
+  const swapRefs = (s) => {
+    if (!s) return s
+    for (const { from, to } of renamePairs) {
+      s = s.split(`[[${from}]]`).join(`[[${to}]]`) // wikilink (本文・source frontmatter・add_line)
+      s = s.split(`${from}.md`).join(`${to}.md`) // ファイルパス (backlink_edits.path・connected_notes)
+    }
+    return s
+  }
+  for (const c of candidates) {
+    c.content = swapRefs(c.content)
+    for (const e of c.backlink_edits || []) {
+      e.add_line = swapRefs(e.add_line)
+      e.path = swapRefs(e.path)
+    }
+    if (Array.isArray(c.connected_notes)) c.connected_notes = c.connected_notes.map(swapRefs)
+  }
+}
 await parallel(candidates.map((c) => () => fixAndRevalidate(c)))
 candidates.forEach((c, i) => {
   c.id = i + 1
