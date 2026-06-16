@@ -329,7 +329,7 @@ config.quick_select_patterns = {
 -- タスク完了時・権限プロンプト時に BEL を送る。それを捕まえて
 -- OS ネイティブ通知に変換する（OS 別の通知 API は WezTerm が内部吸収）。
 -- これにより settings.json から OS 別の通知 hook を排除できる。
-config.audible_bell = "Disabled" -- システムビープを止めトーストのみにする（音も欲しければこの行を削除）
+-- config.audible_bell = "Disabled" -- システムビープを止めトーストのみにする（音も欲しければこの行を削除）
 wezterm.on('bell', function(window, pane)
     window:toast_notification('Claude Code', '確認待ち / 応答完了', nil, 4000)
 end)
