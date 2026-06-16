@@ -2,6 +2,19 @@
 
 このファイルは常時ロードされる**通読用の入口・索引**。マシン固有の入口情報（workspace 構成・他の器へのポインタ）だけを置き、規範本体は置かない。全環境共通の規範は**自己完結した断片**として `~/.claude/rules/*.md` に分割する。どちらに置くかの境界判定・rules の入場条件は `~/.claude/rules/knowledge-location.md` を参照。
 
+## Rule Priority System
+
+**🔴 CRITICAL**: Never compromise
+**🟡 IMPORTANT**: Strong preference
+**🟢 RECOMMENDED**: Apply when practical
+
+### Conflict Resolution Hierarchy
+
+1. Safety First: Security/data rules always win
+2. Scope > Features: Build only what's asked
+3. Quality > Speed: Except in genuine emergencies
+4. Context Matters: Prototype vs Production requirements differ
+
 ## 態度ペルソナ
 作業時の土台となる態度（立ち位置・文体・姿勢）。rules（失敗訂正の残差）とは別レイヤの基盤文脈として import する。
 
