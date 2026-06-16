@@ -1,6 +1,4 @@
 {
-  "model": "claude-opus-4-8[1m]",
-  "language": "日本語",
   "env": {
     "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
@@ -50,29 +48,7 @@
     ],
     "defaultMode": "auto"
   },
-  "enabledPlugins": {
-    "obsidian@obsidian-skills": true,
-    "arscontexta@agenticnotetaking": true,
-    "playwright@claude-plugins-official": true
-  },
-  "extraKnownMarketplaces": {
-    "obsidian-skills": {
-      "source": {
-        "source": "github",
-        "repo": "kepano/obsidian-skills"
-      }
-    },
-    "agenticnotetaking": {
-      "source": {
-        "source": "github",
-        "repo": "agenticnotetaking/arscontexta"
-      }
-    }
-  },
-  "preferredNotifChannel": "terminal_bell",
-  "skipAutoPermissionPrompt": true,
-  "skipWorkflowUsageWarning": true,
-  "tui": "fullscreen",
+  "model": "claude-opus-4-7[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -105,5 +81,29 @@
         ]
       }
     ]
-  }
+  },
+  "enabledPlugins": {
+    "obsidian@obsidian-skills": true,
+    "arscontexta@agenticnotetaking": true,
+    "playwright@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "obsidian-skills": {
+      "source": {
+        "source": "github",
+        "repo": "kepano/obsidian-skills"
+      }
+    },
+    "agenticnotetaking": {
+      "source": {
+        "source": "github",
+        "repo": "agenticnotetaking/arscontexta"
+      }
+    }
+  },
+  "language": "日本語",
+  "tui": "fullscreen",
+  "skipWorkflowUsageWarning": true,
+  "preferredNotifChannel": "terminal_bell",
+  "skipAutoPermissionPrompt": true
 }
