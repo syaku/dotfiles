@@ -133,6 +133,10 @@ config.keys = {
 -- ペイン操作は prefix（Ctrl+b）経由なので WezTerm 側で何もしなくて herdr に届く。
 if is_macos then
     local macos_keys = {
+        -- Cmd+C / Cmd+V: Mac 標準のコピー・ペースト（disable_default_key_bindings=true で
+        -- 既定アサインが消えるため明示再定義する）
+        { key = 'c', mods = 'CMD', action = act.CopyTo 'Clipboard' },
+        { key = 'v', mods = 'CMD', action = act.PasteFrom 'Clipboard' },
         -- Cmd+T / Cmd+W: WezTerm 既定（新規タブ・タブ閉じ）を Disable し herdr の Ctrl+T/W へ
         { key = 't', mods = 'CMD', action = act.DisableDefaultAssignment },
         { key = 'w', mods = 'CMD', action = act.DisableDefaultAssignment },
