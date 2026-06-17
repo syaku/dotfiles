@@ -251,8 +251,8 @@ config.keys = {
     { key = 'DownArrow',  mods = 'LEADER|SHIFT', action = act.AdjustPaneSize{ 'Down',  3 } },
 
     -- ---------- タブ操作 ----------
-    { key = 't', mods = 'CTRL', action = act.SpawnTab 'DefaultDomain' },
-    { key = 'w', mods = 'CTRL', action = act.CloseCurrentTab{ confirm = true } },
+    -- macOS の Cmd 系タブショートカットは下部の is_macos ブロックで分岐定義
+    -- （CMD キーが Mac のみのため、他 OS には載せない）
 
     -- ---------- デバッグ & ランチャー ----------
 
@@ -291,6 +291,46 @@ config.keys = {
         end),
     }},
 }
+
+-- ── macOS 専用キーバインド ────────────────────────
+-- WezTerm のタブ機能は使わず herdr に委譲。CMD キーは Mac のみのため OS 分岐で載せる。
+if is_macos then
+    local macos_keys = {
+        -- Cmd 系タブショートカットの既定アサインを Disable して herdr に届かせる
+        { key = 't', mods = 'CMD', action = act.DisableDefaultAssignment },
+        { key = 'w', mods = 'CMD', action = act.DisableDefaultAssignment },
+        -- Cmd+Shift+T: DisableDefaultAssignment はフォールバックで AppKit characters の t が漏れるため、
+        -- 完全飲み込みは Nop で行う（Mapped/Shift 明示の両経路）
+        { key = 't', mods = 'CMD|SHIFT', action = act.Nop },
+        { key = 'T', mods = 'CMD', action = act.Nop },
+        -- Cmd+Shift+<英字>/Enter は WezTerm の既定処理（SendKey 経由でも AppKit の文字変換）で
+        -- 文字単独や大文字に潰されるため、kitty keyboard protocol の CSI u 形式を SendString で直送する。
+        -- 書式: ESC[<codepoint>;<modifier+1>u  (Shift=1+Super=8 → modifier=9, +1=10)
+        -- Mapped 解釈・Shift 明示・両者持ちの 3 経路で entry を並べる（取りこぼし防止）
+        { key = '}', mods = 'CMD', action = act.SendString '\x1b[93;10u' },           -- Cmd+Shift+]
+        { key = ']', mods = 'CMD|SHIFT', action = act.SendString '\x1b[93;10u' },
+        { key = '}', mods = 'CMD|SHIFT', action = act.SendString '\x1b[93;10u' },
+        { key = '{', mods = 'CMD', action = act.SendString '\x1b[91;10u' },           -- Cmd+Shift+[
+        { key = '[', mods = 'CMD|SHIFT', action = act.SendString '\x1b[91;10u' },
+        { key = '{', mods = 'CMD|SHIFT', action = act.SendString '\x1b[91;10u' },
+        { key = 'd', mods = 'CMD|SHIFT', action = act.SendString '\x1b[100;10u' },
+        { key = 'w', mods = 'CMD|SHIFT', action = act.SendString '\x1b[119;10u' },
+        { key = 'Enter', mods = 'CMD|SHIFT', action = act.SendString '\x1b[13;10u' },
+        -- Cmd+1〜9 の ActivateTab を Disable
+        { key = '1', mods = 'CMD', action = act.DisableDefaultAssignment },
+        { key = '2', mods = 'CMD', action = act.DisableDefaultAssignment },
+        { key = '3', mods = 'CMD', action = act.DisableDefaultAssignment },
+        { key = '4', mods = 'CMD', action = act.DisableDefaultAssignment },
+        { key = '5', mods = 'CMD', action = act.DisableDefaultAssignment },
+        { key = '6', mods = 'CMD', action = act.DisableDefaultAssignment },
+        { key = '7', mods = 'CMD', action = act.DisableDefaultAssignment },
+        { key = '8', mods = 'CMD', action = act.DisableDefaultAssignment },
+        { key = '9', mods = 'CMD', action = act.DisableDefaultAssignment },
+    }
+    for _, k in ipairs(macos_keys) do
+        table.insert(config.keys, k)
+    end
+end
 
 -- ── マウス ───────────────────────────────────
 
