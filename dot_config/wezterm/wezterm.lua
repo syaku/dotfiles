@@ -55,7 +55,7 @@ if is_windows then
   -- config.enable_wayland = false -- Windowsでは無効
   -- 透明度
   config.window_background_opacity = 0.95
-  
+
   -- コンポジターの透明効果に対する最適化
   -- config.win32_system_backdrop = "Acrylic" -- Windows 11でのMica/アクリル効果
 end
@@ -65,7 +65,7 @@ if is_macos then
   config.front_end = "WebGpu" -- 最新のmacOSではWebGPUが最適
   -- 透明度
   config.window_background_opacity = 0.8
-  
+
   -- MacのGPUパフォーマンス設定
   config.macos_window_background_blur = 20 -- 背景ブラー効果の強度
   config.native_macos_fullscreen_mode = true -- ネイティブのフルスクリーンモード
@@ -96,132 +96,22 @@ end
 config.initial_cols = 200
 config.initial_rows = 50
 
--- タブ＆タイトルバーの構成
+-- カラースキーム・ウィンドウデコレーション
 config.color_scheme = 'Tender (Gogh)'
-config.window_decorations = "INTEGRATED_BUTTONS|RESIZE" -- 見た目をスッキリ＆最小限に
-config.integrated_title_button_style = "Windows"        -- ボタンはWin風で統一感
--- タブバーを下部に配置
-config.tab_bar_at_bottom = true
--- ファンシータブバーを無効化（レトロスタイルを使用）
-config.use_fancy_tab_bar = false
--- タブバーの最大幅を設定（レトロスタイルで有効）
-config.tab_max_width = 24 
+-- OS 標準のタイトルバーとリサイズ枠を表示（最小化/最大化/閉じるボタンを OS タイトルバーに戻す）。
+-- 旧構成は INTEGRATED_BUTTONS でタブバー内に統合していたが、タブバー無効化で道連れになるためタイトルバー復帰。
+config.window_decorations = "TITLE | RESIZE"
 
-config.hide_tab_bar_if_only_one_tab = false
-config.show_new_tab_button_in_tab_bar=false
-config.colors = {
-  tab_bar = {
-    background = '#4c4c4c',
-    inactive_tab_hover = {
-        bg_color = '#4c4c4c',
-        fg_color = '#282828',
-        italic   = false,
-    },
-  },
-}
-
-local TAB_LEFT =  wezterm.nerdfonts.ple_upper_right_triangle
-local TAB_RIGHT = wezterm.nerdfonts.ple_upper_left_triangle
-wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_width)
-    local background = "#4c4c4c"
-    local foreground = "#282828"
-    local edge_background = "#4c4c4c"
-    if tab.is_active then
-        background = "#282828"
-        foreground = "#eeeeee"
-    end
-    local edge_foreground = background
-    local title = tab.active_pane.title
-    if wezterm.column_width(title) > max_width then
-        title = wezterm.truncate_right(title, max_width-5) .. '…'
-    end
-    local title = " " .. title .. " "
-    return {
-        { Background = { Color = edge_background } },
-        { Foreground = { Color = edge_foreground } },
-        { Text = TAB_LEFT },
-        { Background = { Color = background } },
-        { Foreground = { Color = foreground } },
-        { Text = title },
-        { Background = { Color = edge_background } },
-        { Foreground = { Color = edge_foreground } },
-        { Text = TAB_RIGHT },
-    }
-end)
-
-local background = "#282828"
-local foreground = "#eeeeee"
-local edge_background = "#282828"
-local edge_foreground = "#4c4c4c"
-
-local WINDOW_BUTTON_LEFT = wezterm.nerdfonts.ple_lower_right_triangle
-local WINDOW_BUTTON_RIGHT = wezterm.nerdfonts.ple_lower_right_triangle
-
-config.tab_bar_style = {
-    window_hide = wezterm.format {
-        { Attribute = { Italic = false } },          -- ←★ここでオフ
-        { Background = { Color = edge_foreground } },
-        { Foreground = { Color = edge_foreground } }, { Text = WINDOW_BUTTON_LEFT },
-        { Background = { Color = edge_foreground } },
-        { Foreground = { Color = edge_background } }, { Text = ' ' .. wezterm.nerdfonts.md_window_minimize .. ' ' },
-        { Background = { Color = edge_foreground } },
-        { Foreground = { Color = edge_foreground } }, { Text = WINDOW_BUTTON_RIGHT },
-    },
-    window_hide_hover = wezterm.format {
-        { Attribute = { Italic = false } },          -- ←★hover も同様
-        { Background = { Color = edge_foreground } },
-        { Foreground = { Color = edge_background } }, { Text = WINDOW_BUTTON_LEFT },
-        { Background = { Color = background } },
-        { Foreground = { Color = foreground } }, { Text = ' ' .. wezterm.nerdfonts.md_window_minimize .. ' ' },
-        { Background = { Color = edge_background } },
-        { Foreground = { Color = edge_foreground } }, { Text = WINDOW_BUTTON_RIGHT },
-    },
-    window_maximize = wezterm.format {
-        { Attribute = { Italic = false } },          -- ←★ここでオフ
-        { Background = { Color = edge_foreground } },
-        { Foreground = { Color = edge_foreground } }, { Text = WINDOW_BUTTON_LEFT },
-        { Background = { Color = edge_foreground } },
-        { Foreground = { Color = edge_background } }, { Text = ' ' .. wezterm.nerdfonts.md_window_maximize .. ' ' },
-        { Background = { Color = edge_foreground } },
-        { Foreground = { Color = edge_foreground } }, { Text = WINDOW_BUTTON_RIGHT },
-    },
-    window_maximize_hover = wezterm.format {
-        { Attribute = { Italic = false } },          -- ←★hover も同様
-        { Background = { Color = edge_foreground } },
-        { Foreground = { Color = edge_background } }, { Text = WINDOW_BUTTON_LEFT },
-        { Background = { Color = background } },
-        { Foreground = { Color = foreground } }, { Text = ' ' .. wezterm.nerdfonts.md_window_maximize .. ' ' },
-        { Background = { Color = edge_background } },
-        { Foreground = { Color = edge_foreground } }, { Text = WINDOW_BUTTON_RIGHT },
-    },
-    window_close = wezterm.format {
-        { Attribute = { Italic = false } },          -- ←★ここでオフ
-        { Background = { Color = edge_foreground } },
-        { Foreground = { Color = edge_foreground } }, { Text = WINDOW_BUTTON_LEFT },
-        { Background = { Color = edge_foreground } },
-        { Foreground = { Color = edge_background } }, { Text = ' ' .. wezterm.nerdfonts.md_window_close .. ' ' },
-        { Background = { Color = edge_foreground } },
-        { Foreground = { Color = edge_foreground } }, { Text = WINDOW_BUTTON_RIGHT },
-    },
-    window_close_hover = wezterm.format {
-        { Attribute = { Italic = false } },          -- ←★hover も同様
-        { Background = { Color = edge_foreground } },
-        { Foreground = { Color = "#f43753" } }, { Text = WINDOW_BUTTON_LEFT },
-        { Background = { Color = "#f43753" } },
-        { Foreground = { Color = foreground } }, { Text = ' ' .. wezterm.nerdfonts.md_window_close .. ' ' },
-        { Background = { Color = "#f43753" } },
-        { Foreground = { Color = "#f43753" } }, { Text = WINDOW_BUTTON_RIGHT },
-    },
-}
+-- タブバー・マルチプレクサ機能は herdr に委譲。wezterm 自身のタブバーは描画しない。
+config.enable_tab_bar = false
 
 -- ── キーバインド ───────────────────────────────────
+-- タブ・ペイン・ワークスペース・LEADER 系は全て herdr に委譲し、ここからは外した。
+-- wezterm に残すのはターミナルエミュレータとして最低限の操作キーのみ。
+-- デフォルトキーバインドも off にして、明示したキーだけ有効化する。
 
-local leader_key = { key = 'q', mods = 'CTRL', timeout_milliseconds = 1000 }
+config.disable_default_key_bindings = true
 
-config.leader = leader_key
-config.disable_default_key_bindings = false
-
--- カスタムキーバインド（画面分割・タブ移動）
 config.keys = {
     -- ---------- クリップボード ----------
     { key = 'c', mods = 'CTRL|SHIFT', action = act.CopyTo 'Clipboard'  },
@@ -232,68 +122,13 @@ config.keys = {
     { key = '-', mods = 'CTRL', action = act.DecreaseFontSize },
     { key = '0', mods = 'CTRL', action = act.ResetFontSize },
 
-    -- ---------- ペイン分割 ----------
-    { key = '\\', mods = 'LEADER',
-      action = act.SplitPane{ direction = 'Right', size = { Percent = 50 } } },
-    { key = '-',  mods = 'LEADER',
-      action = act.SplitPane{ direction = 'Down',  size = { Percent = 50 } } },
-
-    -- ---------- ペイン移動 ----------
-    { key = 'LeftArrow',  mods = 'LEADER', action = act.ActivatePaneDirection 'Left'  },
-    { key = 'RightArrow', mods = 'LEADER', action = act.ActivatePaneDirection 'Right' },
-    { key = 'UpArrow',    mods = 'LEADER', action = act.ActivatePaneDirection 'Up'    },
-    { key = 'DownArrow',  mods = 'LEADER', action = act.ActivatePaneDirection 'Down'  },
-
-    -- ---------- ペインリサイズ ----------
-    { key = 'LeftArrow',  mods = 'LEADER|SHIFT', action = act.AdjustPaneSize{ 'Left',  5 } },
-    { key = 'RightArrow', mods = 'LEADER|SHIFT', action = act.AdjustPaneSize{ 'Right', 5 } },
-    { key = 'UpArrow',    mods = 'LEADER|SHIFT', action = act.AdjustPaneSize{ 'Up',    3 } },
-    { key = 'DownArrow',  mods = 'LEADER|SHIFT', action = act.AdjustPaneSize{ 'Down',  3 } },
-
-    -- ---------- タブ操作 ----------
-    -- macOS の Cmd 系タブショートカットは下部の is_macos ブロックで分岐定義
-    -- （CMD キーが Mac のみのため、他 OS には載せない）
-
-    -- ---------- デバッグ & ランチャー ----------
-
+    -- ---------- デバッグ ----------
     -- Ctrl+Shift+D でデバッグオーバレイ
-    { key = 'D', mods = 'CTRL|SHIFT', action = act.ShowDebugOverlay },                             -- :contentReference[oaicite:0]{index=0}
-    -- Ctrl+Shift+L でランチャー（タブ・ドメイン・ワークスペース・メニュー項目を表示）
-    { key = 'L', mods = 'CTRL|SHIFT', action = act.ShowLauncherArgs {
-            flags = 'FUZZY|LAUNCH_MENU_ITEMS|TABS',
-        }
-    },        
-
-    -- ---------- その他 ----------
-    { key = 'r', mods = 'LEADER', action = act.ReloadConfiguration },
-    { key = 'f', mods = 'LEADER', action = act.Search{ CaseSensitiveString = '' } },
-
-    -- ---------- Claude Code 向け ----------
-    -- コピーモード（スクロールバックをvi風に移動・選択）
-    { key = '[', mods = 'LEADER', action = act.ActivateCopyMode },
-    -- クイックセレクト（ファイルパス/URLをキーで選択）
-    { key = 's', mods = 'LEADER', action = act.QuickSelect },
-    -- ペインズーム（Claude Codeに集中したい時）
-    { key = 'z', mods = 'LEADER', action = act.TogglePaneZoomState },
-
-    -- ---------- ワークスペース ----------
-    -- LEADER + w : ワークスペース一覧・切り替え
-    { key = 'w', mods = 'LEADER', action = act.ShowLauncherArgs {
-        flags = 'FUZZY|WORKSPACES',
-    }},
-    -- LEADER + n : 新規ワークスペース作成（名前入力）
-    { key = 'n', mods = 'LEADER', action = act.PromptInputLine {
-        description = 'Workspace name:',
-        action = wezterm.action_callback(function(window, pane, line)
-            if line then
-                window:perform_action(act.SwitchToWorkspace { name = line }, pane)
-            end
-        end),
-    }},
+    { key = 'D', mods = 'CTRL|SHIFT', action = act.ShowDebugOverlay },
 }
 
 -- ── macOS 専用キーバインド ────────────────────────
--- WezTerm のタブ機能は使わず herdr に委譲。CMD キーは Mac のみのため OS 分岐で載せる。
+-- WezTerm のタブ機能は無効化済み。Cmd 系キーは「herdr に届ける」役割だけ残す。
 if is_macos then
     local macos_keys = {
         -- Cmd 系タブショートカットの既定アサインを Disable して herdr に届かせる
@@ -349,17 +184,6 @@ config.mouse_bindings = {
       end),
     },
 }
-
-config.unzoom_on_switch_pane = true
-
--- ── ワークスペース名をステータスバーに表示 ──────────────
-wezterm.on("update-right-status", function(window, pane)
-    window:set_right_status(wezterm.format {
-        { Foreground = { Color = "#4c4c4c" } }, { Text = wezterm.nerdfonts.ple_lower_right_triangle },
-        { Background = { Color = "#4c4c4c" } },
-        { Foreground = { Color = "#eeeeee" } }, { Text = " " .. window:active_workspace() .. " " },
-    })
-end)
 
 -- ── クイックセレクト ───────────────────────────────
 -- file:line 形式（Claude Codeが出力する形式）を追加
