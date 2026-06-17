@@ -128,30 +128,29 @@ config.keys = {
 }
 
 -- ── macOS 専用キーバインド ────────────────────────
--- WezTerm のタブ機能は無効化済み。Cmd 系キーは「herdr に届ける」役割だけ残す。
+-- herdr の prefix-less タブ操作（Ctrl+T/W/Shift+]/Shift+[/1〜9 を Cmd 系に読み替え）を
+-- WezTerm 既定で潰さないように Disable / SendString で素通しさせる。
+-- ペイン操作は prefix（Ctrl+b）経由なので WezTerm 側で何もしなくて herdr に届く。
 if is_macos then
     local macos_keys = {
-        -- Cmd 系タブショートカットの既定アサインを Disable して herdr に届かせる
+        -- Cmd+T / Cmd+W: WezTerm 既定（新規タブ・タブ閉じ）を Disable し herdr の Ctrl+T/W へ
         { key = 't', mods = 'CMD', action = act.DisableDefaultAssignment },
         { key = 'w', mods = 'CMD', action = act.DisableDefaultAssignment },
-        -- Cmd+Shift+T: DisableDefaultAssignment はフォールバックで AppKit characters の t が漏れるため、
-        -- 完全飲み込みは Nop で行う（Mapped/Shift 明示の両経路）
+        -- Cmd+Shift+T: DisableDefaultAssignment ではフォールバックで AppKit characters の t が漏れるため、
+        -- 完全飲み込みは Nop で行う（Mapped/Shift 明示の両経路）。チートシートには無いが防御として残す。
         { key = 't', mods = 'CMD|SHIFT', action = act.Nop },
         { key = 'T', mods = 'CMD', action = act.Nop },
-        -- Cmd+Shift+<英字>/Enter は WezTerm の既定処理（SendKey 経由でも AppKit の文字変換）で
-        -- 文字単独や大文字に潰されるため、kitty keyboard protocol の CSI u 形式を SendString で直送する。
+        -- Cmd+Shift+] / Cmd+Shift+[: WezTerm の既定処理（SendKey 経由でも AppKit の文字変換）で
+        -- 単独文字や大文字に潰されるため、kitty keyboard protocol の CSI u 形式を SendString で直送する。
         -- 書式: ESC[<codepoint>;<modifier+1>u  (Shift=1+Super=8 → modifier=9, +1=10)
         -- Mapped 解釈・Shift 明示・両者持ちの 3 経路で entry を並べる（取りこぼし防止）
-        { key = '}', mods = 'CMD', action = act.SendString '\x1b[93;10u' },           -- Cmd+Shift+]
+        { key = '}', mods = 'CMD', action = act.SendString '\x1b[93;10u' },           -- Cmd+Shift+] → 次タブ
         { key = ']', mods = 'CMD|SHIFT', action = act.SendString '\x1b[93;10u' },
         { key = '}', mods = 'CMD|SHIFT', action = act.SendString '\x1b[93;10u' },
-        { key = '{', mods = 'CMD', action = act.SendString '\x1b[91;10u' },           -- Cmd+Shift+[
+        { key = '{', mods = 'CMD', action = act.SendString '\x1b[91;10u' },           -- Cmd+Shift+[ → 前タブ
         { key = '[', mods = 'CMD|SHIFT', action = act.SendString '\x1b[91;10u' },
         { key = '{', mods = 'CMD|SHIFT', action = act.SendString '\x1b[91;10u' },
-        { key = 'd', mods = 'CMD|SHIFT', action = act.SendString '\x1b[100;10u' },
-        { key = 'w', mods = 'CMD|SHIFT', action = act.SendString '\x1b[119;10u' },
-        { key = 'Enter', mods = 'CMD|SHIFT', action = act.SendString '\x1b[13;10u' },
-        -- Cmd+1〜9 の ActivateTab を Disable
+        -- Cmd+1〜9: WezTerm 既定の ActivateTab を Disable し herdr の Ctrl+1〜9 へ
         { key = '1', mods = 'CMD', action = act.DisableDefaultAssignment },
         { key = '2', mods = 'CMD', action = act.DisableDefaultAssignment },
         { key = '3', mods = 'CMD', action = act.DisableDefaultAssignment },
