@@ -1,9 +1,10 @@
 export const meta = {
   name: 'implement-pipeline',
-  description: 'implement スキルの実装パイプライン: 実装→検証/self-review(並列)→enum コードゲートの限定リトライ (上限 1 はループを置かないコード構造で保証)→集計。green 判定・changed_files の union・件数集計は script がコードで計算し、自己申告に依存しない',
+  description: 'implement スキルの実装パイプライン: 実装→cleanup(simplify 相当の品質クリーンアップ・TDD 時はスキップ)→検証/self-review(並列)→enum コードゲートの限定リトライ (上限 1 はループを置かないコード構造で保証)→集計。green 判定・changed_files の union・件数集計は script がコードで計算し、自己申告に依存しない',
   whenToUse: 'implement スキル本体 (SKILL.md) から scriptPath 指定で起動される。単体起動は想定しない',
   phases: [
     { title: '実装', detail: 'plan.md を一次ソースに作業ツリー内で実装 (worktree_cwd・副作用禁止句を prompt に機械埋め込み)' },
+    { title: 'cleanup', detail: '/simplify 相当の reuse/simplification/efficiency/altitude のクリーンアップを実装直後・検証/self-review の直前に 1 段だけ実行 (bug 探し・plan 突合はしない。TDD 時はスキップ。失敗時は flag を立てて続行)' },
     { title: '検証・self-review', detail: '独立検証 agent のテスト実行と plan 突合専任 self-review の並列実行' },
     { title: 'リトライ判定', detail: '全 fail が trivial-safe のときのみ修正 agent を 1 回起動して検証を再実行 (可否と上限はコードが決める)' },
     { title: '集計', detail: 'green 判定・changed_files union・totals・flags の組み立て' },
@@ -110,6 +111,17 @@ const FIX_SCHEMA = {
   },
 }
 
+// cleanup (simplify 相当) は FIX_SCHEMA と同形 (summary + changed_files)。
+// tests_attempted を持たせない: cleanup はテスト実行を責務にしない (検証は後段 verify が cleanup 後の状態で行う)。
+const CLEANUP_SCHEMA = {
+  type: 'object',
+  required: ['summary', 'changed_files'],
+  properties: {
+    summary: { type: 'string', description: 'クリーンアップ概要 (reuse / simplification / efficiency / altitude のどの観点で何を整えたか)' },
+    changed_files: { type: 'array', items: { type: 'string' }, description: 'クリーンアップで触れたファイルの絶対パス一覧' },
+  },
+}
+
 // ---- ヘルパ ----
 function sliceExcerpts(executions) {
   for (const e of executions) e.output_excerpt = (e.output_excerpt || '').slice(0, e.status === 'pass' ? EXCERPT_MAX_PASS : EXCERPT_MAX_FAIL)
@@ -121,7 +133,10 @@ function failsOf(executions) {
 
 // 戻り object の組み立て (デフォルト＋上書き)。早期 return と正規 return で shape を複製しない。
 // flags は二重符号化せず、stopped_by / review の null / executions から一括導出する。
+// simplify_failed / simplify_skipped_for_tdd は計算で導けないため overrides の同名キーから明示転記する
+// (既存 flags が stopped_by から計算で導出されるのとは異なる扱い。詳細は plan.md「TDD スキップ」節)。
 function buildResult(review, overrides) {
+  const o = overrides || {}
   const r = Object.assign(
     {
       implementation_summary: '',
@@ -131,8 +146,11 @@ function buildResult(review, overrides) {
       retry_log: { retries: 0, stopped_by: 'implement-failed' },
       worktree_cwd: WORKTREE, // args の機械エコー (LLM の申告チャネルを持たない。overrides でも上書きしない)
     },
-    overrides,
+    o,
   )
+  // simplify_failed / simplify_skipped_for_tdd は flags 構築用のメタフラグであり、戻り object のトップレベルには載せない
+  delete r.simplify_failed
+  delete r.simplify_skipped_for_tdd
   const stopped = r.retry_log.stopped_by
   const fails = failsOf(r.test_executions)
   const implementFailed = stopped === 'implement-failed'
@@ -148,6 +166,9 @@ function buildResult(review, overrides) {
     // verify_failed とは独立に executions の件数のみで導出する (初回検証の取得失敗時は
     // verify_failed と no_tests_run の両方が true = 「検証結果なし・実行記録ゼロ件」として一貫)
     no_tests_run: r.test_executions.length === 0,
+    // cleanup (simplify 相当) は計算で導けないため overrides から明示転記する (TDD スキップ・cleanup 取得失敗のいずれかが true)
+    simplify_failed: o.simplify_failed === true,
+    simplify_skipped_for_tdd: o.simplify_skipped_for_tdd === true,
   }
   // green = 検証成功 かつ executions 1 件以上 かつ fail ゼロ (実行ゼロの vacuous green を許さない)
   r.test_green = !verifyFailed && !r.flags.no_tests_run && fails.length === 0
@@ -180,6 +201,32 @@ ${JSON.stringify(fails, null, 2)}
 返却: summary (修正概要) / changed_files (修正で触れたファイルの絶対パス一覧)。`
 }
 
+// cleanup (simplify 相当) agent prompt。
+// /simplify description を逐語埋め込みする (drift 観測時の照合基準にするため言い換えない)。
+function cleanupPrompt(implSummary, implChangedFiles) {
+  return `あなたは cleanup 担当 (simplify 相当)。直前の実装で生成された diff を、後段レビューに持ち込む前に整えるのが役割。
+
+責務 (/simplify description の逐語転記):
+"Review the changed code for reuse, simplification, efficiency, and altitude cleanups, then apply the fixes. Quality only — it does not hunt for bugs; use /code-review for that."
+
+範囲: reuse / simplification / efficiency / altitude のクリーンアップのみ。次は行わない:
+- バグ探索・テスト合格性の評価 (これは後段の code-review / verify の領分)
+- plan 突合・未実装/逸脱の検出 (これは後段の self-review の領分)
+- テストの追加・新規機能の追加
+- plan の決定事項からの逸脱 (altitude 変更が plan の構造決定に背くケースは self-review が拾うが、cleanup 側でも避ける)
+- 依頼スコープ外への大規模な波及修正 (主対象は実装で触れた範囲。diff の外まで不必要に広げない)
+
+${PLAN_PATH ? `plan: ${PLAN_PATH} — クリーンアップが plan の決定事項と矛盾しないことを確認せよ。\n` : ''}依頼: ${REQUEST}
+作業ツリー (cwd): ${WORKTREE} — すべての編集はこのツリー内で行う。
+副作用禁止: ${SIDE_EFFECT_BAN}
+
+直前の実装担当の申告 (cleanup の主対象を絞る補助情報。diff の外まで広げないための手がかり):
+変更概要: ${implSummary}
+変更ファイル: ${JSON.stringify(implChangedFiles)}
+
+返却: summary (クリーンアップ概要 — どの観点で何を整えたか) / changed_files (クリーンアップで触れたファイルの絶対パス一覧)。整えるべき箇所が見当たらなければ changed_files は空配列でよい (でっち上げない)。`
+}
+
 // ============================================================
 phase('実装')
 const implPrompt = `あなたは実装担当。以下に従って実装せよ。
@@ -205,6 +252,31 @@ if (!impl) {
   return buildResult(null, { retry_log: { retries: 0, stopped_by: 'implement-failed' } })
 }
 log(`実装完了: 変更 ${impl.changed_files.length} files / 申告テスト ${impl.tests_attempted.length} 件`)
+
+// ============================================================
+phase('cleanup')
+// /simplify 相当の品質クリーンアップを実装直後に 1 段だけ実行する (リトライなし)。
+// 「黙ってスキップしない」を担保するため、cleanup 呼び出しのスキップと flag 立ち上がりは同じ条件式 (TDD) に紐づける。
+// flags への転記は buildResult が overrides の simplify_failed / simplify_skipped_for_tdd を見て行う。
+let changedFiles = (impl.changed_files || []).slice()
+let simplifyFailed = false
+let simplifySkippedForTdd = false
+if (TDD) {
+  // TDD 時は cleanup を呼ばない (Red-Green-Refactor の Refactor 段が TDD 自身に内在するため・テスト先行を整形で乱さない)
+  simplifySkippedForTdd = true
+  log('cleanup スキップ (TDD: simplify_skipped_for_tdd)')
+} else {
+  const cleanup = await agent(cleanupPrompt(impl.summary, impl.changed_files), { schema: CLEANUP_SCHEMA, label: 'cleanup', phase: 'cleanup' })
+  if (!cleanup) {
+    // cleanup 失敗で workflow 全体は止めない。flag を立てて続行 (作業ツリーは実装直後 or 部分適用後の中間状態のまま)
+    simplifyFailed = true
+    log('cleanup agent が結果を返さなかった (simplify_failed)。cleanup 適用前または部分適用後の状態で続行')
+  } else {
+    // changed_files の三段 union: 実装 → cleanup の union を先に取り、後段の修正 agent 後に既存 union 行が積む
+    changedFiles = Array.from(new Set([...changedFiles, ...(cleanup.changed_files || [])]))
+    log(`cleanup 完了: 変更 ${(cleanup.changed_files || []).length} files`)
+  }
+}
 
 // ============================================================
 phase('検証・self-review')
@@ -249,8 +321,8 @@ log(`検証: ${verify1 ? `${executions.length} コマンド (fail ${failsOf(exec
 phase('リトライ判定')
 // リトライするか否かの判定はコードが決める (分類 breakage_class だけが検証 agent の申告)。
 // リトライ上限 1 は構造 (ループを置かない直線実行: enum ゲート → fix → verify2) で保証する。
+// changedFiles は cleanup フェーズで初期化済み (実装 → cleanup の union)。修正 agent 後の union 行で三段目を積む。
 let retries = 0
-let changedFiles = (impl.changed_files || []).slice()
 let stoppedBy
 
 if (!verify1) {
@@ -316,16 +388,19 @@ const totals = {
   none: findings.filter((f) => f.type === 'none').length,
 }
 
-// flags・test_green は buildResult が stopped_by / review / executions から一括導出する
+// flags・test_green は buildResult が stopped_by / review / executions から一括導出する。
+// simplify_failed / simplify_skipped_for_tdd は cleanup フェーズで決まった値を overrides 経由で flags に転記する。
 const result = buildResult(review, {
   implementation_summary: impl.summary,
   changed_files: changedFiles,
   test_executions: executions,
   self_review: { findings, totals },
   retry_log: { retries, stopped_by: stoppedBy },
+  simplify_failed: simplifyFailed,
+  simplify_skipped_for_tdd: simplifySkippedForTdd,
 })
 log(
-  `集計: green=${result.test_green} (fail 残 ${failsOf(executions).length}${result.flags.no_tests_run ? '・実行 0 件' : ''}) / changed_files ${changedFiles.length} / self-review ${totals.count} 件 (未実装 ${totals.unimplemented} / 逸脱 ${totals.deviation} / 所見 ${totals.none})`,
+  `集計: green=${result.test_green} (fail 残 ${failsOf(executions).length}${result.flags.no_tests_run ? '・実行 0 件' : ''}) / changed_files ${changedFiles.length} / self-review ${totals.count} 件 (未実装 ${totals.unimplemented} / 逸脱 ${totals.deviation} / 所見 ${totals.none}) / cleanup ${result.flags.simplify_skipped_for_tdd ? 'skipped(tdd)' : result.flags.simplify_failed ? 'failed' : 'applied'}`,
 )
 
 return result
