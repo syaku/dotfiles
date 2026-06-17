@@ -20,6 +20,7 @@ brew curl
 brew difftastic
 brew doggo
 brew dust
+brew eza
 brew fastfetch
 brew fd
 brew fish
@@ -37,6 +38,7 @@ brew gnupg
 brew gnutls
 brew gron
 brew gum
+brew herdr
 brew html-to-markdown
 brew hugo
 brew hyperfine
@@ -144,7 +146,6 @@ cask zen
 tap homebrew/services
 
 tap felixkratz/formulae
-brew borders
 
 tap mackerelio/mackerel-agent
 
@@ -152,7 +153,6 @@ tap nikitabobko/tap
 cask aerospace
 
 tap rcmdnk/file
-brew brew-file
 
 # App Store applications
 appstore 545519333 Prime Video (10.84)
