@@ -19,6 +19,9 @@ end
 config.default_domain = 'local'
 config.term = 'xterm-256color'
 
+-- kitty keyboard protocol を有効化（Cmd/Super 等の修飾子を PTY 経由で TUI に届けるため）
+config.enable_kitty_keyboard = true
+
 -- ── ランチャーメニュー ─────────────────────────────
 if is_windows then
   config.launch_menu = {
