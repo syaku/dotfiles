@@ -1,0 +1,39 @@
+[keys]
+# herdr の prefix キー（既定 ctrl+b を Mac の cmd+b に読み替え）
+prefix = "cmd+b"
+
+# ── タブ操作（prefix-less ＋ prefix 経由を併存） ─────────────────────────
+# array 構文で 1 アクションに 2 バインド：iTerm2 系 Cmd と tmux 流派 prefix を両立。
+# cheatsheet の「タブ補助」節（prefix + c/n/p/1-9/shift+x）が prefix-less と並行して効く。
+new_tab      = ["cmd+t",       "prefix+c"]
+close_tab    = ["cmd+w",       "prefix+shift+x"]
+next_tab     = ["cmd+shift+]", "prefix+n"]
+previous_tab = ["cmd+shift+[", "prefix+p"]
+switch_tab   = ["cmd+1..9",    "prefix+1..9"]
+rename_tab   = "prefix+,"   # tmux: rename-window 流派（既定 prefix+shift+t を上書き）
+
+# ── ペイン操作（prefix 経由・tmux カスタム流派） ──────────────────────────
+# 既定維持（明示しない）:
+#   split_horizontal     = "prefix+minus"          （tmux カスタム流派と一致）
+#   focus_pane_left/...  = "prefix+h/j/k/l"
+#   swap_pane_left/...   = "prefix+shift+h/j/k/l"  （herdr 既定。--default-config 非掲載だが実在）
+#   cycle_pane_previous  = "prefix+shift+tab"
+#   close_pane           = "prefix+x"
+#   zoom                 = "prefix+z"
+#   resize_mode          = "prefix+r"
+split_vertical  = "prefix+\\"   # tmux カスタム流派: | のキー位置 (\) で縦分割
+cycle_pane_next = "prefix+o"    # tmux: select-pane（既定 prefix+tab から退避）
+last_pane       = "prefix+;"    # tmux: last-pane（既定は未指定）
+
+# ── セッション・その他 ───────────────────────────────────────────────────
+# 既定維持（明示しない）:
+#   toggle_sidebar = "prefix+b"   goto = "prefix+g"   new_worktree = "prefix+shift+g"
+#   help = "prefix+?"
+detach    = "prefix+d"    # tmux: detach-client 流派（既定 prefix+q を上書き）
+copy_mode = "prefix+["    # tmux: copy-mode 流派
+
+# prefix+o を cycle_pane_next に明け渡したので open_notification_target を退避
+open_notification_target = "prefix+shift+o"
+
+# ── エージェントフォーカス ───────────────────────────────────────────────
+focus_agent = "prefix+alt+1..9"
