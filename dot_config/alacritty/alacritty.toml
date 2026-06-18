@@ -1,0 +1,31 @@
+[window]
+padding = { x = 8, y = 8 }
+opacity = 1.0
+
+[font]
+size = 15.0
+
+[font.normal]
+family = "UDEV Gothic 35NFLG"
+style = "Regular"
+
+[keyboard]
+bindings = [
+  { key = "T", mods = "Command", action = "ReceiveChar" },
+  { key = "]", mods = "Command|Shift", action = "ReceiveChar" },
+  { key = "[", mods = "Command|Shift", action = "ReceiveChar" },
+  { key = "Tab", mods = "Command", action = "ReceiveChar" },
+  { key = "Tab", mods = "Command|Shift", action = "ReceiveChar" },
+  { key = "1", mods = "Command", action = "ReceiveChar" },
+  { key = "2", mods = "Command", action = "ReceiveChar" },
+  { key = "3", mods = "Command", action = "ReceiveChar" },
+  { key = "4", mods = "Command", action = "ReceiveChar" },
+  { key = "5", mods = "Command", action = "ReceiveChar" },
+  { key = "6", mods = "Command", action = "ReceiveChar" },
+  { key = "7", mods = "Command", action = "ReceiveChar" },
+  { key = "8", mods = "Command", action = "ReceiveChar" },
+  { key = "9", mods = "Command", action = "ReceiveChar" },
+  { key = "B", mods = "Command", action = "ReceiveChar" },
+  { key = "W", mods = "Command", action = "ReceiveChar" },
+  { key = "F", mods = "Command", action = "SearchBackward" },
+]
