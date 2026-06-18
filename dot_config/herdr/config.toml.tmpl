@@ -1,15 +1,35 @@
+{{- /* chezmoi:template:line-endings=native */ -}}
+onboarding = false
+
+[terminal]
+default_shell = "nu{{ if eq .chezmoi.os "windows" }}.exe{{ end }}"
+shell_mode = "auto"
+
+[ui]
+show_agent_labels_on_pane_borders = false
+
 [keys]
+{{- if ne .chezmoi.os "windows" }}
 # herdr の prefix キー（既定 ctrl+b を Mac の cmd+b に読み替え）
 prefix = "cmd+b"
+{{- end }}
 
 # ── タブ操作（prefix-less ＋ prefix 経由を併存） ─────────────────────────
-# array 構文で 1 アクションに 2 バインド：iTerm2 系 Cmd と tmux 流派 prefix を両立。
+# array 構文で 1 アクションに 2 バインド：iTerm2 系の修飾キーと tmux 流派 prefix を両立。
 # cheatsheet の「タブ補助」節（prefix + c/n/p/1-9/shift+x）が prefix-less と並行して効く。
+{{- if eq .chezmoi.os "windows" }}
+new_tab      = ["ctrl+t",       "prefix+c"]
+close_tab    = ["ctrl+w",       "prefix+shift+x"]
+next_tab     = ["ctrl+shift+]", "prefix+n"]
+previous_tab = ["ctrl+shift+[", "prefix+p"]
+switch_tab   = ["ctrl+1..9",    "prefix+1..9"]
+{{- else }}
 new_tab      = ["cmd+t",       "prefix+c"]
 close_tab    = ["cmd+w",       "prefix+shift+x"]
 next_tab     = ["cmd+shift+]", "prefix+n"]
 previous_tab = ["cmd+shift+[", "prefix+p"]
 switch_tab   = ["cmd+1..9",    "prefix+1..9"]
+{{- end }}
 rename_tab   = "prefix+,"   # tmux: rename-window 流派（既定 prefix+shift+t を上書き）
 
 # ── ペイン操作（prefix 経由・tmux カスタム流派） ──────────────────────────
