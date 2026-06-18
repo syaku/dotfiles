@@ -3,8 +3,14 @@ padding = { x = 8, y = 8 }
 opacity = 0.8
 blur = true
 
+{{- if eq .chezmoi.os "windows" }}
+
+[terminal.shell]
+program = "C:\\Program Files\\nu\\bin\\nu.exe"
+{{- end }}
+
 [font]
-size = 15.0
+size = {{ if eq .chezmoi.os "windows" }}13.0{{ else }}15.0{{ end }}
 
 [font.normal]
 family = "UDEV Gothic 35NFLG"
@@ -37,6 +43,7 @@ white   = "#feffff"
 
 [keyboard]
 bindings = [
+  { key = "Return", mods = "Shift", chars = "\u001b\r" },
   { key = "T", mods = "Command", action = "ReceiveChar" },
   { key = "]", mods = "Command|Shift", action = "ReceiveChar" },
   { key = "[", mods = "Command|Shift", action = "ReceiveChar" },
