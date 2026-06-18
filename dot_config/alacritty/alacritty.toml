@@ -1,6 +1,7 @@
 [window]
 padding = { x = 8, y = 8 }
-opacity = 1.0
+opacity = 0.8
+blur = true
 
 [font]
 size = 15.0
@@ -8,6 +9,31 @@ size = 15.0
 [font.normal]
 family = "UDEV Gothic 35NFLG"
 style = "Regular"
+
+# theme: tender (https://github.com/alacritty/alacritty-theme)
+[colors.primary]
+background = "#282828"
+foreground = "#eeeeee"
+
+[colors.normal]
+black   = "#282828"
+red     = "#f43753"
+green   = "#c9d05c"
+yellow  = "#ffc24b"
+blue    = "#b3deef"
+magenta = "#d3b987"
+cyan    = "#73cef4"
+white   = "#eeeeee"
+
+[colors.bright]
+black   = "#4c4c4c"
+red     = "#f43753"
+green   = "#c9d05c"
+yellow  = "#ffc24b"
+blue    = "#b3deef"
+magenta = "#d3b987"
+cyan    = "#73cef4"
+white   = "#feffff"
 
 [keyboard]
 bindings = [
