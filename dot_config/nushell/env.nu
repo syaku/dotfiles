@@ -3,6 +3,25 @@
 # autoload フェーズで source させる (nushell には stdin を eval する手段がないため、
 # xonsh の execx / pwsh の Invoke-Expression に相当する位置に置く)。
 
+# PATH の設定
+# autoload は env.nu より後に走るため、後段の which 検査を成立させるには PATH をここで整える。
+def --env add_to_path [path: string] {
+    if ($path | path exists) {
+        $env.PATH = ($env.PATH | split row (char esep) | prepend $path)
+    }
+}
+
+if $nu.os-info.name == "windows" {
+    add_to_path $"($env.HOME)/scoop/shims"
+} else if $nu.os-info.name == "macos" {
+    add_to_path "/opt/homebrew/bin"
+    add_to_path "/opt/homebrew/sbin"
+    add_to_path "/usr/local/bin"
+    add_to_path "/usr/local/sbin"
+}
+add_to_path $"($env.HOME)/.cargo/bin"
+add_to_path $"($env.HOME)/.local/bin"
+
 let vendor_autoload = ($nu.data-dir | path join "vendor/autoload")
 mkdir $vendor_autoload
 
