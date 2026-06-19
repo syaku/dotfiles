@@ -1,11 +1,11 @@
 ---
 name: trend-digest
-description: Qiita/Zenn＋海外（Hacker News / Lobsters）トレンドから関心・流行でピックアップし要約+深掘りを1日1ノートに保存するスキル。一覧取得・再掲除外は fetch_trends.py（決定論）、ピックアップ・深掘り・要約・組み立ては trend-digest-pipeline workflow に委譲。関心は ~/workspace/notes/obsidian/Life/tech-trends/関心プロファイル.md を読む。「今日のトレンドまとめて」「テックトレンドをダイジェストして」などで起動する。対象 vault は ~/workspace/notes/obsidian/Life（Obsidian、日本語運用）。
+description: Qiita/Zenn＋海外（Hacker News / Lobsters）トレンドから関心・流行でピックアップし要約+深掘りを1日1ノートに保存するスキル。一覧取得・再掲除外は fetch_trends.py（決定論）、ピックアップ・深掘り・要約・組み立ては trend-digest-pipeline workflow に委譲。関心は ~/workspace/notes/obsidian/Life/skill/tech-trends/関心プロファイル.md を読む。「今日のトレンドまとめて」「テックトレンドをダイジェストして」などで起動する。対象 vault は ~/workspace/notes/obsidian/Life（Obsidian、日本語運用）。
 ---
 
 # trend-digest: トレンド記事の関心・流行ピックアップ → 要約・深掘り
 
-Qiita / Zenn / Hacker News / Lobsters のトレンドから、関心と流行の両軸でピックアップし、`~/workspace/notes/obsidian/Life`（以下 vault）の `tech-trends/<YYYY-MM-DD> テックトレンド.md` に 1 日 1 ノートを保存するスキル。手動起動（cron 等の自動化は対象外）。
+Qiita / Zenn / Hacker News / Lobsters のトレンドから、関心と流行の両軸でピックアップし、`~/workspace/notes/obsidian/Life`（以下 vault）の `skill/tech-trends/<YYYY-MM-DD> テックトレンド.md` に 1 日 1 ノートを保存するスキル。手動起動（cron 等の自動化は対象外）。
 
 処理は 3 層に分かれる:
 
@@ -15,25 +15,25 @@ Qiita / Zenn / Hacker News / Lobsters のトレンドから、関心と流行の
 
 ## 厳守プロトコル
 
-- **関心プロファイルが無ければ捏造で関心を断定せず止まる。** `tech-trends/関心プロファイル.md` を毎回読む。無い場合は最小スケルトン（重み高/中トピック・流行軸・海外検索軸・除外）を提示し、作成を促して**停止**する。
+- **関心プロファイルが無ければ捏造で関心を断定せず止まる。** `skill/tech-trends/関心プロファイル.md` を毎回読む。無い場合は最小スケルトン（重み高/中トピック・流行軸・海外検索軸・除外）を提示し、作成を促して**停止**する。
 - **workflow 戻りの `note_content` を main で要約・編集・加筆しない。** そのまま指定 path へ Write する（`flags.note_errors` が空でない場合のみ、書かずに内容を報告してユーザ判断を仰ぐ）。
 - **全ソース全滅・プール空のときはノートを作らない**（workflow が `aborted` を返す。報告して停止。daily の wikilink は赤リンクのまま）。
 - **当日ノートが既に存在したら上書きせず報告して停止する**（再実行はユーザの明示指示があるときだけ）。
-- **vault の他ノートを編集しない。** このスキルが書くのは `tech-trends/` 配下の当日ノート 1 ファイルのみ。`imports/kindle/`・`imports/wallabag/` は対象外。
+- **vault の他ノートを編集しない。** このスキルが書くのは `skill/tech-trends/` 配下の当日ノート 1 ファイルのみ。`imports/kindle/`・`imports/wallabag/` は対象外。
 
 ## フロー
 
 ### 1. 前提の確定
 
 - `date +"%Y-%m-%d"` で対象日、`date +"%Y-%m-%d %H:%M"` で現在時刻を取得する（workflow script は Date 不可なので args で渡す）。
-- `tech-trends/<対象日> テックトレンド.md` の存在を確認し、あれば報告して停止する。
-- `tech-trends/関心プロファイル.md` を Read する。無ければスケルトン提示で停止する。
+- `skill/tech-trends/<対象日> テックトレンド.md` の存在を確認し、あれば報告して停止する。
+- `skill/tech-trends/関心プロファイル.md` を Read する。無ければスケルトン提示で停止する。
 - プロファイルの「海外ソース検索軸」対応表から HN keyword（常時分）と Lobsters tag を読み取る。その日の流行語を最大 2 語まで keyword に足してよい（合計上限 5 語は script 側が機械的に切る）。
 
 ### 2. 取得層の実行
 
 - 再掲除外リストの生成: 直近 3 件のダイジェストから URL を機械抽出する。
-  - `ls ~/workspace/notes/obsidian/Life/tech-trends/*テックトレンド.md | tail -3` で対象を確定し、
+  - `ls ~/workspace/notes/obsidian/Life/skill/tech-trends/*テックトレンド.md | tail -3` で対象を確定し、
   - `rg -oN --no-filename 'https?://[^)\s]+' <対象 3 ファイル> | sort -u > /tmp/trend-seen-urls.txt`
 - `python3 ~/.claude/skills/trend-digest/fetch_trends.py --hn-keywords "<カンマ区切り>" --lobsters-tags "<カンマ区切り>" --seen-file /tmp/trend-seen-urls.txt --out /tmp/trend-pool.json` を実行する。
 - stdout のサマリ行で per-source 成否を確認する。全ソース失敗（exit 1）なら報告して停止。一部失敗は続行（失敗ソースは workflow がノートの AI Context に機械記載する）。
@@ -53,7 +53,7 @@ Qiita / Zenn / Hacker News / Lobsters のトレンドから、関心と流行の
 ### 4. 書き込みと完了報告
 
 - 戻り値が `aborted` なら理由（全滅 / プール空）を報告して終了する。
-- `flags.note_errors` が空であることを確認し、`note_content` を `note_path` へそのまま Write する（`tech-trends/` フォルダが無ければ作る）。
+- `flags.note_errors` が空であることを確認し、`note_content` を `note_path` へそのまま Write する（`skill/tech-trends/` フォルダが無ければ作る）。
 - 報告: `totals`（プール件数・再掲除外数・ピック数・深掘り数・デグレード数・国内/海外内訳）、`flags`（失敗ソース・未解消のピック制約違反・軸の免除宣言・デグレード/要約欠落 id）、ノートパス。
 
 ## workflow との interface

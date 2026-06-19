@@ -28,7 +28,7 @@ const PROFILE = input.profile // 関心プロファイル.md の全文
 let POOL = input.pool // fetch_trends.py の出力 JSON (正規化・再掲除外済み)
 if (typeof POOL === 'string') POOL = JSON.parse(POOL)
 
-const NOTE_PATH = `${VAULT}/tech-trends/${TODAY} テックトレンド.md` // basename は journals/<日付>.md と構造的に衝突しない
+const NOTE_PATH = `${VAULT}/skill/tech-trends/${TODAY} テックトレンド.md` // basename は journals/<日付>.md と構造的に衝突しない
 
 // ---- 早期終了ガード (空ノート・捏造を作らない) ----
 const failedSources = Object.entries(POOL.sources || {}).filter(([, s]) => !s.ok).map(([n]) => n)
