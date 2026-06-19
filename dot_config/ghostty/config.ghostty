@@ -3,16 +3,10 @@
 
 # ── 起動コマンド・環境変数 ─────────────────────────────────
 # Ghostty 起動時にログインシェルを経由せず直接 herdr を立ち上げる。
-# XDG_* は ~/.config/zsh/.zshenv が正本だが zshenv はログインシェル経由でしか
-# 発火しない。Ghostty → herdr → nu の経路では zsh を踏まないので、
-# Ghostty の env 注入で nu に XDG を届ける（さもなくば nu が
-# ~/Library/Application Support/nushell/ にフォールバックする）。
-{{- $brewPrefix := "/opt/homebrew" }}
-{{- if ne .chezmoi.arch "arm64" }}{{ $brewPrefix = "/usr/local" }}{{ end }}
-command = {{ $brewPrefix }}/bin/herdr
-env = XDG_CONFIG_HOME={{ .chezmoi.homeDir }}/.config
-env = XDG_DATA_HOME={{ .chezmoi.homeDir }}/.local/share
-env = XDG_CACHE_HOME={{ .chezmoi.homeDir }}/.cache
+# XDG_* は zshenv 経由でしか立たないため、nu が Library 側にフォールバックする
+# 経路は ~/Library/Application Support/nushell → ~/.config/nushell の symlink で
+# 吸収する（ghostty の env 注入はせず、ファイルシステム側で解決）。
+command = /opt/homebrew/bin/herdr
 env = LANG=ja_JP.UTF-8
 
 # ── フォント ───────────────────────────────────────────────
