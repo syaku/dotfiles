@@ -43,4 +43,18 @@ def fbr [] {
         let branch = $selected.stdout | str trim
         ^git checkout $branch
     }
-} 
+}
+
+# herdr の image protocol 対応は kitty_graphics experimental のみで、yazi が選ぶ
+# iTerm2 inline images (OSC 1337) は herdr 層で吸われて画像が崩れる。
+# HERDR_ENV=1 のときだけ WezTerm 由来の env を隠して Chafa fallback に落とす。
+def --env --wrapped yazi [...args] {
+    if ($env.HERDR_ENV? | default "") == "1" {
+        do {
+            hide-env --ignore-errors TERM_PROGRAM TERM_PROGRAM_VERSION WEZTERM_PANE WEZTERM_EXECUTABLE WEZTERM_CONFIG_FILE WEZTERM_UNIX_SOCKET
+            ^yazi ...$args
+        }
+    } else {
+        ^yazi ...$args
+    }
+}
