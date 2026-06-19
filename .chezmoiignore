@@ -64,11 +64,19 @@
 .config/karabiner/automatic_backups
 
 # GlazeWM (タイル WM) / zebar (ステータスバー) / tacky-borders (フォーカス枠線オーバーレイ)
-# は Windows 専用ツールなので Windows でのみ展開
+# は Windows 専用ツールなので Windows でのみ展開。
+# herdr-server-task.xml / herdr-server-launcher.cs も同じ理由で Windows 限定
+# （タスクスケジューラ登録 + C# 製 window-less wrapper の source）
 {{ if ne .chezmoi.os "windows" }}
 .glzr
 .config/tacky-borders
+.config/herdr/herdr-server-task.xml
+.config/herdr/herdr-server-launcher.cs
 {{ end }}
+
+# herdr-server-launcher.exe は run_onchange が csc.exe で build する成果物なので
+# chezmoi 管理対象から外す（source は .cs のみ持つ）
+.config/herdr/herdr-server-launcher.exe
 
 # 上記ツールの動的ファイル・公式サンプル widget は Windows 側でも管理対象外
 .glzr/zebar/errors.log

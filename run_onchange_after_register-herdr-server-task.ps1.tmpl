@@ -1,0 +1,56 @@
+{{- if eq .chezmoi.os "windows" -}}
+# herdr server を Windows ログオン時に headless 起動するため、
+# (1) C# wrapper を csc.exe で build し、(2) タスクスケジューラに登録する。
+# source 変更時に再実行するためのハッシュ：
+# .cs hash:  {{ include "dot_config/herdr/herdr-server-launcher.cs" | sha256sum }}
+# .xml hash: {{ include "dot_config/herdr/herdr-server-task.xml.tmpl" | sha256sum }}
+
+$ErrorActionPreference = 'Stop'
+
+# (1) C# wrapper を build
+$csPath  = Join-Path $HOME '.config\herdr\herdr-server-launcher.cs'
+$exePath = Join-Path $HOME '.config\herdr\herdr-server-launcher.exe'
+$csc     = 'C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe'
+
+if (-not (Test-Path $csPath)) {
+    Write-Error "Source not found: $csPath"
+    exit 1
+}
+if (-not (Test-Path $csc)) {
+    Write-Error "csc.exe not found: $csc"
+    exit 1
+}
+
+Write-Host "Building $exePath"
+& $csc /nologo /target:winexe /out:$exePath $csPath | Out-Host
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "csc failed with exit code $LASTEXITCODE"
+    exit $LASTEXITCODE
+}
+
+# (2) タスクスケジューラに登録
+# schtasks /Create /XML は UTF-16 LE BOM 付きを期待することがあるため、UTF-8 で持っている
+# 正本 XML を tmp に UTF-16 化して投入する。
+$taskName = 'herdr-server'
+$xmlPath  = Join-Path $HOME '.config\herdr\herdr-server-task.xml'
+
+if (-not (Test-Path $xmlPath)) {
+    Write-Error "Task XML not found: $xmlPath"
+    exit 1
+}
+
+$tmpXml = [System.IO.Path]::GetTempFileName() + '.xml'
+try {
+    $content = Get-Content -Path $xmlPath -Raw -Encoding UTF8
+    [System.IO.File]::WriteAllText($tmpXml, $content, [System.Text.UnicodeEncoding]::new($false, $true))
+
+    Write-Host "Registering scheduled task: $taskName"
+    & schtasks.exe /Create /TN $taskName /XML $tmpXml /F | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "schtasks /Create failed with exit code $LASTEXITCODE"
+        exit $LASTEXITCODE
+    }
+} finally {
+    if (Test-Path $tmpXml) { Remove-Item $tmpXml -Force }
+}
+{{- end -}}
