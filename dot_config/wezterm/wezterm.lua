@@ -13,7 +13,9 @@ local config = {}
 -- ── ドメイン ───────────────────────────────────────
 config.wsl_domains = wezterm.default_wsl_domains()
 if is_windows then
-  config.default_prog = { 'nu.exe' }
+  -- wezterm 起動と同時に herdr に入る。herdr 内のシェルは ~/.config/herdr/config.toml の
+  -- [terminal] default_shell で指定する（既存 nu 運用を維持したい場合はそちらに移す）。
+  config.default_prog = { 'herdr.exe' }
 end
 -- macOS/Linux では default_prog を設定せず、$SHELL → ログインシェルを自動採用
 config.default_domain = 'local'
@@ -51,13 +53,13 @@ config.scrollback_lines = 100000 -- デフォルト3500 → Claude Codeの長い
 
 if is_windows then
   -- Windows専用の設定
-  config.front_end = "OpenGL" -- 最新のWindowsではWebGPUが最適
+  config.front_end = "WebGpu" -- 最新のWindowsではWebGPUが最適
   -- config.enable_wayland = false -- Windowsでは無効
   -- 透明度
-  config.window_background_opacity = 0.95
+  config.window_background_opacity = 0.8
 
   -- コンポジターの透明効果に対する最適化
-  -- config.win32_system_backdrop = "Acrylic" -- Windows 11でのMica/アクリル効果
+  config.win32_system_backdrop = "Acrylic" -- Windows 11でのMica/アクリル効果
 end
 
 if is_macos then
