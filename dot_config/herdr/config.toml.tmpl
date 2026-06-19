@@ -2,11 +2,26 @@
 onboarding = false
 
 [terminal]
-default_shell = "nu{{ if eq .chezmoi.os "windows" }}.exe{{ end }}"
+# 絶対パス指定にする。herdr server が `/usr/bin/login -flp ... bash --noprofile --norc`
+# 経由で起動される経路では PATH に `/opt/homebrew/bin` が含まれず、`nu` だと
+# "login shell 'nu' was not found on PATH" で workspace 作成に失敗する。
+{{- if eq .chezmoi.os "windows" }}
+default_shell = "nu.exe"
+{{- else }}
+default_shell = "{{ lookPath "nu" }}"
+{{- end }}
 shell_mode = "auto"
 
 [ui]
 show_agent_labels_on_pane_borders = false
+
+{{- if ne .chezmoi.os "windows" }}
+[experimental]
+# Kitty graphics protocol を pane に通す。外側ターミナル（ghostty 等）が
+# kitty graphics をサポートしている前提で yazi 等の画像プレビューを復活させる。
+# Windows では外側ターミナル側の挙動が不安定なため無効。
+kitty_graphics = true
+{{- end }}
 
 [keys]
 {{- if ne .chezmoi.os "windows" }}
