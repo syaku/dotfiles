@@ -11,6 +11,7 @@ brew bat
 brew brotli
 brew btop
 brew ca-certificates
+brew carapace
 brew certifi
 brew cffi
 brew chezmoi
