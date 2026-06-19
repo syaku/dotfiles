@@ -1,0 +1,73 @@
+# Ghostty 設定。alacritty / wezterm の見た目に合わせ、タブ・ペイン・
+# ワークスペースの多重化はターミナルマルチプレクサ herdr に委譲する。
+
+# ── 起動コマンド・環境変数 ─────────────────────────────────
+# Ghostty 起動時にログインシェルを経由せず直接 herdr を立ち上げる。
+# XDG_* は ~/.config/zsh/.zshenv が正本だが zshenv はログインシェル経由でしか
+# 発火しない。Ghostty → herdr → nu の経路では zsh を踏まないので、
+# Ghostty の env 注入で nu に XDG を届ける（さもなくば nu が
+# ~/Library/Application Support/nushell/ にフォールバックする）。
+{{- $brewPrefix := "/opt/homebrew" }}
+{{- if ne .chezmoi.arch "arm64" }}{{ $brewPrefix = "/usr/local" }}{{ end }}
+command = {{ $brewPrefix }}/bin/herdr
+env = XDG_CONFIG_HOME={{ .chezmoi.homeDir }}/.config
+env = XDG_DATA_HOME={{ .chezmoi.homeDir }}/.local/share
+env = XDG_CACHE_HOME={{ .chezmoi.homeDir }}/.cache
+env = LANG=ja_JP.UTF-8
+
+# ── フォント ───────────────────────────────────────────────
+font-family = UDEV Gothic 35NFLG
+font-size = 15
+
+# ── ウィンドウ外観 ─────────────────────────────────────────
+background-opacity = 0.8
+background-blur = true
+window-padding-x = 8
+window-padding-y = 8
+
+# ── カラーテーマ（Tender） ─────────────────────────────────
+background = 282828
+foreground = eeeeee
+palette = 0=#282828
+palette = 1=#f43753
+palette = 2=#c9d05c
+palette = 3=#ffc24b
+palette = 4=#b3deef
+palette = 5=#d3b987
+palette = 6=#73cef4
+palette = 7=#eeeeee
+palette = 8=#4c4c4c
+palette = 9=#f43753
+palette = 10=#c9d05c
+palette = 11=#ffc24b
+palette = 12=#b3deef
+palette = 13=#d3b987
+palette = 14=#73cef4
+palette = 15=#feffff
+
+# ── バッファ ──────────────────────────────────────────────
+# Claude Code の長い出力に追随するため wezterm と同じ規模を確保
+scrollback-limit = 100000
+
+# ── キーバインド ───────────────────────────────────────────
+# wezterm の disable_default_key_bindings と同じ方針で、いったん全消去して
+# 明示したキーだけ有効化する。タブ・ペイン・ワークスペース機能（super+t/w、
+# super+1..9、super+shift+[/]、super+d/[/]、ctrl+tab 系など）は再定義しない
+# ことで unbind 扱いとなり、kitty keyboard protocol 経由で herdr に届く。
+keybind = clear
+
+# ---------- クリップボード ----------
+keybind = super+c=copy_to_clipboard
+keybind = super+v=paste_from_clipboard
+keybind = ctrl+shift+c=copy_to_clipboard
+keybind = ctrl+shift+v=paste_from_clipboard
+
+# ---------- フォントサイズの調整 ----------
+keybind = ctrl+==increase_font_size:1
+keybind = ctrl+-=decrease_font_size:1
+keybind = ctrl+0=reset_font_size
+
+# ---------- アプリ操作（最低限） ----------
+keybind = super+q=quit
+keybind = super+shift+,=reload_config
+keybind = super+,=open_config
