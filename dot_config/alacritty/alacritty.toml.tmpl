@@ -44,6 +44,8 @@ white   = "#feffff"
 [keyboard]
 bindings = [
   { key = "Return", mods = "Shift", chars = "\u001b\r" },
+{{- if eq .chezmoi.os "darwin" }}
+  # Mac: Cmd 修飾の Alacritty 既定 (Quit/タブ補助等) を抑制し herdr/shell に通す
   { key = "T", mods = "Command", action = "ReceiveChar" },
   { key = "]", mods = "Command|Shift", action = "ReceiveChar" },
   { key = "[", mods = "Command|Shift", action = "ReceiveChar" },
@@ -61,4 +63,29 @@ bindings = [
   { key = "B", mods = "Command", action = "ReceiveChar" },
   { key = "W", mods = "Command", action = "ReceiveChar" },
   { key = "F", mods = "Command", action = "SearchBackward" },
+{{- else if eq .chezmoi.os "windows" }}
+  # Windows: Mac の Cmd 修飾と対称 (Command → Control 置換) で全 binding を明示する
+  { key = "T", mods = "Control", action = "ReceiveChar" },
+  { key = "]", mods = "Control|Shift", action = "ReceiveChar" },
+  { key = "[", mods = "Control|Shift", action = "ReceiveChar" },
+  { key = "Tab", mods = "Control", action = "ReceiveChar" },
+  { key = "Tab", mods = "Control|Shift", action = "ReceiveChar" },
+  { key = "1", mods = "Control", action = "ReceiveChar" },
+  { key = "2", mods = "Control", action = "ReceiveChar" },
+  { key = "3", mods = "Control", action = "ReceiveChar" },
+  { key = "4", mods = "Control", action = "ReceiveChar" },
+  { key = "5", mods = "Control", action = "ReceiveChar" },
+  { key = "6", mods = "Control", action = "ReceiveChar" },
+  { key = "7", mods = "Control", action = "ReceiveChar" },
+  { key = "8", mods = "Control", action = "ReceiveChar" },
+  { key = "9", mods = "Control", action = "ReceiveChar" },
+  { key = "B", mods = "Control", action = "ReceiveChar" },
+  { key = "W", mods = "Control", action = "ReceiveChar" },
+  { key = "F", mods = "Control", action = "SearchBackward" },
+  # Windows 固有: Alacritty 既定の Ctrl+Shift+F/B (検索) を無効化し shell に通す
+  { key = "F", mods = "Control|Shift", action = "ReceiveChar" },
+  { key = "B", mods = "Control|Shift", action = "ReceiveChar" },
+  # Windows 固有: Ctrl+Q で Alacritty を終了 (Mac の Cmd+Q と揃える)
+  { key = "Q", mods = "Control", action = "Quit" },
+{{- end }}
 ]
