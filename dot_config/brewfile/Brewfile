@@ -67,6 +67,7 @@ brew llhttp
 brew lolcat
 brew lpeg
 brew lsd
+brew lua
 brew luajit
 brew luv
 brew lz4
@@ -77,6 +78,7 @@ brew mpdecimal
 brew neovim
 brew nettle
 brew npth
+brew nushell
 brew oniguruma
 brew openssl@3
 brew opentofu
@@ -119,6 +121,7 @@ brew zoxide
 brew zstd
 
 tap homebrew/cask
+cask alacritty
 cask alfred
 cask alt-tab
 cask arc
@@ -127,6 +130,7 @@ cask codex
 cask elgato-stream-deck
 cask firefox
 cask font-biz-udpgothic
+cask ghostty
 cask google-chrome
 cask jordanbaird-ice
 cask karabiner-elements
