@@ -1,11 +1,15 @@
 return {
   -- カラースキーム
   {
-    'folke/tokyonight.nvim',
+    'catppuccin/nvim',
+    name = 'catppuccin',
     lazy = false,
     priority = 1000,
     config = function()
-      vim.cmd.colorscheme('tokyonight')
+      require('catppuccin').setup({
+        flavour = 'mocha',
+      })
+      vim.cmd.colorscheme('catppuccin')
     end,
   },
 
@@ -27,7 +31,7 @@ return {
     config = function()
       require('lualine').setup({
         options = {
-          theme = 'tokyonight',
+          theme = 'catppuccin-nvim',
           component_separators = { left = '|', right = '|' },
           section_separators = { left = '', right = '' },
         },
