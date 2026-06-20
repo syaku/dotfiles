@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""illumia-chronicle の決定論層。journal の年代記節の検出・状態判定・抽出・
-検証付き書き込みをコードで行い、LLM には生成（トーン・lore 判断）だけを残す。
+"""illumia-chronicle の決定論層。個別ノート (skill/illumia-chronicle/イルミア年代記_YYYY-MM-DD.md)
+の状態判定・抽出・検証付き作成・updatedAt 打ち直しをコードで行い、LLM には生成（トーン・lore 判断）
+だけを残す。
 
-設計意図: 上書き禁止・節境界・暦ルール・書式・字数は全て機械検証可能なのに
-散文プロトコルで守らせていた。破壊事故（既存エントリ上書き・他節巻き込み）を
-構造的に不可能化する。生成自体は main セッションが行う（トーンの核は few-shot
-と文脈の豊かさで、subagent 分離はお手本を奪うため）。
+設計意図: 上書き禁止・暦ルール・書式・字数は全て機械検証可能なのに散文プロトコルで守らせていた。
+破壊事故（既存エントリ上書き）を構造的に不可能化する。生成自体は main セッションが行う
+（トーンの核は few-shot と文脈の豊かさで、subagent 分離はお手本を奪うため）。
 
 modes:
-  inspect --journal <path>
-      年代記節の状態を JSON で返す: missing / empty / placeholder / filled。
-      filled なら main は停止するだけ（上書き禁止の判定ごとコード化）。
-  extract --journals-dir <dir>
-      全 journal を走査し記入済みエントリを形式揺れ込みで抽出（モード A の観測部分）。
-  write --journal <path> --date YYYY-MM-DD --entry-file <path> [--journals-dir <dir>]
-      エントリを機械検証してから節へ書き込む。違反は書かずに error を返す。
-      --journals-dir 指定時は直近エントリとの年距離 (<100) を warning で出す。
+  inspect --note <path>
+      個別ノートの存在を JSON で返す: exists / missing。
+      exists なら main は停止するだけ（上書き禁止の判定ごとコード化）。
+  extract [--journals-dir <dir>] [--skill-dir <dir>]
+      過去 journal の節および個別ノート群から記入済みエントリを形式揺れ込みで抽出
+      （モード A の観測部分）。両方指定可能で結果を merge する。
+  write --note <path> --date YYYY-MM-DD --entry-file <path> [--skill-dir <dir>]
+      エントリを機械検証してから個別ノートを新規作成する。違反は書かずに error を返す。
+      --skill-dir 指定時は直近エントリとの年距離 (<100) を warning で出す。
   stamp --file <path>
       frontmatter の updatedAt を現在時刻 (ISO-T 実値) に打ち直す。
 """
@@ -27,16 +28,19 @@ import re
 import sys
 from pathlib import Path
 
+# 過去 journal の節判定用 (extract 後方互換)
 HEAD_RE = re.compile(r"^(\t*)(- )?## (\[\[)?イルミア年代記(\]\])?\s*$")
 NEXT_SECTION_RE = re.compile(r"^(\t*)(- )?## ")
 YEAR_RE = re.compile(r"暦光歴(\d+)年")
 EVENT_RE = re.compile(r"《(.+?)》")
 ENTRY_HEADER_RE = re.compile(r"^> \[!quote\] 暦光歴(\d+)年(\d+)月(\d+)日 — 《(.+?)》\s*$")
 
+# 個別ノートのファイル名 prefix
+NOTE_FILENAME_PREFIX = "イルミア年代記_"
+
 
 def find_section(lines):
-    """年代記節の (heading_idx, end_idx, style) を返す。無ければ None。
-    end_idx は節の次の行 (次の H2 行 or EOF)。"""
+    """過去 journal の年代記節を検出 (extract 後方互換用)。"""
     head = None
     style = None
     for i, line in enumerate(lines):
@@ -56,8 +60,7 @@ def find_section(lines):
 
 
 def section_state(body_text):
-    """filled > placeholder > empty の優先で判定。
-    プレースホルダの「暦光歴YYY年」は \\d+ に合致しないため filled にならない。"""
+    """filled > placeholder > empty の優先で判定 (extract が過去 journal の節を切り分けるため)。"""
     if YEAR_RE.search(body_text) and EVENT_RE.search(body_text):
         return "filled"
     if "<?" in body_text:
@@ -66,27 +69,15 @@ def section_state(body_text):
 
 
 def cmd_inspect(args):
-    path = Path(args.journal)
-    if not path.exists():
-        return {"journal": str(path), "exists": False, "state": "no_journal"}
-    lines = path.read_text(encoding="utf-8").splitlines()
-    sec = find_section(lines)
-    if sec is None:
-        return {"journal": str(path), "exists": True, "state": "missing", "section": None}
-    head, end, style = sec
-    body = "\n".join(lines[head + 1 : end])
-    return {
-        "journal": str(path),
-        "exists": True,
-        "state": section_state(body),
-        "section": {"heading_line": head + 1, "end_line": end, "style": style},
-        "body": body,
-    }
+    """個別ノートの存在確認。"""
+    path = Path(args.note)
+    exists = path.exists()
+    return {"note": str(path), "exists": exists, "state": "exists" if exists else "missing"}
 
 
 def parse_filled_body(body_lines):
     """記入済み本文から (year, month, day, event, body) を形式揺れ込みで抽出する。
-    対応形式: べた書き1行 / アウトライン年別行 (2025-03-28 型) / callout。"""
+    対応形式: べた書き1行 / アウトライン年別行 / callout / 個別ノート (frontmatter 後の callout)。"""
     text = "\n".join(body_lines)
     ym = YEAR_RE.search(text)
     ev = EVENT_RE.search(text)
@@ -96,7 +87,7 @@ def parse_filled_body(body_lines):
     date_m = re.search(r"暦光歴\d+年(\d+)月(\d+)日", text)
     month, day = (int(date_m.group(1)), int(date_m.group(2))) if date_m else (None, None)
     event = ev.group(1)
-    after = text[ev.end() :]
+    after = text[ev.end():]
     after = re.sub(r"^[:：]\s*", "", after)
     body = re.sub(r"^[>\t\- ]+", "", after, flags=re.MULTILINE)
     body = " ".join(s.strip() for s in body.splitlines() if s.strip())
@@ -109,8 +100,9 @@ def parse_filled_body(body_lines):
     return {"year": year, "month": month, "day": day, "event": event, "body": body, "body_len": len(body), "format": fmt}
 
 
-def cmd_extract(args):
-    root = Path(args.journals_dir)
+def extract_from_journals(journals_dir):
+    """過去 journal の節からエントリを抽出。"""
+    root = Path(journals_dir)
     entries = []
     skipped = []
     for p in sorted(root.glob("*.md")):
@@ -119,7 +111,7 @@ def cmd_extract(args):
         if sec is None:
             continue
         head, end, style = sec
-        body_lines = lines[head + 1 : end]
+        body_lines = lines[head + 1:end]
         if section_state("\n".join(body_lines)) != "filled":
             skipped.append(p.stem)
             continue
@@ -127,7 +119,48 @@ def cmd_extract(args):
         if parsed:
             parsed["date"] = p.stem
             parsed["style"] = style
+            parsed["source"] = "journal"
             entries.append(parsed)
+    return entries, skipped
+
+
+def extract_from_skill_dir(skill_dir):
+    """個別ノート群からエントリを抽出。ファイル名は `イルミア年代記_YYYY-MM-DD.md`。"""
+    root = Path(skill_dir)
+    entries = []
+    skipped = []
+    for p in sorted(root.glob(f"{NOTE_FILENAME_PREFIX}*.md")):
+        date_str = p.stem[len(NOTE_FILENAME_PREFIX):]
+        try:
+            datetime.date.fromisoformat(date_str)
+        except ValueError:
+            skipped.append(p.stem)
+            continue
+        text = p.read_text(encoding="utf-8")
+        # frontmatter 直後の本文を切り出す
+        body_text = re.sub(r"\A---\n.*?\n---\n", "", text, count=1, flags=re.DOTALL)
+        body_lines = body_text.splitlines()
+        parsed = parse_filled_body(body_lines)
+        if parsed:
+            parsed["date"] = date_str
+            parsed["source"] = "skill-dir"
+            entries.append(parsed)
+        else:
+            skipped.append(p.stem)
+    return entries, skipped
+
+
+def cmd_extract(args):
+    entries = []
+    skipped = []
+    if args.journals_dir:
+        e, s = extract_from_journals(args.journals_dir)
+        entries.extend(e)
+        skipped.extend(s)
+    if args.skill_dir:
+        e, s = extract_from_skill_dir(args.skill_dir)
+        entries.extend(e)
+        skipped.extend(s)
     years = [e["year"] for e in entries]
     return {
         "entries": entries,
@@ -139,7 +172,7 @@ def cmd_extract(args):
 
 
 def validate_entry(entry_lines, target_date):
-    """文体の機械検証。errors は書き込み拒否、warnings は main の判断材料。"""
+    """文体の機械検証 (entry-file = callout 本体のみ)。errors は書き込み拒否、warnings は main の判断材料。"""
     errors = []
     warnings = []
     if not entry_lines:
@@ -172,55 +205,46 @@ def validate_entry(entry_lines, target_date):
 
 
 def cmd_write(args):
-    path = Path(args.journal)
+    path = Path(args.note)
     target_date = datetime.date.fromisoformat(args.date)
     entry_lines = Path(args.entry_file).read_text(encoding="utf-8").strip().splitlines()
 
     errors, warnings = validate_entry(entry_lines, target_date)
 
-    lines = path.read_text(encoding="utf-8").splitlines()
-    sec = find_section(lines)
-    if sec is None:
-        errors.append("対象 journal に年代記節が無い")
-        return {"written": False, "errors": errors, "warnings": warnings}
-    head, end, style = sec
-    body_lines = lines[head + 1 : end]
-    state = section_state("\n".join(body_lines))
-    if state == "filled":
-        errors.append("年代記節が記入済み (上書き禁止。停止して報告する)")
+    # 上書き禁止 (既存ノートは error)
+    if path.exists():
+        errors.append(f"個別ノート {path.name} が既に存在 (上書き禁止。停止して報告する)")
+
+    # 出力先ディレクトリの存在確認 (mkdir せず error)
+    if not path.parent.exists():
+        errors.append(f"出力先ディレクトリ {path.parent} が存在しない (mkdir せず error)")
+
     if errors:
         return {"written": False, "errors": errors, "warnings": warnings}
 
     # 直近エントリとの年距離 (連作回避は lore note (b) の方針。逸脱は warning 止まり)
-    if args.journals_dir:
-        prev = [e for e in cmd_extract(argparse.Namespace(journals_dir=args.journals_dir))["entries"] if e["date"] < args.date]
+    if args.skill_dir:
+        ext = cmd_extract(argparse.Namespace(journals_dir=None, skill_dir=args.skill_dir))
+        prev = [e for e in ext["entries"] if e["date"] < args.date]
         if prev:
             last = max(prev, key=lambda e: e["date"])
             new_year = int(ENTRY_HEADER_RE.match(entry_lines[0]).group(1))
             if abs(new_year - last["year"]) < 100:
                 warnings.append(f"直近エントリ ({last['date']}, 暦光歴{last['year']}年) との年距離が {abs(new_year - last['year'])} 年 (方針は目安 100 年以上)")
 
-    if style == "outline":
-        entry_lines = ["\t" + ln for ln in entry_lines]
-        new_body = entry_lines
-    else:
-        new_body = [""] + entry_lines + [""]
-
-    if state == "placeholder":
-        # `<? ... ?>` ブロックのみ置換し、節内の他の行は保持する
-        start = next(i for i, ln in enumerate(body_lines) if "<?" in ln)
-        stop = next((i for i, ln in enumerate(body_lines[start:], start) if "?>" in ln), start)
-        kept_before = body_lines[:start]
-        kept_after = body_lines[stop + 1 :]
-        merged = kept_before + (entry_lines if style == "outline" else entry_lines) + kept_after
-        if style == "flat" and (not kept_before or kept_before[-1].strip()):
-            merged = kept_before + ([""] if kept_before else [""]) + entry_lines + kept_after
-        new_lines = lines[: head + 1] + merged + lines[end:]
-    else:  # empty
-        new_lines = lines[: head + 1] + new_body + lines[end:]
-
-    path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-    return {"written": True, "errors": [], "warnings": warnings, "style": style, "replaced": state}
+    now = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")
+    body = "\n".join([
+        "---",
+        f"createdAt: {now}",
+        f"updatedAt: {now}",
+        "tags:",
+        "  - イルミア年代記",
+        'parent: "[[イルミア年代記]]"',
+        "---",
+        "",
+    ] + entry_lines) + "\n"
+    path.write_text(body, encoding="utf-8")
+    return {"written": True, "errors": [], "warnings": warnings, "note": str(path), "createdAt": now}
 
 
 def cmd_stamp(args):
@@ -238,17 +262,21 @@ def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="mode", required=True)
     p = sub.add_parser("inspect")
-    p.add_argument("--journal", required=True)
+    p.add_argument("--note", required=True)
     p = sub.add_parser("extract")
-    p.add_argument("--journals-dir", required=True)
+    p.add_argument("--journals-dir")
+    p.add_argument("--skill-dir")
     p = sub.add_parser("write")
-    p.add_argument("--journal", required=True)
+    p.add_argument("--note", required=True)
     p.add_argument("--date", required=True)
     p.add_argument("--entry-file", required=True)
-    p.add_argument("--journals-dir")
+    p.add_argument("--skill-dir")
     p = sub.add_parser("stamp")
     p.add_argument("--file", required=True)
     args = ap.parse_args()
+    if args.mode == "extract" and not (args.journals_dir or args.skill_dir):
+        print(json.dumps({"errors": ["--journals-dir または --skill-dir のいずれかが必須"]}, ensure_ascii=False), file=sys.stderr)
+        sys.exit(2)
     result = {"inspect": cmd_inspect, "extract": cmd_extract, "write": cmd_write, "stamp": cmd_stamp}[args.mode](args)
     print(json.dumps(result, ensure_ascii=False, indent=1))
     if result.get("errors"):
