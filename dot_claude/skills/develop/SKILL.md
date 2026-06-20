@@ -69,7 +69,7 @@ resume（経路 2）以外の経路では、トラック（code / skill）を判
 
 入口判定で「既存 skill 改修 かつ 非バイパス」のときだけ実行する（新規開発・小規模バイパス承認時はスキップして step 1 直行）。
 
-- `Skill: skill-review <name>`（mode: full）を **1 回**実行し、改善点レポートを生成させる（既定出力は Obsidian `input/`）。これは plan への**参照入力の生成**であって、実装でも収束ループのレビュー計器でもない（ゲート (a) の順序ガード対象外。L27 参照）。read-only 評価なので apply を伴わない。
+- `Skill: skill-review <name>`（mode: full）を **1 回**実行し、改善点レポートを生成させる（既定出力は Obsidian `inbox/`）。これは plan への**参照入力の生成**であって、実装でも収束ループのレビュー計器でもない（ゲート (a) の順序ガード対象外。L27 参照）。read-only 評価なので apply を伴わない。
 - 生成されたレポートのパスを台帳に記録し、step 1 で plan へ**参照入力として渡す**（plan は `skill_review_report_path` で受ける）。full の trace 分析は改修**前**バージョンの実走トレースを使う（「この skill が実際どう詰まったか」を plan の設計入力にする——full が機能する正しい位置）。
 - 実走観察（skill-review step 4）は skill-review 側の承認ゲートのままで、ここから自動実行しない（pre-plan がコストを暴走させない）。
 
@@ -105,7 +105,7 @@ resume（経路 2）以外の経路では、トラック（code / skill）を判
 ### 5. report
 
 - レポート担当 subagent（`subagent_type`: `general-purpose`）に **develop-log.md と plan.md のパスを渡して直接読ませる**（サマリの手渡しをしない）。prompt 必須項目に副作用禁止を含める: 「書き込みは出力先ディレクトリ配下のレポートファイルに限る。commit / push / chezmoi apply を行わない」（ゲート (b) の境界の伝搬。修正 subagent と同旨）。内部で `obsidian:obsidian-cli` 等の既存スキルを活用してよい。
-- 出力先は **Obsidian の `~/workspace/notes/obsidian/Life/input/`**（呼び出し時に明示パスがあれば優先）。
+- 出力先は **Obsidian の `~/workspace/notes/obsidian/Life/inbox/`**（呼び出し時に明示パスがあれば優先）。
 - 出力パスを台帳に追記し、レポートのパスをユーザに報告する。
 - **変更の引き渡し**: 最終報告に未コミット変更の所在（作業ツリー cwd・変更ファイル一覧）を必ず含める（ゲート (b) の commit/push 承認への到達経路はここ——所在の提示を受けてユーザが判断する）。commit はユーザがそのターンで明示依頼したときのみ実行する（push 許可スコープ規範と整合。完走しても develop が自発的に commit / push しない）。
 - オプション: code トラックでは step 5 の前に `verify` スキル（コード変更の動作確認用。Obsidian ノート検証の同名 `verify` とは別物）で動作確認を挟むと、レポートに「動作確認済み」と書ける（依頼の性質に応じて選択）。

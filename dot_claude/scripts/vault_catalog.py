@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""vault_catalog.py — Obsidian vault の pages/ から機械生成カタログ（ノード索引＋リンクグラフ）を出力する。
+"""vault_catalog.py — Obsidian vault の notes/ から機械生成カタログ（ノード索引＋リンクグラフ）を出力する。
 
 harvest-pipeline の drain 突き合わせ agent・洞察検出 agent に注入する「安く再生成できる静的索引」を作る。
 LLM agent は動的 Dataview クエリを実行できない参照者なので、Grep fan-out の代わりに事前計算した索引を渡す
@@ -244,7 +244,7 @@ def render_md(cat: dict) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser(description="Obsidian vault の機械生成カタログ（ノード索引＋リンクグラフ）")
     ap.add_argument("--vault", required=True, help="vault の絶対パス")
-    ap.add_argument("--scope", default="pages", help="走査対象サブディレクトリ（既定: pages）")
+    ap.add_argument("--scope", default="notes", help="走査対象サブディレクトリ（既定: notes）")
     ap.add_argument("--out", default=None, help="出力先（既定: <vault>/.ai-index/vault-catalog.<ext>）")
     ap.add_argument("--format", choices=["json", "md"], default="json", help="出力形式（既定: json）")
     ap.add_argument("--with-gist", action="store_true", help="AI Context callout の先頭を gist に含める（既定 OFF＝最小索引）")

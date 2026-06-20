@@ -10,14 +10,14 @@
 
 - `repos/` — 開発リポジトリ。詳細は `repos/CLAUDE.md` を参照。
 - `notes/` — ノート。詳細は `notes/CLAUDE.md` を参照。
-- `notes/obsidian/Life/input/` — Life ボルトに格納したいノートや作業レポートの保存先。特に指定が無い場合はこのフォルダに保存する。
+- `notes/obsidian/Life/inbox/` — Life ボルトに格納したいノートや作業レポートの保存先。特に指定が無い場合はこのフォルダに保存する。
 - `worktree/` — Git worktree の作成先。
 
 各領域固有のルール（命名規則・運用方針・作業対象範囲等）は配下の CLAUDE.md を参照。
 
 ## Obsidian vault 機械生成カタログ（AI 索引）
 
-下の `@import` で `notes/obsidian/Life/pages/` の機械生成ノード索引を standing context に載せる。harvest-pipeline 等の **workflow subagent が突き合わせ・洞察近傍の一次索引**に使い、Grep fan-out を避ける（背景: vault の [[安く再生成できる索引は腐敗しない]] / [[動的索引はクエリを実行できない参照者に機能しない]]）。
+下の `@import` で `notes/obsidian/Life/notes/` の機械生成ノード索引を standing context に載せる。harvest-pipeline 等の **workflow subagent が突き合わせ・洞察近傍の一次索引**に使い、Grep fan-out を避ける（背景: vault の [[安く再生成できる索引は腐敗しない]] / [[動的索引はクエリを実行できない参照者に機能しない]]）。
 
 - **ここ（workspace-root CLAUDE.md）に置く理由**: subagent は cwd から上方向の階層＋global CLAUDE.md は継承するが、nested な `Life/CLAUDE.md` は継承しない（実測で確認）。matcher は subagent 側で走るので、subagent が継承する workspace-root に置く必要がある。
 - **形式**: 各行 `title · layer · #tags · →[outlinks]`（layer＝気づき/洞察/タスク/tool/無印、outlinks＝実 wikilink の解決先、タグ共有＝弱いエッジ）。
