@@ -97,22 +97,22 @@ alt-shift-9 = 'move-node-to-workspace 9'
 # 以下は Caps Hyper 経由 (右手 OK・頻度低のオプション操作)
 
 # 直前 workspace に戻る
-cmd-alt-ctrl-shift-y = 'workspace-back-and-forth'
+alt-y = 'workspace-back-and-forth'
 
 # tiling direction toggle: フォーカスウィンドウを新コンテナで包み、次に開くウィンドウだけ別方向に分割
-cmd-alt-ctrl-shift-v = 'split opposite'
+alt-v = 'split opposite'
 
 # tree の中間コンテナを潰して整地
-cmd-alt-ctrl-shift-f = 'flatten-workspace-tree'
+alt-f = 'flatten-workspace-tree'
 
 # floating <-> tiling 切替
-cmd-alt-ctrl-shift-space = 'layout floating tiling'
+alt-space = 'layout floating tiling'
 
 # AeroSpace 独自の fullscreen (Mission Control のフルスクリーンではない)
-cmd-alt-ctrl-shift-x = 'fullscreen'
+alt-x = 'fullscreen'
 
 # 設定再読込
-cmd-alt-ctrl-shift-slash = 'reload-config'
+alt-slash = 'reload-config'
 
 # Mac 標準は温存: Cmd+Q (close), Cmd+Tab (アプリ切替), Mission Control 等は bind しない
 
