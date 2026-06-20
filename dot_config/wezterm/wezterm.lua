@@ -99,7 +99,7 @@ config.initial_cols = 200
 config.initial_rows = 50
 
 -- カラースキーム・ウィンドウデコレーション
-config.color_scheme = 'Tender (Gogh)'
+config.color_scheme = 'Catppuccin Mocha (Gogh)'
 -- OS 標準のタイトルバーとリサイズ枠を表示（最小化/最大化/閉じるボタンを OS タイトルバーに戻す）。
 -- 旧構成は INTEGRATED_BUTTONS でタブバー内に統合していたが、タブバー無効化で道連れになるためタイトルバー復帰。
 config.window_decorations = "TITLE | RESIZE"
