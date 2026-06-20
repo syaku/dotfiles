@@ -19,25 +19,8 @@ background-blur = true
 window-padding-x = 8
 window-padding-y = 8
 
-# ── カラーテーマ（Tender） ─────────────────────────────────
-background = 282828
-foreground = eeeeee
-palette = 0=#282828
-palette = 1=#f43753
-palette = 2=#c9d05c
-palette = 3=#ffc24b
-palette = 4=#b3deef
-palette = 5=#d3b987
-palette = 6=#73cef4
-palette = 7=#eeeeee
-palette = 8=#4c4c4c
-palette = 9=#f43753
-palette = 10=#c9d05c
-palette = 11=#ffc24b
-palette = 12=#b3deef
-palette = 13=#d3b987
-palette = 14=#73cef4
-palette = 15=#feffff
+# ── カラーテーマ ───────────────────────────────────────────
+theme = Catppuccin Mocha
 
 # ── バッファ ──────────────────────────────────────────────
 # Claude Code の長い出力に追随するため wezterm と同じ規模を確保
