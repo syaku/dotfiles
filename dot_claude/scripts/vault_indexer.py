@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 """vault_indexer.py — Obsidian vault の notes/ をセクション単位で OpenSearch ingest 用 doc 配列に変換する。
 
-Phase 1 スコープ: セクション分割 + doc 構造体生成までを実装し、`--dry-run` で JSON 配列を stdout に出す。
-埋め込み HTTP 連携 (`body_vector` は空配列 stub)、OpenSearch bulk ingest、冪等性掃除 (delete by query) は Phase 2+ で別途実装する。
-
-設計の正本は ~/workspace/notes/obsidian/Life/workbench/vault-catalogのElasticsearch化検討/plan.md (B. ETL 節)。
 - パーサ層は vault_catalog.py から sys.path 経由で import 再利用（parse_frontmatter / split_frontmatter / tags_of / layer_of / WIKILINK）。
-  二重管理を避ける意図（plan A9 / OQ7）。
+  二重管理を避ける意図。
 - セクション分割は基本 H2、H2 本文が 1500 文字を超えたら H3 で適応的に再分割する。
 - `## 更新履歴` / `## 関連` は index 対象外（wikilink の倉庫で本文検索には噪音）。
 - frontmatter のみで本文ゼロ（H2 を 1 つも持たない）のノートはノート全体を 1 doc として breadcrumb `[title]` で index する
   （ツールノード = `type: tool` を取りこぼさないため）。
 
-依存なし (stdlib のみ)。
+依存なし (stdlib のみ。HTTP は urllib.request)。
 """
 from __future__ import annotations
 
@@ -21,7 +17,10 @@ import hashlib
 import json
 import re
 import sys
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 # vault_catalog.py のパーサ層を再利用する。同ディレクトリに居る前提で sys.path に自身のディレクトリを足す。
@@ -61,6 +60,67 @@ _HTML_COMMENT_RE = re.compile(r"(?s)<!--.*?-->")
 # 将来の慣習変化や他 vault 互換のために複数キーを順に試す。
 _CREATED_KEYS = ("createdAt", "created_at", "created", "date")
 _UPDATED_KEYS = ("updatedAt", "updated_at", "updated", "modified", "lastmod")
+
+# compose stack 内 docker network の hostname を前提。
+DEFAULT_EMBED_URL = "http://embed:8080/embed"
+DEFAULT_OPENSEARCH_URL = "http://opensearch:9200"
+DEFAULT_INDEX = "vault-notes"
+
+# 埋め込みベクトル次元 (multilingual-e5-base 既定)。mapping と一致させる。
+EMBED_DIM = 768
+
+# _bulk 1 リクエストあたりの doc 数 (OpenSearch 推奨範囲)。
+BULK_CHUNK_SIZE = 500
+
+# HTTP timeout (秒)。embed は CPU 推論で長めに、OpenSearch は短めに。
+HTTP_TIMEOUT_EMBED = 30
+HTTP_TIMEOUT_OPENSEARCH = 60
+
+# auto-create で float[] に落ちた既存 index を踏み続けないよう、_bulk 投入前に冪等 PUT する。
+INDEX_MAPPING = {
+    "settings": {
+        "index": {
+            "knn": True,
+            "analysis": {
+                "analyzer": {
+                    "kuromoji_analyzer": {
+                        "type": "custom",
+                        "tokenizer": "kuromoji_tokenizer",
+                    },
+                },
+            },
+        },
+    },
+    "mappings": {
+        "properties": {
+            "note_title": {"type": "text", "analyzer": "kuromoji_analyzer"},
+            "section_title": {"type": "text", "analyzer": "kuromoji_analyzer"},
+            "breadcrumb": {"type": "text", "analyzer": "kuromoji_analyzer"},
+            "body": {"type": "text", "analyzer": "kuromoji_analyzer"},
+            "body_vector": {
+                "type": "knn_vector",
+                "dimension": EMBED_DIM,
+                "method": {
+                    "name": "hnsw",
+                    "engine": "faiss",
+                    "space_type": "cosinesimil",
+                },
+            },
+            "tags": {"type": "keyword"},
+            "layer": {"type": "keyword"},
+            "progress": {"type": "keyword"},
+            "type": {"type": "keyword"},
+            "usage": {"type": "keyword"},
+            "outlinks": {"type": "keyword"},
+            "path": {"type": "keyword"},
+            "section_index": {"type": "integer"},
+            "created_at": {"type": "date"},
+            "updated_at": {"type": "date"},
+        },
+    },
+}
+
+INDEX_MAPPING_BYTES = json.dumps(INDEX_MAPPING).encode("utf-8")
 
 
 def doc_id(note_title: str, h2_title: str, occurrence_idx: int, sub_idx: int) -> str:
@@ -364,16 +424,218 @@ def _build_doc(
     }
 
 
+# ---------------------------------------------------------------------------
+# B-2: /embed HTTP client
+# ---------------------------------------------------------------------------
+
+
+def fetch_embedding(text: str, *, embed_url: str) -> list[float]:
+    # 1 doc 失敗で全体 abort: 部分 ingest で _count を不確定にしない。
+    req_body = json.dumps({"text": text}).encode("utf-8")
+    req = urllib.request.Request(
+        embed_url,
+        data=req_body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_EMBED) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+    vector = payload.get("vector")
+    if not isinstance(vector, list):
+        raise RuntimeError(
+            f"embed endpoint が vector 配列を返さなかった (url={embed_url}): {payload!r}",
+        )
+    if len(vector) != EMBED_DIM:
+        raise RuntimeError(
+            f"embed 次元が期待値と異なる: expected={EMBED_DIM} got={len(vector)} (url={embed_url})",
+        )
+    return [float(x) for x in vector]
+
+
+def embed_all(docs: list[dict], *, embed_url: str) -> None:
+    for i, doc in enumerate(docs):
+        if doc.get("body_vector"):
+            # caller の retry で再度 embed_all が回るケースで二重 HTTP を避ける
+            continue
+        body_text = doc.get("body", "")
+        try:
+            doc["body_vector"] = fetch_embedding(body_text, embed_url=embed_url)
+        except (urllib.error.HTTPError, urllib.error.URLError, RuntimeError, TimeoutError, json.JSONDecodeError, ValueError) as exc:
+            raise RuntimeError(
+                f"embed 失敗 (doc index={i}, id={doc.get('id')!r}, note={doc.get('note_title')!r}): {exc}",
+            ) from exc
+
+
+# ---------------------------------------------------------------------------
+# B-3: OpenSearch index 冪等 create + _bulk ingest + delete by query
+# ---------------------------------------------------------------------------
+
+
+def _opensearch_request(
+    method: str,
+    url: str,
+    *,
+    body: bytes | None = None,
+    content_type: str = "application/json",
+    allowed_status: tuple[int, ...] = (200, 201),
+) -> tuple[int, dict]:
+    # HEAD 等で body 空のレスポンスは {} を返す (呼び出し側は dict 前提)。
+    req = urllib.request.Request(url, data=body, method=method, headers={"Content-Type": content_type})
+    try:
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_OPENSEARCH) as resp:
+            status = resp.status
+            raw = resp.read()
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        raw = exc.read()
+        if status not in allowed_status:
+            raise RuntimeError(
+                f"OpenSearch {method} {url} failed: status={status} body={raw.decode('utf-8', errors='replace')!r}",
+            ) from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(
+            f"OpenSearch {method} {url} network failure: {exc}",
+        ) from exc
+    if not raw:
+        return status, {}
+    try:
+        return status, json.loads(raw.decode("utf-8"))
+    except json.JSONDecodeError:
+        return status, {}
+
+
+def ensure_index(opensearch_url: str, index: str) -> None:
+    # auto-create で float[] に落ちた既存 index を黙って踏み続けないよう、既存も厳密検証する。
+    base = opensearch_url.rstrip("/")
+    head_status, _ = _opensearch_request("HEAD", f"{base}/{index}", allowed_status=(200, 404))
+    if head_status == 404:
+        _opensearch_request("PUT", f"{base}/{index}", body=INDEX_MAPPING_BYTES)
+        return
+
+    _, mapping = _opensearch_request("GET", f"{base}/{index}/_mapping")
+    try:
+        bv = mapping[index]["mappings"]["properties"]["body_vector"]
+    except (KeyError, TypeError) as exc:
+        raise RuntimeError(
+            f"既存 index `{index}` の mapping に body_vector が無い。`DELETE /{index}` で消してから再 ingest してください: {mapping!r}",
+        ) from exc
+
+    method = bv.get("method") or {}
+    actual = (
+        bv.get("type"),
+        bv.get("dimension"),
+        method.get("engine"),
+        method.get("space_type"),
+    )
+    expected = ("knn_vector", EMBED_DIM, "faiss", "cosinesimil")
+    if actual != expected:
+        raise RuntimeError(
+            f"既存 index `{index}` の body_vector mapping が想定と乖離: "
+            f"actual={actual} expected={expected}. "
+            f"`DELETE /{index}` で消してから再 ingest してください。",
+        )
+
+
+def bulk_ingest(docs: list[dict], *, opensearch_url: str, index: str, chunk_size: int = BULK_CHUNK_SIZE) -> None:
+    base = opensearch_url.rstrip("/")
+    bulk_url = f"{base}/_bulk"
+
+    for chunk_start in range(0, len(docs), chunk_size):
+        chunk = docs[chunk_start:chunk_start + chunk_size]
+        lines: list[str] = []
+        for doc in chunk:
+            action = {"index": {"_index": index, "_id": doc["id"]}}
+            lines.append(json.dumps(action, ensure_ascii=False))
+            lines.append(json.dumps(doc, ensure_ascii=False))
+        body = ("\n".join(lines) + "\n").encode("utf-8")
+        _, resp = _opensearch_request(
+            "POST",
+            bulk_url,
+            body=body,
+            content_type="application/x-ndjson",
+        )
+        if resp.get("errors"):
+            err_items = []
+            for item in resp.get("items", []):
+                if not item:
+                    continue
+                op = next(iter(item.values()))
+                if op.get("error"):
+                    err_items.append({"_id": op.get("_id"), "status": op.get("status"), "error": op.get("error")})
+            if err_items:
+                sys.stderr.write(
+                    f"_bulk errors at chunk_start={chunk_start}: {len(err_items)} item(s):\n"
+                    + json.dumps(err_items[:5], ensure_ascii=False, indent=2)
+                    + "\n",
+                )
+
+
+def delete_stale(opensearch_url: str, index: str, run_start_iso: str) -> dict:
+    # OpenSearch の range は missing を hit に含めないため、updated_at 空欄 doc は意図的に残す。
+    base = opensearch_url.rstrip("/")
+    body = json.dumps({
+        "query": {
+            "range": {
+                "updated_at": {"lt": run_start_iso},
+            },
+        },
+    }).encode("utf-8")
+    _, resp = _opensearch_request(
+        "POST",
+        f"{base}/{index}/_delete_by_query",
+        body=body,
+    )
+    return {k: resp.get(k) for k in ("deleted", "total", "failures")}
+
+
+def run_ingest(docs: list[dict], *, embed_url: str, opensearch_url: str, index: str) -> None:
+    run_start_iso = datetime.now(timezone.utc).isoformat()
+    embed_all(docs, embed_url=embed_url)
+    ensure_index(opensearch_url, index)
+    bulk_ingest(docs, opensearch_url=opensearch_url, index=index)
+    delete_result = delete_stale(opensearch_url, index, run_start_iso)
+    sys.stderr.write(
+        f"ingest 完了: docs={len(docs)} index={index} run_start_iso={run_start_iso} "
+        f"delete_by_query={json.dumps(delete_result, ensure_ascii=False)}\n",
+    )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description="Obsidian vault notes/ をセクション単位で OpenSearch 用 doc 配列に変換する (Phase 1 / dry-run)",
+        description="Obsidian vault notes/ をセクション単位で OpenSearch 用 doc 配列に変換する (Phase 2)",
     )
     ap.add_argument("--vault", required=True, help="vault の絶対パス")
     ap.add_argument("--scope", default="notes", help="走査対象サブディレクトリ (既定: notes)")
     ap.add_argument(
+        "--embed-url",
+        default=DEFAULT_EMBED_URL,
+        help=f"embed endpoint URL (既定: {DEFAULT_EMBED_URL}, --embed-only / --ingest で使用)",
+    )
+    ap.add_argument(
+        "--opensearch-url",
+        default=DEFAULT_OPENSEARCH_URL,
+        help=f"OpenSearch endpoint URL (既定: {DEFAULT_OPENSEARCH_URL}, --ingest で使用)",
+    )
+    ap.add_argument(
+        "--index",
+        default=DEFAULT_INDEX,
+        help=f"OpenSearch index 名 (既定: {DEFAULT_INDEX})",
+    )
+    mode_group = ap.add_mutually_exclusive_group()
+    mode_group.add_argument(
         "--dry-run",
         action="store_true",
-        help="JSON 配列を stdout に出す (Phase 1 はこれが唯一の出力モード)",
+        help="埋め込み HTTP 呼び出しせず body_vector=[] のまま JSON 配列を stdout に出す (V1-regression 用)",
+    )
+    mode_group.add_argument(
+        "--embed-only",
+        action="store_true",
+        help="embed HTTP 呼び出しを行い doc 配列を stdout に出す (V2 単体テスト用)",
+    )
+    mode_group.add_argument(
+        "--ingest",
+        action="store_true",
+        help="embed + _bulk ingest + delete-by-query を実行する",
     )
     args = ap.parse_args()
 
@@ -388,10 +650,22 @@ def main() -> None:
         sys.stdout.write("\n")
         return
 
-    # Phase 1 では dry-run のみが対応。OpenSearch ingest 経路は Phase 2+ で実装する。
-    sys.exit(
-        "Phase 1 は --dry-run 専用です。OpenSearch ingest / 埋め込み HTTP 連携 / 冪等性掃除は Phase 2+ で実装します。",
-    )
+    if args.embed_only:
+        embed_all(docs, embed_url=args.embed_url)
+        json.dump(docs, sys.stdout, ensure_ascii=False, indent=1)
+        sys.stdout.write("\n")
+        return
+
+    if args.ingest:
+        run_ingest(
+            docs,
+            embed_url=args.embed_url,
+            opensearch_url=args.opensearch_url,
+            index=args.index,
+        )
+        return
+
+    sys.exit("モードを指定してください: --dry-run / --embed-only / --ingest のいずれか")
 
 
 if __name__ == "__main__":
