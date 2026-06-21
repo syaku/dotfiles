@@ -19,7 +19,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -65,6 +65,8 @@ _UPDATED_KEYS = ("updatedAt", "updated_at", "updated", "modified", "lastmod")
 DEFAULT_EMBED_URL = "http://embed:8080/embed"
 DEFAULT_OPENSEARCH_URL = "http://opensearch:9200"
 DEFAULT_INDEX = "vault-notes"
+DEFAULT_STATE_INDEX = "vault-notes-state"
+STATE_DOC_ID = "runstate"
 
 # 埋め込みベクトル次元 (multilingual-e5-base 既定)。mapping と一致させる。
 EMBED_DIM = 768
@@ -75,6 +77,13 @@ BULK_CHUNK_SIZE = 500
 # HTTP timeout (秒)。embed は CPU 推論で長めに、OpenSearch は短めに。
 HTTP_TIMEOUT_EMBED = 30
 HTTP_TIMEOUT_OPENSEARCH = 60
+
+# fetch_existing_ids_and_hashes が PIT path へ降格する OpenSearch 400 のキーワード。
+_PIT_DOWNGRADE_KEYWORDS = (
+    "illegal_argument_exception",
+    "result window",
+    "max_result_window",
+)
 
 # auto-create で float[] に落ちた既存 index を踏み続けないよう、_bulk 投入前に冪等 PUT する。
 INDEX_MAPPING = {
@@ -114,6 +123,7 @@ INDEX_MAPPING = {
             "outlinks": {"type": "keyword"},
             "path": {"type": "keyword"},
             "section_index": {"type": "integer"},
+            "content_hash": {"type": "keyword"},
             "created_at": {"type": "date"},
             "updated_at": {"type": "date"},
         },
@@ -273,18 +283,52 @@ class NoteMeta:
     path: str
     created_at: str
     updated_at: str
+    # content_hash 入力用に正規化したコピー。per-note 1 回計算で全 section doc に使い回し、
+    # compute_content_hash の per-doc sorted() コールを削減。
+    sorted_tags: list[str] = field(init=False, compare=False, repr=False)
+    sorted_outlinks: list[str] = field(init=False, compare=False, repr=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "sorted_tags", sorted(self.tags))
+        object.__setattr__(self, "sorted_outlinks", sorted(self.outlinks))
 
 
-def build_docs(vault: Path, scope_dir: str) -> list[dict]:
-    """vault/<scope_dir> 配下の Markdown を再帰的に走査し、doc 構造体配列を返す。"""
+def walk_vault(vault: Path, scope_dir: str, *, mtime_after: float | None = None) -> list[Path]:
+    """vault/<scope_dir> 配下を再帰走査し、Markdown 候補パスを返す。
+
+    `mtime_after` が None なら全件、float (Unix epoch sec) なら mtime 比較で incremental walk。
+    比較は `>=` で同秒 race を緩める。false positive は content_hash 差分で skip される。
+    """
     root = vault / scope_dir
     if not root.is_dir():
         sys.exit(f"scope ディレクトリが無い: {root}")
-
-    docs: list[dict] = []
+    paths: list[Path] = []
     for path in sorted(root.rglob("*.md")):
         if path.name == "README.md":
             continue
+        if mtime_after is not None:
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                # stat 失敗時は安全側に倒し、walk 対象から除外する (rsync 中で race した場合等)。
+                continue
+            if mtime < mtime_after:
+                continue
+        paths.append(path)
+    return paths
+
+
+def build_docs(vault: Path, scope_dir: str, *, paths: list[Path] | None = None) -> list[dict]:
+    """vault/<scope_dir> 配下の Markdown を再帰的に走査し、doc 構造体配列を返す。
+
+    `paths` が None なら walk_vault で全件取得 (既存挙動)。incremental ingest 等で事前に
+    対象ファイルを絞り込んだ場合は `paths` を渡す。
+    """
+    if paths is None:
+        paths = walk_vault(vault, scope_dir)
+
+    docs: list[dict] = []
+    for path in paths:
         note_title = path.stem
         text = path.read_text(encoding="utf-8", errors="replace")
         fm_text, body = split_frontmatter(text)
@@ -297,7 +341,9 @@ def build_docs(vault: Path, scope_dir: str) -> list[dict]:
         # 指摘 #4 対応: 慣習キーの優先順位リストから最初に値を持つキーを採用する。
         created_at = fm_get_str_first(fm, _CREATED_KEYS)
         updated_at = fm_get_str_first(fm, _UPDATED_KEYS)
-        rel_path = str(path.relative_to(vault))
+        # Windows で backslash になると Linux 側 indexer の existing path (forward slash) と一致しなくなり、
+        # 全 walked path が mtime_skipped_ids に紛れ込む。as_posix() で forward slash 強制。
+        rel_path = path.relative_to(vault).as_posix()
         outlinks = collect_outlinks(text, note_title)
 
         meta = NoteMeta(
@@ -393,6 +439,46 @@ def build_docs(vault: Path, scope_dir: str) -> list[dict]:
     return docs
 
 
+def compute_content_hash(
+    *,
+    body: str,
+    breadcrumb: str,
+    tags: list[str],
+    layer: str,
+    outlinks: list[str],
+) -> str:
+    """doc 同一性判定の content_hash。
+
+    範囲は body + breadcrumb + tags + layer + outlinks のみ。created_at / updated_at / path /
+    section_index は検索影響が薄いので hash 対象外。frontmatter 全部を含めると updatedAt 変化だけで
+    全件 re-embed が走るのでこれも除外。
+
+    CAVEAT: hash 範囲を変更するときは全件 re-hash (= 全件 re-index) が必要になる。
+    将来 snippet 範囲 / summary field を追加して検索面に乗せるなら、その field も hash 範囲に含めること。
+
+    tags / outlinks は順序を持たない概念なので caller が sorted 済みを渡す契約 (NoteMeta.sorted_tags
+    / sorted_outlinks)。frontmatter YAML 順序変更だけで hash 変化を起こさない。breadcrumb は
+    順序を持つパンくずなのでそのまま。決定論的 serialize: json.dumps(payload, sort_keys=True,
+    ensure_ascii=False) → SHA256 hex。
+
+    SEMANTIC DRIFT NOTE (tags 順序の取り扱い): tags / outlinks の正規化は content_hash 計算側のみで実施し、
+    `_build_doc` 戻り dict の `tags` field は `meta.tags` (YAML 順序) のスナップショットとして保持する。
+    そのため tags の並び替えだけの編集 (内容は同集合) は content_hash 不変で docs_to_index から除外され、
+    OpenSearch 上の `tags` field 順序は古いまま残る。tags は無順序 set として扱う前提なのでこの drift は
+    検索面に影響しないが、tags の表示順序や first-tag-as-primary 等の semantic を後から導入する場合は
+    別途 hash 範囲の見直しが必要になる。
+    """
+    payload = {
+        "body": body,
+        "breadcrumb": breadcrumb,
+        "tags": tags,
+        "layer": layer,
+        "outlinks": outlinks,
+    }
+    serialized = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(serialized).hexdigest()
+
+
 def _build_doc(
     meta: NoteMeta,
     *,
@@ -404,11 +490,12 @@ def _build_doc(
     section_index: int,
     body_text: str,
 ) -> dict:
+    breadcrumb_str = " > ".join(breadcrumb)
     return {
         "id": doc_id(meta.note_title, h2_title_for_id, occurrence_idx, sub_idx),
         "note_title": meta.note_title,
         "section_title": section_title,
-        "breadcrumb": " > ".join(breadcrumb),
+        "breadcrumb": breadcrumb_str,
         "tags": meta.tags,
         "layer": meta.layer,
         "progress": meta.progress,
@@ -419,6 +506,13 @@ def _build_doc(
         "section_index": section_index,
         "body": body_text,
         "body_vector": [],  # stub (埋め込み生成は別経路で後追加)
+        "content_hash": compute_content_hash(
+            body=body_text,
+            breadcrumb=breadcrumb_str,
+            tags=meta.sorted_tags,
+            layer=meta.layer,
+            outlinks=meta.sorted_outlinks,
+        ),
         "created_at": meta.created_at,
         "updated_at": meta.updated_at,
     }
@@ -467,7 +561,7 @@ def embed_all(docs: list[dict], *, embed_url: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# B-3: OpenSearch index 冪等 create + _bulk ingest + delete by query
+# OpenSearch index 冪等 create + _bulk ingest + 集合差分 stale 削除
 # ---------------------------------------------------------------------------
 
 
@@ -488,6 +582,8 @@ def _opensearch_request(
     except urllib.error.HTTPError as exc:
         status = exc.code
         raw = exc.read()
+        # HTTPError は file-like なので明示 close (urllib のレスポンス resource leak 回避)。
+        exc.close()
         if status not in allowed_status:
             raise RuntimeError(
                 f"OpenSearch {method} {url} failed: status={status} body={raw.decode('utf-8', errors='replace')!r}",
@@ -501,18 +597,34 @@ def _opensearch_request(
     try:
         return status, json.loads(raw.decode("utf-8"))
     except json.JSONDecodeError:
+        # silent fallback だが warning を残して気付けるようにする。
+        sys.stderr.write(
+            f"OpenSearch {method} {url} returned non-JSON: status={status} body={raw[:200]!r}\n",
+        )
         return status, {}
+
+
+def _index_exists(base: str, name: str) -> bool:
+    status, _ = _opensearch_request("HEAD", f"{base}/{name}", allowed_status=(200, 404))
+    return status != 404
 
 
 def ensure_index(opensearch_url: str, index: str) -> None:
     # auto-create で float[] に落ちた既存 index を黙って踏み続けないよう、既存も厳密検証する。
     base = opensearch_url.rstrip("/")
-    head_status, _ = _opensearch_request("HEAD", f"{base}/{index}", allowed_status=(200, 404))
-    if head_status == 404:
+    if not _index_exists(base, index):
         _opensearch_request("PUT", f"{base}/{index}", body=INDEX_MAPPING_BYTES)
         return
 
-    _, mapping = _opensearch_request("GET", f"{base}/{index}/_mapping")
+    get_status, mapping = _opensearch_request(
+        "GET", f"{base}/{index}/_mapping", allowed_status=(200, 404),
+    )
+    if get_status == 404:
+        # HEAD で existing 判定後に GET で 404 = 中間で外部 actor が DELETE した race。再実行で解決可能。
+        raise RuntimeError(
+            f"ensure_index: HEAD で existing 判定後、GET /{index}/_mapping で 404。"
+            f"HEAD と GET の間に外部 actor が DELETE した可能性。再実行してください。",
+        )
     try:
         bv = mapping[index]["mappings"]["properties"]["body_vector"]
     except (KeyError, TypeError) as exc:
@@ -520,7 +632,9 @@ def ensure_index(opensearch_url: str, index: str) -> None:
             f"既存 index `{index}` の mapping に body_vector が無い。`DELETE /{index}` で消してから再 ingest してください: {mapping!r}",
         ) from exc
 
-    method = bv.get("method") or {}
+    method_raw = bv.get("method")
+    # OpenSearch contract 外で method が non-dict truthy (str/int 等) で返った場合の AttributeError を防ぐ。
+    method = method_raw if isinstance(method_raw, dict) else {}
     actual = (
         bv.get("type"),
         bv.get("dimension"),
@@ -536,12 +650,27 @@ def ensure_index(opensearch_url: str, index: str) -> None:
         )
 
 
-def bulk_ingest(docs: list[dict], *, opensearch_url: str, index: str, chunk_size: int = BULK_CHUNK_SIZE) -> None:
+def bulk_ingest(
+    docs: list[dict],
+    *,
+    opensearch_url: str,
+    index: str,
+    chunk_size: int = BULK_CHUNK_SIZE,
+) -> set[str]:
+    """_bulk index で docs を投入し、成功した doc の id 集合を返す。
+
+    `errors=true` は個別 doc 失敗 (mapping conflict 等) なので全体 abort しない。失敗 id は
+    成功集合から外して返し、caller (run_ingest) 側で current_ids から除外する。
+    HTTP error / network failure (urllib level) は _opensearch_request が raise するので
+    本関数からも raise されて全体 abort。
+    """
     base = opensearch_url.rstrip("/")
     bulk_url = f"{base}/_bulk"
+    success_ids: set[str] = set()
 
     for chunk_start in range(0, len(docs), chunk_size):
         chunk = docs[chunk_start:chunk_start + chunk_size]
+        chunk_ids = [doc["id"] for doc in chunk]
         lines: list[str] = []
         for doc in chunk:
             action = {"index": {"_index": index, "_id": doc["id"]}}
@@ -554,49 +683,378 @@ def bulk_ingest(docs: list[dict], *, opensearch_url: str, index: str, chunk_size
             body=body,
             content_type="application/x-ndjson",
         )
-        if resp.get("errors"):
-            err_items = []
-            for item in resp.get("items", []):
-                if not item:
-                    continue
-                op = next(iter(item.values()))
-                if op.get("error"):
-                    err_items.append({"_id": op.get("_id"), "status": op.get("status"), "error": op.get("error")})
-            if err_items:
-                sys.stderr.write(
-                    f"_bulk errors at chunk_start={chunk_start}: {len(err_items)} item(s):\n"
-                    + json.dumps(err_items[:5], ensure_ascii=False, indent=2)
-                    + "\n",
-                )
+        items = resp.get("items") or []
+        # items が空 (古い OpenSearch contract 等) の場合は errors フラグの有無に関わらず
+        # chunk_ids 全部を成功扱いにする (errors=true なら本来ここには来ないが防御的に)。
+        if not items:
+            success_ids.update(chunk_ids)
+            continue
+        # errors=true / false で同じ走査をする (failed と success の振り分けは op.error の有無で決まる)。
+        err_items: list[dict] = []
+        for idx, item in enumerate(items):
+            if not item:
+                # OpenSearch contract 上は items 各要素が dict のはずだが、防御的に skip。
+                if idx < len(chunk_ids):
+                    success_ids.add(chunk_ids[idx])
+                continue
+            op = next(iter(item.values()))
+            op_id = op.get("_id") or (chunk_ids[idx] if idx < len(chunk_ids) else None)
+            if op.get("error"):
+                err_items.append({
+                    "_id": op_id,
+                    "status": op.get("status"),
+                    "error": op.get("error"),
+                })
+            elif op_id is not None:
+                success_ids.add(op_id)
+        if err_items:
+            sys.stderr.write(
+                f"_bulk errors at chunk_start={chunk_start}: {len(err_items)} item(s):\n"
+                + json.dumps(err_items[:5], ensure_ascii=False, indent=2)
+                + "\n",
+            )
+    return success_ids
 
 
-def delete_stale(opensearch_url: str, index: str, run_start_iso: str) -> dict:
-    # OpenSearch の range は missing を hit に含めないため、updated_at 空欄 doc は意図的に残す。
+def _collect_existing_hits(hits: list[dict], result: dict[str, dict]) -> None:
+    for h in hits:
+        _id = h.get("_id")
+        if not _id:
+            continue
+        src = h.get("_source") or {}
+        result[_id] = {
+            "content_hash": src.get("content_hash") or "",
+            "path": src.get("path") or "",
+        }
+
+
+def _extract_hits(resp: dict) -> list[dict]:
+    """_search レスポンスの hits リストを抜き出す。"""
+    return (resp.get("hits") or {}).get("hits") or []
+
+
+def fetch_existing_ids_and_hashes(opensearch_url: str, index: str) -> dict[str, dict]:
+    """index 内の全 doc の {_id: {"content_hash", "path"}} を返す。
+
+    path も返すのは、walked ファイル内のセクション削除を「walk しなかった id」と区別するため
+    (walked ファイルの ghost section は stale 対象、walk しなかったファイルの id は current 残し)。
+    第一選択: `_search size:10000` で 1 リクエスト全件取得。
+    fallback: hit total が 10000 以上 or max_result_window 制限で 400 が返ったとき PIT + search_after。
+    index 不在時は空 dict を返す (初回 run・state 不在と同じ扱い)。
+    """
+    base = opensearch_url.rstrip("/")
+    if not _index_exists(base, index):
+        return {}
+
+    body = json.dumps({
+        "size": 10000,
+        "_source": ["content_hash", "path"],
+    }).encode("utf-8")
+    try:
+        _, resp = _opensearch_request("POST", f"{base}/{index}/_search", body=body)
+    except RuntimeError as exc:
+        # index.max_result_window を下げた環境で 400 が返ったら PIT path に降格する。
+        # OpenSearch のエラー本文は環境により大文字小文字が揺れる (例: "Result window is too large") ため、
+        # 小文字に正規化してから比較する。
+        msg_lower = str(exc).lower()
+        if "status=400" in msg_lower and any(k in msg_lower for k in _PIT_DOWNGRADE_KEYWORDS):
+            return _fetch_via_pit(base, index=index)
+        raise
+
+    hits = _extract_hits(resp)
+    # size:10000 で 10000 件返ったら total が 10000 以上の必要十分条件 (それ以下なら全件)。
+    # PIT path は先頭から再 fetch するため、流用最適化はせず contract をシンプルに保つ。
+    if len(hits) >= 10000:
+        return _fetch_via_pit(base, index=index)
+
+    result: dict[str, dict] = {}
+    _collect_existing_hits(hits, result)
+    return result
+
+
+def _fetch_via_pit(base: str, *, index: str) -> dict[str, dict]:
+    """PIT + search_after で全 doc の {_id: {"content_hash", "path"}} を取得する。
+
+    `_doc` を sort tiebreaker に使う (`_id` は fielddata デフォルト無効で使えない。`_doc` は PIT
+    context で stable sort の標準)。
+    `index` は PIT 作成 URL (`POST /<index>/_search/point_in_time`) でのみ使う。PIT 作成後は
+    pit_id が target index の context を保持するため、`_search` と DELETE は `{base}/_search...` の
+    形 (index 含まない) で叩く。
+    """
+    pit_url = f"{base}/{index}/_search/point_in_time?keep_alive=5m"
+    _, pit_resp = _opensearch_request("POST", pit_url)
+    pit_id = pit_resp.get("pit_id")
+    if not pit_id:
+        raise RuntimeError(f"PIT 作成に失敗: {pit_resp!r}")
+    result: dict[str, dict] = {}
+    search_after: list | None = None
+    try:
+        while True:
+            body_dict: dict = {
+                "size": 1000,
+                "sort": [{"_doc": "asc"}],
+                "pit": {"id": pit_id, "keep_alive": "5m"},
+                "_source": ["content_hash", "path"],
+            }
+            if search_after is not None:
+                body_dict["search_after"] = search_after
+            body = json.dumps(body_dict).encode("utf-8")
+            _, resp = _opensearch_request("POST", f"{base}/_search", body=body)
+            hits = _extract_hits(resp)
+            if not hits:
+                break
+            _collect_existing_hits(hits, result)
+            last = hits[-1]
+            sort_val = last.get("sort")
+            new_pit = resp.get("pit_id")
+            if new_pit:
+                pit_id = new_pit
+            if not sort_val:
+                break
+            search_after = sort_val
+    finally:
+        # PIT を片付ける (失敗しても無視: keep_alive で自然 expire する)。
+        try:
+            close_body = json.dumps({"pit_id": pit_id}).encode("utf-8")
+            _opensearch_request(
+                "DELETE", f"{base}/_search/point_in_time",
+                body=close_body, allowed_status=(200, 404),
+            )
+        except RuntimeError:
+            pass
+    return result
+
+
+def bulk_delete(ids: set[str] | list[str], *, opensearch_url: str, index: str, chunk_size: int = BULK_CHUNK_SIZE) -> int:
+    """指定 id 集合を `_bulk delete` で個別削除する。削除成功件数を返す。
+
+    失敗 op (5xx / version_conflict 等) は bulk_ingest と対称な形で stderr に最大 5 件出して
+    silent failure を防ぐ。
+    """
+    base = opensearch_url.rstrip("/")
+    bulk_url = f"{base}/_bulk"
+    # sorted で chunk 順序を決定論化する。PYTHONHASHSEED 依存の set 順序だと chunk_start 単位の
+    # error log と error sample が run ごとに異なり再現性が落ちる。
+    id_list = sorted(ids)
+    deleted = 0
+    for chunk_start in range(0, len(id_list), chunk_size):
+        chunk = id_list[chunk_start:chunk_start + chunk_size]
+        lines: list[str] = []
+        for _id in chunk:
+            action = {"delete": {"_index": index, "_id": _id}}
+            lines.append(json.dumps(action, ensure_ascii=False))
+        body = ("\n".join(lines) + "\n").encode("utf-8")
+        _, resp = _opensearch_request(
+            "POST",
+            bulk_url,
+            body=body,
+            content_type="application/x-ndjson",
+        )
+        items = resp.get("items") or []
+        err_items: list[dict] = []
+        for item in items:
+            if not item:
+                continue
+            op = next(iter(item.values()))
+            # status 200/201 (削除成功) or 404 (元から存在しない: idempotent 削除として成功扱い)
+            status = op.get("status")
+            if status in (200, 201, 404):
+                deleted += 1
+            else:
+                err_items.append({
+                    "_id": op.get("_id"),
+                    "status": status,
+                    "error": op.get("error"),
+                })
+        if err_items:
+            sys.stderr.write(
+                f"_bulk delete errors at chunk_start={chunk_start}: {len(err_items)} item(s):\n"
+                + json.dumps(err_items[:5], ensure_ascii=False, indent=2)
+                + "\n",
+            )
+    return deleted
+
+
+def read_state(opensearch_url: str, state_index: str) -> str | None:
+    """state index から `last_run_iso` を取り出す。
+
+    state index 不在 or doc 不在 (初回 run) なら None を返す。
+    """
+    base = opensearch_url.rstrip("/")
+    if not _index_exists(base, state_index):
+        return None
+    get_status, resp = _opensearch_request(
+        "GET",
+        f"{base}/{state_index}/_doc/{STATE_DOC_ID}",
+        allowed_status=(200, 404),
+    )
+    if get_status == 404:
+        return None
+    source = resp.get("_source") or {}
+    last_run = source.get("last_run_iso")
+    if isinstance(last_run, str) and last_run:
+        return last_run
+    return None
+
+
+def ensure_state_index(opensearch_url: str, state_index: str) -> None:
+    """state index を冪等に作成する。
+
+    mapping は dynamic に任せる (string 比較のみで使うため。range 検索の需要が出たら明示 mapping)。
+    """
+    base = opensearch_url.rstrip("/")
+    if not _index_exists(base, state_index):
+        _opensearch_request("PUT", f"{base}/{state_index}", body=b"{}")
+
+
+def write_state(opensearch_url: str, state_index: str, last_run_iso: str, last_run_count: int) -> None:
+    """state index に `last_run_iso` / `last_run_count` を upsert する。"""
     base = opensearch_url.rstrip("/")
     body = json.dumps({
-        "query": {
-            "range": {
-                "updated_at": {"lt": run_start_iso},
-            },
-        },
+        "last_run_iso": last_run_iso,
+        "last_run_count": last_run_count,
     }).encode("utf-8")
-    _, resp = _opensearch_request(
-        "POST",
-        f"{base}/{index}/_delete_by_query",
+    _opensearch_request(
+        "PUT",
+        f"{base}/{state_index}/_doc/{STATE_DOC_ID}",
         body=body,
     )
-    return {k: resp.get(k) for k in ("deleted", "total", "failures")}
 
 
-def run_ingest(docs: list[dict], *, embed_url: str, opensearch_url: str, index: str) -> None:
+def _parse_iso_to_epoch(iso: str) -> float | None:
+    """ISO 8601 文字列を Unix epoch (float sec) に変換。失敗時 None。"""
+    try:
+        # 末尾 Z は 3.11+ で fromisoformat が受け付けるが、念のため +00:00 へ正規化。
+        normalized = iso.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp()
+    except (ValueError, TypeError):
+        return None
+
+
+def _resolve_mtime_after(
+    opensearch_url: str, state_index: str, *, full: bool,
+) -> tuple[str | None, float | None]:
+    """state index から last_run_iso を取り出し incremental walk の cutoff epoch に変換する。
+
+    last_run_iso が non-empty なのに parse 不能で full walk に silently 降格する経路は
+    operator が観測できるよう stderr に WARNING を出す。
+    """
+    if full:
+        return None, None
+    last_run_iso = read_state(opensearch_url, state_index)
+    mtime_after = _parse_iso_to_epoch(last_run_iso) if last_run_iso else None
+    if last_run_iso and mtime_after is None:
+        sys.stderr.write(
+            f"WARNING: state index の last_run_iso が parse 不能 ({last_run_iso!r})、"
+            f"full walk に降格する\n",
+        )
+    return last_run_iso, mtime_after
+
+
+def _compute_current_ids(
+    docs: list[dict],
+    candidate_paths: list[Path],
+    existing: dict[str, dict],
+    vault: Path,
+    *,
+    mtime_after: float | None,
+) -> tuple[set[str], set[str]]:
+    """walk しなかったファイルの doc を stale 削除から守りつつ ghost section は stale に倒す。
+
+    incremental walk で対象外だった既存 id (walk しなかったファイルの doc) は current に残す。
+    一方 walked ファイル内のセクション削除 (path が walked_paths に居る既存 id) は ghost なので
+    current から外して stale に倒す (F2 fix)。path 空の legacy doc は保守側で current に残す。
+    全件 walk (初回 or --full) では walk しなかった existing は vault から消えたファイル扱いで stale。
+    walked_ids は summary log にも使うので併せて返す。Windows backslash で existing path
+    (forward slash) と一致しなくなる事故を避けるため walked_paths は as_posix() で統一。
+    """
+    walked_ids = {d["id"] for d in docs}
+    walked_paths = {p.relative_to(vault).as_posix() for p in candidate_paths}
+    if mtime_after is None:
+        return walked_ids, walked_ids
+    mtime_skipped_ids = {
+        _id for _id, meta in existing.items()
+        if _id not in walked_ids
+        and (not meta.get("path") or meta["path"] not in walked_paths)
+    }
+    return walked_ids | mtime_skipped_ids, walked_ids
+
+
+def run_ingest(
+    vault: Path,
+    scope: str,
+    *,
+    embed_url: str,
+    opensearch_url: str,
+    index: str,
+    state_index: str = DEFAULT_STATE_INDEX,
+    full: bool = False,
+) -> None:
+    """incremental + content_hash + 集合差分 stale 削除の本体。
+
+    Why not try/finally: Ctrl-C 途中で write_state を実行する経路を作らないため。途中状態の
+    last_run_iso を残すと次回 run で skip が発生する。
+    """
     run_start_iso = datetime.now(timezone.utc).isoformat()
-    embed_all(docs, embed_url=embed_url)
     ensure_index(opensearch_url, index)
-    bulk_ingest(docs, opensearch_url=opensearch_url, index=index)
-    delete_result = delete_stale(opensearch_url, index, run_start_iso)
+    ensure_state_index(opensearch_url, state_index)
+
+    last_run_iso, mtime_after = _resolve_mtime_after(opensearch_url, state_index, full=full)
+    candidate_paths = walk_vault(vault, scope, mtime_after=mtime_after)
+    docs = build_docs(vault, scope, paths=candidate_paths)
+
+    existing = fetch_existing_ids_and_hashes(opensearch_url, index)
+
+    # content_hash 差分で再 index 対象を抽出。同 loop で旧 schema doc (content_hash 不在) も
+    # migration 経路として観測可能にする (F10)。
+    docs_to_index: list[dict] = []
+    migration_count = 0
+    for d in docs:
+        existing_meta = existing.get(d["id"])
+        if existing_meta is None or existing_meta.get("content_hash") != d["content_hash"]:
+            docs_to_index.append(d)
+            if existing_meta is not None and existing_meta.get("content_hash") == "":
+                migration_count += 1
+    if migration_count:
+        sys.stderr.write(
+            f"content_hash 不在の既存 doc {migration_count} 件 → migration として re-embed\n",
+        )
+
+    current_ids, walked_ids = _compute_current_ids(
+        docs, candidate_paths, existing, vault, mtime_after=mtime_after,
+    )
+
+    embed_all(docs_to_index, embed_url=embed_url)
+    indexed_ids = bulk_ingest(docs_to_index, opensearch_url=opensearch_url, index=index)
+    failed_ids = {d["id"] for d in docs_to_index} - indexed_ids
+
+    # failed_ids を current_ids に残すことで、stale_ids に巻き込まれず OpenSearch の旧 version が保護される
+    # (search hole 緩和)。failed_ids を除外すると旧 version も新 version も消えて検索面に穴が空く。
+
+    stale_ids = (existing.keys() | indexed_ids) - current_ids
+    deleted_count = bulk_delete(stale_ids, opensearch_url=opensearch_url, index=index) if stale_ids else 0
+
+    # write_state は無条件に実行する: 永続失敗 doc 1 件で state が永遠に進まない poison-pill deadlock を回避する。
+    # 永続失敗以外の正常 doc については incremental が機能し続ける。failed_ids がある場合は stderr に WARNING を出し、
+    # 旧 version 保護 + 次回 mtime 更新時に再 attempt + 永続失敗は --full で復旧、という運用前提を operator に通知する。
+    write_state(opensearch_url, state_index, run_start_iso, len(current_ids))
+    if failed_ids:
+        sys.stderr.write(
+            f"WARNING: failed_ids が {len(failed_ids)} 件あるが write_state は実行する "
+            f"(旧 version は OpenSearch 上に保護、次回 mtime 更新時に再 attempt、"
+            f"永続失敗は --full で復旧)\n",
+        )
+
     sys.stderr.write(
-        f"ingest 完了: docs={len(docs)} index={index} run_start_iso={run_start_iso} "
-        f"delete_by_query={json.dumps(delete_result, ensure_ascii=False)}\n",
+        f"ingest 完了: walked={len(walked_ids)} reindexed={len(indexed_ids)} "
+        f"skipped_unchanged={len(walked_ids) - len(docs_to_index)} "
+        f"failed={len(failed_ids)} stale_deleted={deleted_count} "
+        f"current_total={len(current_ids)} "
+        f"index={index} state_index={state_index} "
+        f"last_run_iso_in={last_run_iso!r} run_start_iso={run_start_iso} full={full}\n",
     )
 
 
@@ -621,6 +1079,16 @@ def main() -> None:
         default=DEFAULT_INDEX,
         help=f"OpenSearch index 名 (既定: {DEFAULT_INDEX})",
     )
+    ap.add_argument(
+        "--state-index",
+        default=DEFAULT_STATE_INDEX,
+        help=f"incremental ingest の state を保存する index 名 (既定: {DEFAULT_STATE_INDEX})",
+    )
+    ap.add_argument(
+        "--full",
+        action="store_true",
+        help="incremental トリガを skip し全件 walk を強制する (cron での週次 full 等の運用余地)",
+    )
     mode_group = ap.add_mutually_exclusive_group()
     mode_group.add_argument(
         "--dry-run",
@@ -635,7 +1103,7 @@ def main() -> None:
     mode_group.add_argument(
         "--ingest",
         action="store_true",
-        help="embed + _bulk ingest + delete-by-query を実行する",
+        help="incremental + content_hash + 集合差分 stale 削除の本番 ingest を実行する",
     )
     args = ap.parse_args()
 
@@ -643,14 +1111,16 @@ def main() -> None:
     if not vault.is_dir():
         sys.exit(f"vault が無い: {vault}")
 
-    docs = build_docs(vault, args.scope)
-
     if args.dry_run:
+        # V1-regression: HTTP 呼び出しなし、全件 walk で body_vector=[] stub のまま JSON 出力。
+        docs = build_docs(vault, args.scope)
         json.dump(docs, sys.stdout, ensure_ascii=False, indent=1)
         sys.stdout.write("\n")
         return
 
     if args.embed_only:
+        # V2 単体テスト: 全件 walk + embed のみ (ingest なし)。
+        docs = build_docs(vault, args.scope)
         embed_all(docs, embed_url=args.embed_url)
         json.dump(docs, sys.stdout, ensure_ascii=False, indent=1)
         sys.stdout.write("\n")
@@ -658,10 +1128,13 @@ def main() -> None:
 
     if args.ingest:
         run_ingest(
-            docs,
+            vault,
+            args.scope,
             embed_url=args.embed_url,
             opensearch_url=args.opensearch_url,
             index=args.index,
+            state_index=args.state_index,
+            full=args.full,
         )
         return
 
