@@ -21,6 +21,7 @@ import hashlib
 import json
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 # vault_catalog.py のパーサ層を再利用する。同ディレクトリに居る前提で sys.path に自身のディレクトリを足す。
@@ -199,6 +200,21 @@ def collect_outlinks(full_text: str, title_self: str) -> list[str]:
     return out
 
 
+@dataclass(frozen=True)
+class NoteMeta:
+    # frozen=True はループ内での誤代入を型レベルで弾くため (同じインスタンスを複数 doc に回す前提)。
+    note_title: str
+    tags: list[str]
+    layer: str
+    progress: str
+    type_: str
+    usage: str
+    outlinks: list[str]
+    path: str
+    created_at: str
+    updated_at: str
+
+
 def build_docs(vault: Path, scope_dir: str) -> list[dict]:
     """vault/<scope_dir> 配下の Markdown を再帰的に走査し、doc 構造体配列を返す。"""
     root = vault / scope_dir
@@ -224,6 +240,19 @@ def build_docs(vault: Path, scope_dir: str) -> list[dict]:
         rel_path = str(path.relative_to(vault))
         outlinks = collect_outlinks(text, note_title)
 
+        meta = NoteMeta(
+            note_title=note_title,
+            tags=tags,
+            layer=layer,
+            progress=progress,
+            type_=type_,
+            usage=usage,
+            outlinks=outlinks,
+            path=rel_path,
+            created_at=created_at,
+            updated_at=updated_at,
+        )
+
         h2_sections = split_h2_sections(body)
         # 指摘 #2 対応: 除外セクションタイトルは H2 で取り除く (H3 側はループ内で同じ集合を適用)。
         h2_sections_kept = [(t, b) for (t, b) in h2_sections if t not in EXCLUDED_SECTION_TITLES]
@@ -234,23 +263,14 @@ def build_docs(vault: Path, scope_dir: str) -> list[dict]:
             # 指摘 #1 #6 対応: occurrence_idx=0, sub_idx=0 固定で安定 id を作る (note 単体パスの正準形)。
             doc_body = strip_callout_marker(body).strip()
             docs.append(_build_doc(
-                note_title=note_title,
+                meta,
                 section_title="",
                 h2_title_for_id="",
                 occurrence_idx=0,
                 sub_idx=0,
                 breadcrumb=[note_title],
-                tags=tags,
-                layer=layer,
-                progress=progress,
-                type_=type_,
-                usage=usage,
-                outlinks=outlinks,
-                path=rel_path,
                 section_index=0,
                 body_text=doc_body,
-                created_at=created_at,
-                updated_at=updated_at,
             ))
             continue
 
@@ -274,23 +294,14 @@ def build_docs(vault: Path, scope_dir: str) -> list[dict]:
                 # H2 単位で 1 doc。指摘 #1 対応: H2 単体パスでも sub_idx=0 で id を採番し、
                 # 本文が閾値を超えて H3 分割パスに遷移しても sub_idx=0 の id 構造を維持する。
                 docs.append(_build_doc(
-                    note_title=note_title,
+                    meta,
                     section_title=h2_title,
                     h2_title_for_id=h2_title,
                     occurrence_idx=occurrence_idx,
                     sub_idx=0,
                     breadcrumb=[note_title, h2_title],
-                    tags=tags,
-                    layer=layer,
-                    progress=progress,
-                    type_=type_,
-                    usage=usage,
-                    outlinks=outlinks,
-                    path=rel_path,
                     section_index=section_index,
                     body_text=stripped_h2_body,
-                    created_at=created_at,
-                    updated_at=updated_at,
                 ))
                 section_index += 1
             else:
@@ -309,66 +320,47 @@ def build_docs(vault: Path, scope_dir: str) -> list[dict]:
                         breadcrumb.append(h3_title)
                         section_title = h3_title
                     docs.append(_build_doc(
-                        note_title=note_title,
+                        meta,
                         section_title=section_title,
                         h2_title_for_id=h2_title,
                         occurrence_idx=occurrence_idx,
                         sub_idx=sub_idx,
                         breadcrumb=breadcrumb,
-                        tags=tags,
-                        layer=layer,
-                        progress=progress,
-                        type_=type_,
-                        usage=usage,
-                        outlinks=outlinks,
-                        path=rel_path,
                         section_index=section_index,
                         body_text=stripped_sub,
-                        created_at=created_at,
-                        updated_at=updated_at,
                     ))
                     section_index += 1
     return docs
 
 
 def _build_doc(
+    meta: NoteMeta,
     *,
-    note_title: str,
     section_title: str,
     h2_title_for_id: str,
     occurrence_idx: int,
     sub_idx: int,
     breadcrumb: list[str],
-    tags: list[str],
-    layer: str,
-    progress: str,
-    type_: str,
-    usage: str,
-    outlinks: list[str],
-    path: str,
     section_index: int,
     body_text: str,
-    created_at: str,
-    updated_at: str,
 ) -> dict:
-    """doc スキーマ (plan D2) に従った 1 doc を組み立てる。`body_vector` は Phase 2+ で埋めるため空配列の stub。"""
     return {
-        "id": doc_id(note_title, h2_title_for_id, occurrence_idx, sub_idx),
-        "note_title": note_title,
+        "id": doc_id(meta.note_title, h2_title_for_id, occurrence_idx, sub_idx),
+        "note_title": meta.note_title,
         "section_title": section_title,
         "breadcrumb": " > ".join(breadcrumb),
-        "tags": tags,
-        "layer": layer,
-        "progress": progress,
-        "type": type_,
-        "usage": usage,
-        "outlinks": outlinks,
-        "path": path,
+        "tags": meta.tags,
+        "layer": meta.layer,
+        "progress": meta.progress,
+        "type": meta.type_,
+        "usage": meta.usage,
+        "outlinks": meta.outlinks,
+        "path": meta.path,
         "section_index": section_index,
         "body": body_text,
-        "body_vector": [],  # Phase 2+ で埋める stub (plan B 節)
-        "created_at": created_at,
-        "updated_at": updated_at,
+        "body_vector": [],  # stub (埋め込み生成は別経路で後追加)
+        "created_at": meta.created_at,
+        "updated_at": meta.updated_at,
     }
 
 
