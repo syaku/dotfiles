@@ -1,6 +1,6 @@
 export const meta = {
   name: 'harvest-pipeline',
-  description: 'drain (即時 ingestion)・backfill (期間 reconciliation) の 2 層蒸留パイプライン: 素材整理→既存突き合わせ→候補生成→命名ゲート (機械 regex＋別 context 点検＋再命名ループ)→洞察検出→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない',
+  description: 'drain (即時 ingestion)・backfill (期間 reconciliation) の 2 層蒸留パイプライン: 素材整理 (既存突き合わせ・候補生成・命名ゲート inline)→洞察検出→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない',
   whenToUse: 'drain / harvest スキル本体 (SKILL.md) から scriptPath 指定で起動される。単体起動は想定しない',
   phases: [
     { title: '素材整理', detail: 'inbox 昇格候補 (drain=sonnet) / 期間素材 (backfill=opus) の構造化と既存ノード突き合わせ。命名ゲート (機械 regex → 別 context 点検 agent → 再命名 → 再点検・最大 2 ラウンド) も素材整理 phase 内インラインで走る' },

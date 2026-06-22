@@ -1,6 +1,6 @@
 ---
 name: harvest
-description: 期間を切って過去を遡り、未完了タスクの完了（done）を期間内の作業レポートと再照合（reconcile sweep）し、蓄積したノードグラフから創発・メタ洞察を検出する backfill（遡り蒸留）スキル。即時の inbox/ 排出・気づき/done の即時検出は /drain が event-driven で担い、backfill はそのすり抜け残差（順序ギャップで永久 open になったタスク・全構成ノードが過去 drain 済みの創発洞察）を retroactive に拾う。蒸留パイプライン（素材整理・突き合わせ・命名3層ゲート・洞察検出・done reconcile）は harvest-pipeline workflow（~/.claude/workflows/harvest-pipeline.js, mode: backfill）に決定論オーケストレーションとして委譲し、本体は期間確定・Workflow 起動・トリアージ承認ゲート・承認後の Write 適用・運用ログ記録に徹する。モデル出し分けは script が agent 単位で固定するため /model 手動切替は不要。「今週分を harvest」「先週を振り返って」「先月の done を拾い直して」「収穫して」などの期間系で起動する。inbox/ の即時排出・日次の気づきノード化は別スキル /drain が担当（このスキルは inbox/ を処理せず会話素材も掻かない）。対象 vault は ~/workspace/notes/obsidian/Life（Obsidian、日本語運用）。
+description: 期間を切って過去を遡り、未完了タスクの完了（done）を期間内の作業レポートと再照合（reconcile sweep）し、蓄積したノードグラフから創発・メタ洞察を検出する backfill（遡り蒸留）スキル。即時の inbox/ 排出・気づき/done の即時検出は /drain が event-driven で担い、backfill はそのすり抜け残差（順序ギャップで永久 open になったタスク・全構成ノードが過去 drain 済みの創発洞察）を retroactive に拾う。蒸留パイプライン（素材整理（既存突き合わせ・候補生成・命名ゲート inline）→洞察検出→タスク・done reconcile）は harvest-pipeline workflow（~/.claude/workflows/harvest-pipeline.js, mode: backfill）に決定論オーケストレーションとして委譲し、本体は期間確定・Workflow 起動・トリアージ承認ゲート・承認後の Write 適用・運用ログ記録に徹する。モデル出し分けは script が agent 単位で固定するため /model 手動切替は不要。「今週分を harvest」「先週を振り返って」「先月の done を拾い直して」「収穫して」などの期間系で起動する。inbox/ の即時排出・日次の気づきノード化は別スキル /drain が担当（このスキルは inbox/ を処理せず会話素材も掻かない）。対象 vault は ~/workspace/notes/obsidian/Life（Obsidian、日本語運用）。
 ---
 
 # harvest: 期間を切った遡り蒸留（backfill）
@@ -9,7 +9,7 @@ description: 期間を切って過去を遡り、未完了タスクの完了（d
 
 **2 層構造での立ち位置**: 即時の取り込み（inbox/ → notes/ 昇格・気づきノード化・done 即時検出）は `/drain` が event-driven で担う。backfill が拾うのはそのすり抜け残差——(i) **順序ギャップで永久 open になったタスク**（「X 完了」レポートが先に drain され、タスク X ノートが後から作られると drain 時に X が存在せず done 化されず、以降再スキャンされない）を期間で再照合する、(ii) **全構成ノードが過去 drain 済みの創発/メタ洞察**（新着が片足でも乗る関係は drain が発火時に回収済み・残るのは「今になって繋がって見える」束ね直しと高次の再発パターン）を拾う。即時の気づき(A) は作らない・会話素材も掻かない（会話で気づいたら inbox/ に書く＝capture 規律。`/drain` 経路で拾う）。
 
-蒸留の主要工程（素材整理・既存ノード突き合わせ・候補生成・命名 3 層ゲート・洞察検出・done reconcile）は **harvest-pipeline workflow**（`~/.claude/workflows/harvest-pipeline.js`, `mode: 'backfill'`）に委譲する。件数集計・モード封鎖・ノート規約検証・done 証拠の包含照合は workflow script が**コードで決定論的に実行**するため、LLM の自己申告に依存しない。done sweep の証跡（期間内の作業レポート系ノート本文）の絞り込みも frontmatter tags ベースで script が決定論フィルタする。命名規約・層判別などの判断系規約も script 内のプロンプト断片に single-source で encode 済み——本体から重複指示しない。
+蒸留の主要工程（素材整理＝既存ノード突き合わせ・候補生成・命名ゲートを inline で含む → 洞察検出 → done reconcile）は **harvest-pipeline workflow**（`~/.claude/workflows/harvest-pipeline.js`, `mode: 'backfill'`）に委譲する。件数集計・モード封鎖・ノート規約検証・done 証拠の包含照合は workflow script が**コードで決定論的に実行**するため、LLM の自己申告に依存しない。done sweep の証跡（期間内の作業レポート系ノート本文）の絞り込みも frontmatter tags ベースで script が決定論フィルタする。命名規約・層判別などの判断系規約も script 内のプロンプト断片に single-source で encode 済み——本体から重複指示しない。
 
 **inbox/ の排出は `/drain` スキルの担当**で、このスキルは inbox/ を処理しない。
 
@@ -47,7 +47,7 @@ description: 期間を切って過去を遡り、未完了タスクの完了（d
   - `style_titles`: 既存 `#気づき`/`#洞察` ノートのタイトル配列（step 1 で収集した家風の実例）
   - `distill_log_text`: `notes/distill運用ログ.md` の本文全文（step 1 で Read。空文字列 ok）
 
-パイプライン構成（script に encode 済み）: 素材整理（期間内 notes の収集・タスク① 候補生成・done sweep 用に作業レポート系ノート本文を収集）→ 命名ゲート（機械 regex → 別 context 点検 agent → 再命名 → 再点検、最大 2 ラウンド）→ 洞察検出（0 件正当・蓄積グラフの創発/メタ洞察が主眼）→ done reconcile（期間内作業レポート本文への証拠引用の包含照合）→ 規約の機械検証と集計。
+パイプライン構成（script に encode 済み）: 素材整理（期間内 notes の収集・タスク① 候補生成・done sweep 用に作業レポート系ノート本文を収集・命名ゲート（機械 regex → 別 context 点検 agent → 再命名 → 再点検、最大 2 ラウンド）を inline で含む）→ 洞察検出（0 件正当・蓄積グラフの創発/メタ洞察が主眼）→ done reconcile（期間内作業レポート本文への証拠引用の包含照合）→ 規約の機械検証と集計。
 
 ### 3. 戻り解釈
 

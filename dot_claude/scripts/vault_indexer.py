@@ -55,7 +55,7 @@ H3_RE = re.compile(r"^###[ \t]+(.+?)[ \t]*$", re.MULTILINE)
 _FENCED_CODE_RE = re.compile(r"(?ms)^(```|~~~).*?^\1[ \t]*$")
 _HTML_COMMENT_RE = re.compile(r"(?s)<!--.*?-->")
 
-# frontmatter timestamp の慣習キー優先順位 (指摘 #4 対応)。
+# frontmatter timestamp の慣習キー優先順位。
 # 実 vault (~/workspace/notes/obsidian/Life/notes) は createdAt / updatedAt 一択だが、
 # 将来の慣習変化や他 vault 互換のために複数キーを順に試す。
 _CREATED_KEYS = ("createdAt", "created_at", "created", "date")
@@ -91,10 +91,19 @@ INDEX_MAPPING = {
         "index": {
             "knn": True,
             "analysis": {
+                "tokenizer": {
+                    # 複合語を search mode で分解する。default (normal) では
+                    # 「ホームラボ」が 1 トークンに固まり「ホーム ラボ」と検索結果が極端に非対称になる
+                    # (実測: hit=0 vs hit=223)。search mode は元語と分割語を両方残すので表記揺れに耐える。
+                    "kuromoji_search_tokenizer": {
+                        "type": "kuromoji_tokenizer",
+                        "mode": "search",
+                    },
+                },
                 "analyzer": {
                     "kuromoji_analyzer": {
                         "type": "custom",
-                        "tokenizer": "kuromoji_tokenizer",
+                        "tokenizer": "kuromoji_search_tokenizer",
                     },
                 },
             },
@@ -124,8 +133,11 @@ INDEX_MAPPING = {
             "path": {"type": "keyword"},
             "section_index": {"type": "integer"},
             "content_hash": {"type": "keyword"},
-            "created_at": {"type": "date"},
-            "updated_at": {"type": "date"},
+            # 空文字を渡しても mapper_parsing_exception で reject されない防御。
+            # 呼び出し側 (build_docs) で空文字 → None 変換も入れるが、updated_at も対称的に守る
+            # (将来同様事故を予防)。ignore_malformed は本 2 field 限定で、新 date field 追加時は明示的に opt-in。
+            "created_at": {"type": "date", "ignore_malformed": True},
+            "updated_at": {"type": "date", "ignore_malformed": True},
         },
     },
 }
@@ -156,7 +168,7 @@ def fm_get_str(fm: dict, key: str) -> str:
 
 
 def fm_get_str_first(fm: dict, keys: tuple[str, ...]) -> str:
-    """frontmatter から最初に値を持つキーを優先順位付きで取り出す (指摘 #4 対応)。
+    """frontmatter から最初に値を持つキーを優先順位付きで取り出す。
 
     list/None/欠落/空文字は次のキーへフォールバック。すべて該当無しなら空文字。
     """
@@ -281,8 +293,11 @@ class NoteMeta:
     usage: str
     outlinks: list[str]
     path: str
-    created_at: str
-    updated_at: str
+    # frontmatter 不在時は None。空文字を渡すと OpenSearch date field が
+    # mapper_parsing_exception で reject するため (上流 build_docs で `or None` 変換済み)、
+    # 型注釈も str | None に揃える。
+    created_at: str | None
+    updated_at: str | None
     # content_hash 入力用に正規化したコピー。per-note 1 回計算で全 section doc に使い回し、
     # compute_content_hash の per-doc sorted() コールを削減。
     sorted_tags: list[str] = field(init=False, compare=False, repr=False)
@@ -338,9 +353,16 @@ def build_docs(vault: Path, scope_dir: str, *, paths: list[Path] | None = None) 
         progress = fm_get_str(fm, "progress")
         type_ = fm_get_str(fm, "type")
         usage = fm_get_str(fm, "usage")
-        # 指摘 #4 対応: 慣習キーの優先順位リストから最初に値を持つキーを採用する。
         created_at = fm_get_str_first(fm, _CREATED_KEYS)
         updated_at = fm_get_str_first(fm, _UPDATED_KEYS)
+        # 空文字を OpenSearch date field に渡すと mapper_parsing_exception で
+        # _bulk レスポンス内で per-item reject される (vault notes/ 666 件中約 23% に createdAt frontmatter が無く永続的に
+        # index 化漏れ + stderr `_bulk errors at chunk_start=...` ログは先頭 5 件しか dump しないので
+        # silent loss を起こしていた)。fm_get_str_first 自体には触らず (汎用 helper 戻り型を維持)、
+        # 呼び出し側で null 化して JSON シリアライズ時に `null` を流す。INDEX_MAPPING 側の
+        # ignore_malformed と二重に守る (mapping は将来 None 以外の malformed 値が混入したとき用)。
+        created_at = created_at or None
+        updated_at = updated_at or None
         # Windows で backslash になると Linux 側 indexer の existing path (forward slash) と一致しなくなり、
         # 全 walked path が mtime_skipped_ids に紛れ込む。as_posix() で forward slash 強制。
         rel_path = path.relative_to(vault).as_posix()
