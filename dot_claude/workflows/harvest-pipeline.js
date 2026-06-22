@@ -3,8 +3,7 @@ export const meta = {
   description: 'drain (即時 ingestion)・backfill (期間 reconciliation) の 2 層蒸留パイプライン: 素材整理→既存突き合わせ→候補生成→命名ゲート (機械 regex＋別 context 点検＋再命名ループ)→洞察検出→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない',
   whenToUse: 'drain / harvest スキル本体 (SKILL.md) から scriptPath 指定で起動される。単体起動は想定しない',
   phases: [
-    { title: '素材整理', detail: 'inbox 昇格候補 (drain=sonnet) / 期間素材 (backfill=opus) の構造化と既存ノード突き合わせ' },
-    { title: '命名ゲート', detail: '機械 regex → 別 context 点検 agent → 再命名 → 再点検 (最大 2 ラウンド・未解決は人ゲートへ持ち越し)' },
+    { title: '素材整理', detail: 'inbox 昇格候補 (drain=sonnet) / 期間素材 (backfill=opus) の構造化と既存ノード突き合わせ。命名ゲート (機械 regex → 別 context 点検 agent → 再命名 → 再点検・最大 2 ラウンド) も素材整理 phase 内インラインで走る' },
     { title: '洞察検出', detail: 'ノード間の繋がりから第三の知見を検出 (opus・0 件は正当・backfill は蓄積グラフの創発/メタ洞察が主眼)' },
     { title: 'タスク・完了検出', detail: '既存タスクの done 候補検出。証拠は drain=inbox 連結・backfill=期間内作業レポート本文。引用は script が素材への包含で機械照合' },
     { title: '集計', detail: 'ノート規約の機械検証 (frontmatter/更新履歴/ラベル残存/タグ整合) と totals 計算' },
@@ -485,13 +484,20 @@ ${f.content}
 
 手順:
 1. この inbox の内容を「名付けられる粒度」で昇格候補に分ける (1 inbox から複数可)。作業レポート・調査記録はそれ自体を 1:1・具体タイトルのまま kind=作業レポート・事実 として昇格する。ただし 1:1 で終わらせず、下記「気づき抽出」を必ず併走させる (1 inbox が 作業レポート＋気づき＋タスク を同時に生むのは正常)。
-2. 各候補について vault 既存ノードを突き合わせ、関連ノート・既出を洗う。一次索引は、あなたの context に読み込まれている「Vault Catalog」(notes/ の機械生成索引＝各行 'title · layer · #tags · →[outlinks]')。タイトル一致・タグ共有・リンク近傍で当たりを付け、fold 判定や本文確認が要るものだけ Read する (全 notes の Grep fan-out はしない)。カタログに該当が無ければ新しい主題＝新規候補。カタログが context に無い場合に限り Grep で代替する (MOC/ は Dataview 集約でカタログに出ないので必要時のみ別途 Read)。
+2. 各候補について vault 既存ノードを突き合わせ、関連ノート・既出を洗う。一次索引は MCP tool 経由で動的に引く (常時ロードのカタログは持たない・subagent には届かない)。
+   - タイトル一致・意味近傍: \`mcp__vault-catalog__search_hybrid(query=候補タイトル, limit=5)\` を呼ぶ。返る hits の path/title/tags/body_snippet を見て当たりを付ける。
+   - タグ共有での当たり付け: inbox 本文中に既存の #タグ 表記や明示的なタグキーワード (例: 「気づき」「洞察」「タスク」や個別ジャンルの確立タグ) が読み取れる場合に限り、それらを引数に \`mcp__vault-catalog__search_by_tag(tags=[<読み取ったタグ列>], limit=10)\` を呼ぶ。inbox 本文にタグの手掛かりが無ければこの step を飛ばす (この時点で候補の最終タグ列は未確定なので候補のタグ列を引数にしない)。
+   - fold 判定や本文確認が要るものだけ Read する (全 notes の Grep fan-out はしない)。MOC/ は Dataview 集約で MCP に乗らないため、必要時のみ別途 Read する。
+   - **MCP 結果は近傍候補であって fold 判定の根拠ではない**。fold を判断するなら必ず本文を Read して同一物であることを確認する (MCP の曖昧 hit を fold 根拠に取り違えない)。
+   - MCP 該当が無く Read でも既存に該当が見つからなければ新しい主題＝新規候補。
 3. 新規候補は content に frontmatter＋本文の完成形を書く。関連既存ノード側からの逆リンク 1 行を backlink_edits に列挙する (双方向リンク。関連が実在するものだけ・弱い繋がりを強引に張らない)。
 4. この inbox のファイル名が昇格で変わる/分割される場合、元 inbox 名を wikilink で指す既存ノートを ${backlinkCmd} で機械的に洗い old_name_referrers に返す (path のリスト。0 ヒットなら空配列。同名昇格なら洗わなくてよい)。
 
 気づき抽出 (作業レポートでも必ず行う): inbox が作業レポート・調査記録であっても、その作業を通じて立ち上がった主観的な学び・判断・方針・再発パターン・踏んだ罠の教訓が本文にあれば、作業レポート本体の 1:1 昇格とは別に kind=気づき の独立ノードとして切り出す。「作業レポートだから 1:1 で終わり」にしない——層は 作業 (レポート) → 気づき で分けるのであって、作業レポートが気づきの抽出元にならないわけではない (作業レポートは洞察の source になれないだけ)。対象は主語をツール固有から一般化できる教訓 (特定ツールの狭いスペック・手順そのものの記述は事実なので切り出さない)。素材に書かれた学びだけを根拠にし、無い学びを想像で足さない (捏造禁止・本当に学びが無ければ 0 件が正当)。作業レポート本体には気づきタグを付けず洞察 source にもしない。切り出した気づきが後段で洞察の素材になりうる。
 タスク抽出: inbox 中の未着手の行動を kind=タスク で抽出する。ラベルは ① 明示 TODO (「TODO」「未実施」「やる」等が plain にある) / ② 次タスク候補 (「次は〜」等の先送り表明) / ③ ノート分析で出た課題 (論理ギャップ・矛盾・未解決。why_important 必須)。
 洞察はここで作らない (後段の専用 agent が担う)。
+
+MCP 不達時の fallback: MCP tool 呼び出しで exception が出た場合 (network error / server down / timeout / unreachable 等) は Grep (\`rg '<query>' ${VAULT}/notes\` 等) に retreat し処理を継続する。失敗したまま止めない。fallback した呼び出しごとに \`log('MCP_FALLBACK: <tool> <reason>')\` を 1 行出してから続行する (script 側でカウンタを持たないので grep で頻度を後から数える)。
 ${VAULT_RULES}
 ${NAMING_FOR_KIZUKI}`
 }
@@ -530,7 +536,12 @@ ${extraMaterial}
 ${backfillFocus}
 
 手順:
-1. 繋がりを探す対象は (a) 今回の新規ノード同士 (上記「今回の新規/更新ノード」の #気づき/#洞察 を束ねる)、(b) 新規ノードと既存ノート (notes/ の #気づき #洞察・概念ノート) の両方。同じバッチで立った新規 #気づき も source 候補に含めてよい——特に drain は 1 inbox から複数の気づきが同時に立つので、それらを束ねた洞察がこのフェーズの主な取り分になる (新規気づきはまだファイル化されていないが、承認後に notes/ に作られる前提で source 候補にしてよい)。入口は、context に読み込まれた「Vault Catalog」のリンク近傍 (各ノード行の →[outlinks]) と同タグ共有 (#気づき/#洞察 を持つ行)。カタログで近傍を絞ってから、繋がりの確証に要るノートだけ Read する。カタログは実 wikilink/タグしか持たないので、MOC/洞察.md (Dataview 集約) は別途 Read で入口に使える。カタログが context に無い場合に限り Grep で代替する。
+1. 繋がりを探す対象は (a) 今回の新規ノード同士 (上記「今回の新規/更新ノード」の #気づき/#洞察 を束ねる)、(b) 新規ノードと既存ノート (notes/ の #気づき #洞察・概念ノート) の両方。同じバッチで立った新規 #気づき も source 候補に含めてよい——特に drain は 1 inbox から複数の気づきが同時に立つので、それらを束ねた洞察がこのフェーズの主な取り分になる (新規気づきはまだファイル化されていないが、承認後に notes/ に作られる前提で source 候補にしてよい)。入口は MCP tool 経由で動的に引く (常時ロードのカタログは持たない・subagent には届かない)。
+   - 新規ノードの claim・タイトルを query にして \`mcp__vault-catalog__search_hybrid(query=claim, limit=5)\` を呼び、関連既存ノードを取得する。
+   - タグ近傍で気づき/洞察ノードを洗うときは \`mcp__vault-catalog__search_by_tag(tags=["気づき"], limit=20)\` / \`mcp__vault-catalog__search_by_tag(tags=["洞察"], limit=20)\` を呼ぶ。
+   - MCP で近傍を絞ってから、繋がりの確証に要るノートだけ Read する (全 notes の Grep fan-out はしない)。**MCP 結果は近傍候補であって洞察の根拠ではない**——claim の元になる繋がりは Read した本文で確証する。
+   - MOC/洞察.md (Dataview 集約) は MCP に乗らないため、束ね起点として要るときは Read で入口に使う。
+   - backfill mode では上記に加え、期間素材の path/gist を入口に Grep/Read で本文を辿る (backfillFocus 節と整合)。
 2. 単一観測・単一ノートの感想は洞察ではない (それは気づき止まり)。繋いで初めて見える第三の知見だけ。既出洞察の焼き直しも作らない。「過去の洞察と同じ筋」の再発はそれ自体が再発パターンの洞察になりうる。
 3. 各候補: claim に洞察を一文で言い切る (複文可)。**title は claim からでなく、手順 5(3) で導く derivation.common_axis を判断軸の形で言い切ったものにする** (claim 起点は失敗形/内的手順に流れ命名ゲートを通らない——common_axis を先に確定させてから命名する。順序: derivation→common_axis→命名)。connected_notes に繋いだ実在ノートの path (実在を Read で確認する)。content は templates/insight.md の構造 (AI Context callout / ## 見えた洞察 / ## なぜ重要 / ## 応用・次アクション) で frontmatter＋本文の完成形。source: に繋いだ元ノートを '  - "[[ノート名]]"' 形式で列挙。
 4. source の規律 (満たせない候補は出さない):
@@ -548,6 +559,8 @@ ${backfillFocus}
 6. なぜ重要・応用にはソフトウェア開発に転用できる接地を最低 1 つ入れる (読み手は SWE)。
 
 繋がりが弱ければ 0 件が正当な出力 (「A 止まりですらない」もありうる)。無理に B をでっち上げない。
+
+MCP 不達時の fallback: MCP tool 呼び出しで exception が出た場合は Grep に retreat し処理を継続する (Obsidian 起動時は \`obsidian tag name=気づき / name=洞察\` で実タグ索引、未起動なら frontmatter 形式に当てる multiline rg: \`rg -l --multiline -U '(?s)^---\\n(.*?\\n)*?tags:\\n(\\s*-\\s+[^\\n]*\\n)*\\s*-\\s+気づき' ${VAULT}/notes\` — inline #気づき タグだけを当てる \`rg -l '#気づき'\` は frontmatter 形式を取り逃すので使わない)。失敗したまま止めない。fallback した呼び出しごとに \`log('MCP_FALLBACK: <tool> <reason>')\` を 1 行出してから続行する。
 ${VAULT_RULES}
 ${NAMING_FOR_INSIGHT}`
 }
