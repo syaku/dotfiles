@@ -3,12 +3,25 @@ export const meta = {
   description: 'drain (即時 ingestion)・backfill (期間 reconciliation) の 2 層蒸留パイプライン: 素材整理 (既存突き合わせ・候補生成・命名ゲート inline)→洞察検出→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない',
   whenToUse: 'drain / harvest スキル本体 (SKILL.md) から scriptPath 指定で起動される。単体起動は想定しない',
   phases: [
-    { title: '素材整理', detail: 'inbox 昇格候補 (drain=sonnet) / 期間素材 (backfill=opus) の構造化と既存ノード突き合わせ。命名ゲート (機械 regex → 別 context 点検 agent → 再命名 → 再点検・最大 2 ラウンド) も素材整理 phase 内インラインで走る' },
-    { title: '洞察検出', detail: 'ノード間の繋がりから第三の知見を検出 (opus・0 件は正当・backfill は蓄積グラフの創発/メタ洞察が主眼)' },
-    { title: 'タスク・完了検出', detail: '既存タスクの done 候補検出。証拠は drain=inbox 連結・backfill=期間内作業レポート本文。引用は script が素材への包含で機械照合' },
-    { title: '集計', detail: 'ノート規約の機械検証 (frontmatter/更新履歴/ラベル残存/タグ整合) と totals 計算' },
+    { title: '素材整理', detail: 'inbox 昇格候補 (drain=sonnet・done 候補検出も併合) / 期間素材 (backfill=opus) の構造化と既存ノード突き合わせ。命名ゲート (機械 regex → 別 context 点検 agent → 再命名 → 再点検・最大 2 ラウンド) も素材整理 phase 内インラインで走る' },
+    { title: '洞察検出', detail: 'ノード間の繋がりから第三の知見を検出 (opus・0 件は正当・backfill は蓄積グラフの創発/メタ洞察が主眼)。drain では各候補の source_excerpt 直結の lightMaterial を渡す (corpus 全文注入は廃止)' },
+    { title: 'タスク・完了検出', detail: '既存タスクの done 候補検出。drain では素材整理段で併合済み (donePrompt 呼び出しは廃止・引用は集約段で script が包含照合)。backfill は期間内作業レポート本文を corpus に donePrompt を走らせる' },
+    { title: '集計', detail: 'ノート規約の機械検証 (frontmatter/更新履歴/ラベル残存/タグ整合) と totals 計算。DUPLICATE_DETECTED (done と promotions の inbox_origin 衝突) と INSIGHT_ZERO のログも出す' },
   ],
 }
+
+// args interface:
+//   共通: mode ('drain'|'backfill') / vault (絶対パス) / now (ISO-T) / today (YYYY-MM-DD)
+//   drain:
+//     inbox_files: [{path, content?}] 必須 — path のみが主流路。content 省略時は subagent が Read tool で取得 (main 占有トークン削減)。
+//     open_tasks: [{path, title}] 必須 — 既存タスクノート一覧。drain 抽出 subagent が done 候補検出のために突き合わせる素材。
+//     style_titles: 既存 #気づき/#洞察 ノートのタイトル配列 (家風実例)
+//     distill_log_pairs: [{bad, good}] / distill_log_approved: [string] — 主流路 (main が awk + regex で抽出済み)
+//     distill_log_text: 互換経路 (pairs/approved 不在時のみ parseDistillLog にフォールバック)
+//     obsidian_available: boolean — 被リンク洗いコマンド分岐
+//   backfill:
+//     period: {from, to} 必須
+//     distill_log_text 等は drain と同じ
 
 // ---- 入力 (ツール境界の引数は受け側で defensive に正規化する) ----
 let input = args
@@ -27,10 +40,12 @@ if (!['drain', 'backfill'].includes(MODE)) throw new Error('mode は drain | bac
 const VAULT = input.vault
 const NOW = input.now // ISO-T (YYYY-MM-DDTHH:mm)
 const TODAY = input.today // YYYY-MM-DD
-const INBOX_FILES = input.inbox_files || [] // drain: [{path, content}] — content は done 照合・素材渡しのため呼び出し側が Read して渡す
+const INBOX_FILES = input.inbox_files || [] // drain: [{path}] が主流路。content は省略可 (drain 抽出 subagent が Read tool で本文を取る)。
+// 後方互換として content 同梱もサポート (subagent 側で Read をスキップ)。v6 plan で main 占有トークンを削減するため。
+const OPEN_TASKS = input.open_tasks // drain: [{path, title}] — 既存タスクノート一覧。drain 抽出 subagent が done 候補検出のために突き合わせる素材。drain 必須で || [] の既定値は取らない (validation 不発を防ぐため)
 const PERIOD = input.period || null // backfill: {from, to}
 const STYLE_TITLES = input.style_titles || [] // 既存 #気づき/#洞察 ノートのタイトル一覧 (家風の実例。呼び出し側が rg で機械取得して渡す)
-const DISTILL_LOG_TEXT = input.distill_log_text || '' // notes/distill運用ログ.md の本文 (呼び出し側が Read して渡す)。✗→○ 訂正ペア抽出に使う
+const DISTILL_LOG_TEXT = input.distill_log_text || '' // notes/distill運用ログ.md の本文 (呼び出し側が Read して渡す・互換経路)。✗→○ 訂正ペア抽出に使う。主流路は distill_log_pairs / distill_log_approved で main 側で抽出済みを渡す
 
 // 運用ログから「人ゲートで approve された ✗→○ 訂正ペア」を抽出。
 // 書式: 「(A1|B1|T1 等) 初稿 `X`（任意の註釈）→ `Y`」または「(A1|B1) 初稿 `X` は ... 通過」(後者は通過扱いで approved に積む)。
@@ -61,15 +76,19 @@ function parseDistillLog(text) {
 const DISTILL_LOG_FROM_TEXT = parseDistillLog(DISTILL_LOG_TEXT)
 // 事前抽出済みの pairs/approved を直接渡すこともできる (full text を args に埋め込むのを避けたい場合)。
 // 配列で渡せば parseDistillLog の結果より優先する。
+// length > 0 を要求するのは「main 側で抽出した結果が空配列のときに distill_log_text 経由の parseDistillLog
+// にフォールバックさせる」ため (Array.isArray だけだと [] が array なので採用され、SKILL.md の「両方空で
+// text fallback」記述と乖離する)。両方が non-empty array のときだけ採用、片方/両方が空なら text fallback。
 const DISTILL_LOG = {
-  pairs: Array.isArray(input.distill_log_pairs) ? input.distill_log_pairs : DISTILL_LOG_FROM_TEXT.pairs,
-  approved: Array.isArray(input.distill_log_approved) ? input.distill_log_approved : DISTILL_LOG_FROM_TEXT.approved,
+  pairs: (Array.isArray(input.distill_log_pairs) && input.distill_log_pairs.length > 0) ? input.distill_log_pairs : DISTILL_LOG_FROM_TEXT.pairs,
+  approved: (Array.isArray(input.distill_log_approved) && input.distill_log_approved.length > 0) ? input.distill_log_approved : DISTILL_LOG_FROM_TEXT.approved,
 }
 // Obsidian 起動の有無 (タグ列挙・被リンク洗いを obsidian-cli にするか rg にするかの分岐)。起動判定は run 中で不変なので
 // SKILL.md step 1 が pgrep -x Obsidian で一度だけ判定して渡す。分岐は決定論なので script がコマンド文字列を解決し、
 // プロンプトには解決済みの単一コマンドだけを埋める (各 subagent に pgrep+分岐を委ねない)。未指定 (harvest 等) は false=rg/Grep。
 const OBSIDIAN_AVAILABLE = !!input.obsidian_available
-if (MODE === 'drain' && !INBOX_FILES.length) throw new Error('drain には inbox_files ([{path, content}]) が必要')
+if (MODE === 'drain' && !INBOX_FILES.length) throw new Error('drain には inbox_files ([{path}] が主流路・content は省略可) が必要')
+if (MODE === 'drain' && !Array.isArray(OPEN_TASKS)) throw new Error('drain には open_tasks ([{path, title}]) が必要 (string/null/undefined は不可・空配列は可)')
 if (MODE === 'backfill' && !(PERIOD && PERIOD.from && PERIOD.to)) throw new Error('backfill には period ({from, to}) が必要')
 
 // ---- モデル固定 (モデル出し分けを /model 手動運用から script へ移す) ----
@@ -94,29 +113,49 @@ const BACKLINK_EDIT = {
   },
 }
 
-function candidateItem(kinds) {
-  return {
-    type: 'object',
-    required: ['kind', 'label', 'title', 'content', 'fold_into', 'source_excerpt', 'why_important', 'backlink_edits'],
-    properties: {
-      kind: { enum: kinds },
-      label: { enum: ['none', ...TASK_LABELS], description: 'kind=タスク のとき抽出ラベル。それ以外は none' },
-      title: { type: 'string', description: 'ノートのファイル名になるタイトル (拡張子なし)' },
-      content: { type: 'string', description: 'frontmatter＋本文の完成形。fold_into 指定時は空文字' },
-      fold_into: { type: 'string', description: '明白に同一物の既出を既存ノートへ畳む場合のみその path。新規なら空文字 (迷ったら分けて作りリンクする)' },
-      source_excerpt: { type: 'string', description: 'タイトルの元になった素材の逐語抜粋 (命名点検の元記述)' },
-      why_important: { type: 'string', description: 'タスク③は必須。それ以外は空文字可' },
-      backlink_edits: { type: 'array', items: BACKLINK_EDIT, description: '関連既存ノード側からの逆リンク追記 (双方向リンク)。fold 時は畳み先への追記' },
-    },
+function candidateItem(kinds, { withInboxOrigin = false } = {}) {
+  const required = ['kind', 'label', 'title', 'content', 'fold_into', 'source_excerpt', 'why_important', 'backlink_edits']
+  const properties = {
+    kind: { enum: kinds },
+    label: { enum: ['none', ...TASK_LABELS], description: 'kind=タスク のとき抽出ラベル。それ以外は none' },
+    title: { type: 'string', description: 'ノートのファイル名になるタイトル (拡張子なし)' },
+    content: { type: 'string', description: 'frontmatter＋本文の完成形。fold_into 指定時は空文字' },
+    fold_into: { type: 'string', description: '明白に同一物の既出を既存ノートへ畳む場合のみその path。新規なら空文字 (迷ったら分けて作りリンクする)' },
+    source_excerpt: { type: 'string', description: 'タイトルの元になった素材の逐語抜粋 (命名点検の元記述)' },
+    why_important: { type: 'string', description: 'タスク③は必須。それ以外は空文字可' },
+    backlink_edits: { type: 'array', items: BACKLINK_EDIT, description: '関連既存ノード側からの逆リンク追記 (双方向リンク)。fold 時は畳み先への追記' },
   }
+  if (withInboxOrigin) {
+    required.push('inbox_origin')
+    properties.inbox_origin = { type: 'string', description: 'この候補がどの inbox から来たか (集約段で done_candidates との重複検出に使う照合キー。drain の場合は drainExtractPrompt が処理中の inbox path を埋める)' }
+  }
+  return { type: 'object', required, properties }
 }
 
 const EXTRACT_SCHEMA = {
   type: 'object',
-  required: ['promotions', 'old_name_referrers'],
+  required: ['promotions', 'old_name_referrers', 'done_candidates'],
   properties: {
-    promotions: { type: 'array', items: candidateItem(['気づき', 'タスク', '作業レポート・事実']) },
+    // drain 抽出 subagent に done 検出を併合 (v6 plan・全体最適優先)。promotions 側にも inbox_origin 照合キーを持たせ、
+    // 集約段で done_candidates と promotions の同 inbox_origin 重複を DUPLICATE_DETECTED として検出する (prompt 内 order 強制
+    // と排他指示のフェイルセーフ)。
+    promotions: { type: 'array', items: candidateItem(['気づき', 'タスク', '作業レポート・事実'], { withInboxOrigin: true }) },
     old_name_referrers: { type: 'array', items: { type: 'string' }, description: '昇格でこの inbox 名が変わる/分割される場合、元 inbox 名を wikilink で指す既存ノートの path (obsidian backlinks / rg -l の結果)' },
+    done_candidates: {
+      type: 'array',
+      description: '既存タスクノートのうち、この inbox の本文に完了示唆が読み取れるもの。0 件が正当 (推測で done 候補にしない)',
+      items: {
+        type: 'object',
+        required: ['task_path', 'evidence_quote', 'basis', 'quote_verified', 'inbox_origin'],
+        properties: {
+          task_path: { type: 'string', description: '既存タスクノートの path (open_tasks から)' },
+          evidence_quote: { type: 'string', description: 'inbox 本文中の完了示唆の逐語引用 (集約段で script が包含照合する)' },
+          basis: { type: 'string', description: 'やることのどの項目が満たされたかの説明' },
+          quote_verified: { type: 'boolean', description: 'subagent が自分の context 内で evidence_quote が inbox 本文に包含されることを確認した真偽 (集約段でも script が再照合する)' },
+          inbox_origin: { type: 'string', description: 'この done 候補がどの inbox から来たか (drainExtractPrompt が処理中の inbox path を埋める。集約段の DUPLICATE_DETECTED 照合キー)' },
+        },
+      },
+    },
   },
 }
 
@@ -469,18 +508,34 @@ ${c.content}
 }
 
 // ---- プロンプト (モード別素材整理) ----
-function drainExtractPrompt(f) {
+// drain 抽出 subagent は責務を「気づき／作業レポート／タスク候補／done 候補」の 4 系統に集約する (v6 plan 併合案・全体最適)。
+// 後段の donePrompt(corpus) 呼び出しは drain mode のみ廃止 (backfill mode は残す)。inbox 本文は呼び出し側が Read 済み content
+// を渡してきた場合はそれを使い、そうでなければ subagent が Read tool で取得する (main 占有トークン削減のため content 省略を主流路に)。
+function drainExtractPrompt(f, openTasksList) {
   // 被リンク洗いコマンドは script が決定論で解決する (起動判定は SKILL.md step 1 が渡した flag)。agent は実行のみ。
   const backlinkCmd = OBSIDIAN_AVAILABLE
     ? 'obsidian backlinks file=<元 inbox 名 (拡張子なし)> (実リンクグラフを解決するので alias・heading リンクも拾う)'
     : `rg -l '\\[\\[<元 inbox 名 (拡張子なし)>\\]\\]' ${VAULT}`
-  return `あなたは vault inbox 排出 (drain) の昇格担当。以下の inbox ノート 1 件を読み、notes/ へ昇格させる候補を構造化して返せ。ファイルへの書き込みは一切しない (Read/Grep/Glob のみ。Write は呼び出し元の責務)。
+  const hasContent = !!(f.content && f.content.length)
+  const bodySection = hasContent
+    ? `--- 内容ここから ---\n${f.content}\n--- 内容ここまで ---`
+    : `本文取得: Read tool で \`${f.path}\` を開き、本文を加工せず subagent context 内で扱う。**読んだ全文を戻り値に再掲しない** (集約段が肥大化する。逐語が要るのは source_excerpt と done 候補の evidence_quote だけ)。`
+  const openTasksSection = (openTasksList && openTasksList.length)
+    ? `既存タスクノート一覧 (done 候補検出の突き合わせ素材。これ以外を done 候補にしない):\n${openTasksList.map((t) => `- ${t.path}${t.title ? ` — ${t.title}` : ''}`).join('\n')}`
+    : '既存タスクノート一覧: (なし。done 候補は 0 件のまま返す)'
+  return `あなたは vault inbox 排出 (drain) の昇格担当。以下の inbox ノート 1 件を読み、notes/ へ昇格させる候補と完了 (done) 候補を構造化して返せ。ファイルへの書き込みは一切しない (Read/Grep/Glob のみ。Write は呼び出し元の責務)。
 
 vault: ${VAULT}
 inbox ノート: ${f.path}
---- 内容ここから ---
-${f.content}
---- 内容ここまで ---
+${bodySection}
+
+${openTasksSection}
+
+**責務の順序強制と排他**:
+- まず **done 検出**: Read した inbox 本文と上の既存タスクノート一覧を突き合わせ、完了示唆 (「X 完了」「やった」「実装した」「やることが満たされた」等が plain に読める) のあるタスクを done_candidates に返す。evidence_quote は **inbox 本文中の逐語引用** (要約・言い換えは集約段の包含照合に落ちる)。basis は「やることのどの項目が満たされたか」の説明。quote_verified は **subagent 自身が evidence_quote の inbox 本文への包含を確認した真偽** (true なら集約段の再照合も通る前提・false なら確認に落ちた)。inbox_origin は処理中の inbox path = \`${f.path}\` を埋める。
+- **残り**で気づき/タスク候補/作業レポートを組み立てる: done 検出で拾った既存タスクの完了示唆は **気づき/タスク候補に含めない**。それ以外の素材から promotions を組み立てる。
+- **排他指示**: 同じ記述を done_candidates と promotions の両方に出さない。done 候補に該当する記述は done_candidates にだけ出す (集約段で同じ inbox_origin から両者が出ると DUPLICATE_DETECTED が立つ)。
+- promotions の各候補に inbox_origin = \`${f.path}\` を埋める (集約段の重複検出と洞察検出 lightMaterial の照合キー)。
 
 手順:
 1. この inbox の内容を「名付けられる粒度」で昇格候補に分ける (1 inbox から複数可)。作業レポート・調査記録はそれ自体を 1:1・具体タイトルのまま kind=作業レポート・事実 として昇格する。ただし 1:1 で終わらせず、下記「気づき抽出」を必ず併走させる (1 inbox が 作業レポート＋気づき＋タスク を同時に生むのは正常)。
@@ -591,15 +646,15 @@ log(`mode=${MODE} / 素材: ${MODE === 'drain' ? INBOX_FILES.length + ' inbox fi
 let candidates = []
 let linkRewrites = []
 let backfillMaterial = null
-let corpus = '' // done 検出の証拠照合用テキスト (script が手元に持つ素材だけが照合対象)
+let corpus = '' // done 検出の証拠照合用テキスト (script が手元に持つ素材だけが照合対象)。drain では未使用 (drain 抽出 subagent が併合済み)
+let drainDoneCandidates = [] // drain mode の done 候補は drain 抽出 subagent が返したものを flatten する (donePrompt は呼ばない)
 const flags = { extraction_failed: [], insight_failed: false, done_failed: false, done_skipped_no_reports: false }
 
 if (MODE === 'drain') {
-  corpus = INBOX_FILES.map((f) => `===== ${f.path} =====\n${f.content}`).join('\n')
   await pipeline(
     INBOX_FILES,
     (f) =>
-      agent(drainExtractPrompt(f), {
+      agent(drainExtractPrompt(f, OPEN_TASKS), {
         schema: EXTRACT_SCHEMA,
         model: M_EXTRACT,
         label: `extract:${f.path.split('/').pop()}`,
@@ -610,11 +665,19 @@ if (MODE === 'drain') {
         flags.extraction_failed.push(f.path)
         return null
       }
-      for (const c of ex.promotions) c.origin = f.path
+      for (const c of ex.promotions) {
+        // inbox_origin はプロンプトで埋めさせているが、念のため script 側でも保証する (集約段の DUPLICATE_DETECTED 照合キー・belt-and-suspenders)
+        if (!c.inbox_origin) c.inbox_origin = f.path
+      }
       // 同一 inbox の候補は揃った時点で即ゲートに流す (他 inbox の抽出を待たない)
       await parallel(ex.promotions.filter(needsGate).map((c) => () => runGate(c)))
       candidates.push(...ex.promotions)
       if (ex.old_name_referrers.length) linkRewrites.push({ inbox: f.path, referrers: ex.old_name_referrers })
+      // inbox_origin は念のため script 側でも保証する (belt-and-suspenders)
+      for (const d of (ex.done_candidates || [])) {
+        if (!d.inbox_origin) d.inbox_origin = f.path
+        drainDoneCandidates.push(d)
+      }
       return ex
     },
   )
@@ -642,12 +705,28 @@ log(`素材整理: 候補 ${candidates.length} 件 (うち fold ${candidates.fil
 // ============================================================
 phase('洞察検出')
 const nonTask = candidates.filter((c) => c.kind !== 'タスク')
-const newNotesList = nonTask
-  .map((c) => `- [${c.kind}] ${c.title}${c.fold_into ? ` (→ ${c.fold_into} へ畳む)` : ''}`)
-  .join('\n')
 let extraMaterial = ''
-if (MODE === 'drain') extraMaterial = `昇格元 inbox の内容 (素材):\n${corpus}`
+let newNotesList = ''
+let sourceExcerptEmptyCount = 0
+if (MODE === 'drain') {
+  // drain は corpus 全文注入を廃止し、各候補の source_excerpt 直結の lightMaterial を別途渡す (v6 plan・全体最適)。
+  // newNotesList は insightPrompt の canonical anchor として保持 (`今回の新規/更新ノード` 節が "(なし)" になると洞察検出が
+  // 新規 0 件と誤読する)。drain でも `[kind] title` 形式で必ず生成する (lightMaterial 側で gist=source_excerpt を補強する)。
+  sourceExcerptEmptyCount = nonTask.filter((c) => !c.source_excerpt).length
+  newNotesList = nonTask
+    .map((c) => `- [${c.kind}] ${c.title}${c.fold_into ? ` (→ ${c.fold_into} へ畳む)` : ''}`)
+    .join('\n')
+  // lightMaterial: source_excerpt は長文時に lightMaterial 全体を肥大化させるので 200 字までで切る (洞察検出の入口素材として
+  // 十分・行き止まりの絞り込みは subagent が MCP/Read で再取得する)。
+  extraMaterial = `昇格元 inbox から立った新規気づき・候補 (path + gist=source_excerpt 直結・gist は 200 字までで truncate):\n${nonTask
+    .map((c) => `- [${c.kind}] [[${c.title}]] (${c.inbox_origin || '(no origin)'}): ${(c.source_excerpt || '(no excerpt)').slice(0, 200)}`)
+    .join('\n')}`
+}
 if (MODE === 'backfill') {
+  // backfill は従来の newNotesList 生成を維持する (lightMaterial は drain と別経路)。
+  newNotesList = nonTask
+    .map((c) => `- [${c.kind}] ${c.title}${c.fold_into ? ` (→ ${c.fold_into} へ畳む)` : ''}`)
+    .join('\n')
   // body 全量は注入しない (done sweep の証跡照合は corpus 側が full body で担うので insight に body は不要)。
   // period_pages を {path, gist} に絞った軽量版＋journal_notes だけ渡す (広期間でのトークン肥大を避ける)。
   const lightMaterial = {
@@ -688,26 +767,65 @@ if (!ir) {
   candidates.push(...insights)
 }
 log(`洞察検出: ${ir ? ir.insights.length : '失敗'} 件`)
+// INSIGHT_ZERO ログ (drain mode のみ・lightMaterial で素材足りているか観察するための指標)。
+// 判定基準は本 script ではなく外側 (drain 実走を跨いだ 3 回連続発生) で行うので、ここでは件数指標だけ出す。
+if (MODE === 'drain' && ir && ir.insights.length === 0) {
+  // lightMaterial_count は nonTask.length と同値なので 1 つだけ残す (nonTask_count を撤去)
+  log(`INSIGHT_ZERO: lightMaterial_count=${nonTask.length} source_excerpt_empty_count=${sourceExcerptEmptyCount}`)
+}
 
 // ============================================================
 phase('タスク・完了検出')
 let doneCandidates = []
-// drain は inbox 連結・backfill は期間内作業レポート本文が corpus。corpus が空なら done sweep をスキップ (証拠ゼロ)。
-if (corpus) {
-  const dr = await agent(donePrompt(corpus), { agentType: 'Explore', schema: DONE_SCHEMA, model: 'sonnet', label: 'done-scan', phase: 'タスク・完了検出' })
-  if (!dr) {
-    flags.done_failed = true
-  } else {
-    doneCandidates = dr.done_candidates.map((d) => ({
-      ...d,
-      quote_verified: !!d.evidence_quote && corpus.includes(d.evidence_quote.trim()),
-    }))
+let duplicateDetected = []
+if (MODE === 'drain') {
+  // drain は素材整理段の drain 抽出 subagent が done 検出責務を併合済み (v6 plan)。donePrompt 呼び出しは廃止。
+  // quote_verified は drain 抽出 subagent の自己申告のみ。workflow 側の再照合は v6 plan で廃止 (drain mode では full inbox
+  // 本文が workflow に流れず再包含照合できない・本格的な再照合 Read agent は YAGNI で別 cycle 候補)。schema で quote_verified
+  // は boolean 確定済みなのでそのまま使う。
+  doneCandidates = drainDoneCandidates
+  // DUPLICATE_DETECTED: 同じ inbox_origin から done_candidates と promotions の両方が候補を出した場合の重複検出ログ。
+  // prompt 内 order 強制 + 排他指示のフェイルセーフ。粗い判定で false positive が出る (作業レポート・気づき由来の duplicate も
+  // 拾うため) が、false negative は減る方向 (v6 plan で受容済み)。kind === 'タスク' に絞らず全 promotions を対象にする。
+  for (const d of doneCandidates) {
+    const hits = candidates
+      .filter((c) => c.inbox_origin === d.inbox_origin)
+      .map((c) => ({ kind: c.kind, title: c.title }))
+    if (hits.length) {
+      duplicateDetected.push({ inbox_origin: d.inbox_origin, done_task_path: d.task_path, conflicting_promotions: hits })
+    }
   }
-}
-if (flags.done_skipped_no_reports) {
-  log('done 候補: 走査せず (期間内に作業レポート系ノートが無く reconcile 対象ゼロ)')
+  // 統計: quote_verified 件数と evidence_quote 長さ分布
+  const verifiedCount = doneCandidates.filter((d) => d.quote_verified).length
+  const quoteLengths = doneCandidates.map((d) => (d.evidence_quote || '').length)
+  const avgQuoteLen = quoteLengths.length ? Math.round(quoteLengths.reduce((a, b) => a + b, 0) / quoteLengths.length) : 0
+  log(
+    `done 候補 (drain・併合済み): ${doneCandidates.length} 件 (quote_verified true ${verifiedCount} / evidence_quote 平均長 ${avgQuoteLen})`,
+  )
+  if (duplicateDetected.length) {
+    log(`DUPLICATE_DETECTED: ${duplicateDetected.length} 件 (done と promotions が同じ inbox_origin から出た組)`)
+    for (const dup of duplicateDetected) {
+      log(`  - inbox=${dup.inbox_origin} done=${dup.done_task_path} promotions=${dup.conflicting_promotions.map((p) => `[${p.kind}]${p.title}`).join(', ')}`)
+    }
+  }
 } else {
-  log(`done 候補: ${doneCandidates.length} 件 (引用照合落ち ${doneCandidates.filter((d) => !d.quote_verified).length})`)
+  // backfill は期間内作業レポート本文が corpus。corpus が空なら done sweep をスキップ (証拠ゼロ)。
+  if (corpus) {
+    const dr = await agent(donePrompt(corpus), { agentType: 'Explore', schema: DONE_SCHEMA, model: 'sonnet', label: 'done-scan', phase: 'タスク・完了検出' })
+    if (!dr) {
+      flags.done_failed = true
+    } else {
+      doneCandidates = dr.done_candidates.map((d) => ({
+        ...d,
+        quote_verified: !!d.evidence_quote && corpus.includes(d.evidence_quote.trim()),
+      }))
+    }
+  }
+  if (flags.done_skipped_no_reports) {
+    log('done 候補: 走査せず (期間内に作業レポート系ノートが無く reconcile 対象ゼロ)')
+  } else {
+    log(`done 候補: ${doneCandidates.length} 件 (引用照合落ち ${doneCandidates.filter((d) => !d.quote_verified).length})`)
+  }
 }
 
 // ============================================================
@@ -754,9 +872,10 @@ const totals = {
   validation_failed: candidates.filter((c) => (c.validation_errors || []).length).length,
   insights_derivation_incomplete: candidates.filter((c) => c.kind === '洞察' && !c.derivation_ok).length,
   done_candidates: doneCandidates.length,
+  duplicate_detected: duplicateDetected.length,
 }
 log(
-  `集計: ${totals.count} 候補 (気づき ${totals.kizuki} / 洞察 ${totals.insights} / タスク ${totals.tasks} / レポート・事実 ${totals.reports} / fold ${totals.folds}) 再命名 ${totals.renamed} / ゲート未解決 ${totals.gate_unresolved} / 検証落ち ${totals.validation_failed} / 洞察導出未完 ${totals.insights_derivation_incomplete}`,
+  `集計: ${totals.count} 候補 (気づき ${totals.kizuki} / 洞察 ${totals.insights} / タスク ${totals.tasks} / レポート・事実 ${totals.reports} / fold ${totals.folds}) 再命名 ${totals.renamed} / ゲート未解決 ${totals.gate_unresolved} / 検証落ち ${totals.validation_failed} / 洞察導出未完 ${totals.insights_derivation_incomplete} / 重複検出 ${totals.duplicate_detected}`,
 )
 
 return {
@@ -764,6 +883,7 @@ return {
   candidates,
   link_rewrites: linkRewrites,
   done_candidates: doneCandidates,
+  duplicate_detected: duplicateDetected, // drain mode のみ非空。done_candidates と promotions が同じ inbox_origin から出た組
   totals,
   flags,
 }

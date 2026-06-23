@@ -51,7 +51,7 @@ description: 期間を切って過去を遡り、未完了タスクの完了（d
 
 ### 3. 戻り解釈
 
-workflow は `{candidates, link_rewrites, done_candidates, totals, flags}` を返す（schema は script 冒頭を参照）。素材整理段で生成される候補はタスク①のみ（②③ は schema enum で表現不能・気づきは backfill では作らない）が、その後の洞察検出が検出した洞察を候補に merge する（script の `candidates.push(...insights)`）。したがって**戻りの `candidates` にはタスク①＋洞察が含まれる**（下の per-item 列挙はこの全件を対象にする）。
+workflow は `{candidates, link_rewrites, done_candidates, duplicate_detected, totals, flags}` を返す（schema は script 冒頭を参照）。素材整理段で生成される候補はタスク①のみ（②③ は schema enum で表現不能・気づきは backfill では作らない）が、その後の洞察検出が検出した洞察を候補に merge する（script の `candidates.push(...insights)`）。したがって**戻りの `candidates` にはタスク①＋洞察が含まれる**（下の per-item 列挙はこの全件を対象にする）。`duplicate_detected` と `totals.duplicate_detected` は drain mode のフェイルセーフ用フィールドで、backfill では常に空配列・0 が返る（drain と schema を共有しているため field は存在する）。
 
 - `totals` は script 計算。`candidates.length` との一致を一瞥確認する（不一致は script 改変事故なので報告して停止）。
 - **backfill 素材収集 agent が結果を返さない場合、workflow は flag に退避せず例外終了する**（`backfill 素材収集 agent が結果を返さなかった` を throw）。backfill は素材収集が単一 agent で全工程の前提になるため fail-loud にしてある（drain の `extraction_failed` への graceful な flag 退避とは非対称——drain は inbox ごとに独立して部分失敗を許せるが、backfill は素材ゼロでは後段が全て空回りするため）。例外が出たら戻りは無いので、ユーザに収集失敗を報告して中断する。
