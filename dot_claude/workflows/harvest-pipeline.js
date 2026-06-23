@@ -15,13 +15,9 @@ export const meta = {
 //   drain:
 //     inbox_files: [{path, content?}] 必須 — path のみが主流路。content 省略時は subagent が Read tool で取得 (main 占有トークン削減)。
 //     open_tasks: [{path, title}] 必須 — 既存タスクノート一覧。drain 抽出 subagent が done 候補検出のために突き合わせる素材。
-//     style_titles: 既存 #気づき/#洞察 ノートのタイトル配列 (家風実例)
-//     distill_log_pairs: [{bad, good}] / distill_log_approved: [string] — 主流路 (main が awk + regex で抽出済み)
-//     distill_log_text: 互換経路 (pairs/approved 不在時のみ parseDistillLog にフォールバック)
 //     obsidian_available: boolean — 被リンク洗いコマンド分岐
 //   backfill:
 //     period: {from, to} 必須
-//     distill_log_text 等は drain と同じ
 
 // ---- 入力 (ツール境界の引数は受け側で defensive に正規化する) ----
 let input = args
@@ -44,45 +40,7 @@ const INBOX_FILES = input.inbox_files || [] // drain: [{path}] が主流路。co
 // 後方互換として content 同梱もサポート (subagent 側で Read をスキップ)。v6 plan で main 占有トークンを削減するため。
 const OPEN_TASKS = input.open_tasks // drain: [{path, title}] — 既存タスクノート一覧。drain 抽出 subagent が done 候補検出のために突き合わせる素材。drain 必須で || [] の既定値は取らない (validation 不発を防ぐため)
 const PERIOD = input.period || null // backfill: {from, to}
-const STYLE_TITLES = input.style_titles || [] // 既存 #気づき/#洞察 ノートのタイトル一覧 (家風の実例。呼び出し側が rg で機械取得して渡す)
-const DISTILL_LOG_TEXT = input.distill_log_text || '' // notes/distill運用ログ.md の本文 (呼び出し側が Read して渡す・互換経路)。✗→○ 訂正ペア抽出に使う。主流路は distill_log_pairs / distill_log_approved で main 側で抽出済みを渡す
 
-// 運用ログから「人ゲートで approve された ✗→○ 訂正ペア」を抽出。
-// 書式: 「(A1|B1|T1 等) 初稿 `X`（任意の註釈）→ `Y`」または「(A1|B1) 初稿 `X` は ... 通過」(後者は通過扱いで approved に積む)。
-// 失敗形→修正形の対を見せる方が ○ 単体より家風転写が強い (NAMING_COMMON の「実例 ✗→○」と同形式)。
-function parseDistillLog(text) {
-  if (!text) return { pairs: [], approved: [] }
-  const pairs = [] // [{bad, good}]
-  const approvedSet = new Set()
-  const pairRe = /初稿\s*[`「]([^`「」]+?)[`」][^→\n]*→\s*[`「]([^`「」]+?)[`」]/g
-  for (const m of text.matchAll(pairRe)) {
-    const bad = m[1].trim()
-    const good = m[2].trim()
-    if (bad && good && bad !== good) {
-      pairs.push({ bad, good })
-      approvedSet.add(good)
-    }
-  }
-  // 「初稿 `X` は ... 通過」型 (訂正なしで approve)。同一行に「→」を含む場合は pairRe が拾った訂正行なので除外
-  // (✗ 側を approve に混ぜないため)。
-  const passRe = /初稿\s*[`「]([^`「」]+?)[`」]([^\n]*?)(?:1\s*ラウンド)?通過/g
-  for (const m of text.matchAll(passRe)) {
-    const t = m[1].trim()
-    const between = m[2]
-    if (t && !between.includes('→')) approvedSet.add(t)
-  }
-  return { pairs, approved: [...approvedSet] }
-}
-const DISTILL_LOG_FROM_TEXT = parseDistillLog(DISTILL_LOG_TEXT)
-// 事前抽出済みの pairs/approved を直接渡すこともできる (full text を args に埋め込むのを避けたい場合)。
-// 配列で渡せば parseDistillLog の結果より優先する。
-// length > 0 を要求するのは「main 側で抽出した結果が空配列のときに distill_log_text 経由の parseDistillLog
-// にフォールバックさせる」ため (Array.isArray だけだと [] が array なので採用され、SKILL.md の「両方空で
-// text fallback」記述と乖離する)。両方が non-empty array のときだけ採用、片方/両方が空なら text fallback。
-const DISTILL_LOG = {
-  pairs: (Array.isArray(input.distill_log_pairs) && input.distill_log_pairs.length > 0) ? input.distill_log_pairs : DISTILL_LOG_FROM_TEXT.pairs,
-  approved: (Array.isArray(input.distill_log_approved) && input.distill_log_approved.length > 0) ? input.distill_log_approved : DISTILL_LOG_FROM_TEXT.approved,
-}
 // Obsidian 起動の有無 (タグ列挙・被リンク洗いを obsidian-cli にするか rg にするかの分岐)。起動判定は run 中で不変なので
 // SKILL.md step 1 が pgrep -x Obsidian で一度だけ判定して渡す。分岐は決定論なので script がコマンド文字列を解決し、
 // プロンプトには解決済みの単一コマンドだけを埋める (各 subagent に pgrep+分岐を委ねない)。未指定 (harvest 等) は false=rg/Grep。
@@ -258,79 +216,37 @@ const DONE_SCHEMA = {
 const VAULT_RULES = `
 vault 規約 (ノート生成時に厳守):
 - 置き場は ${VAULT}/notes/ 直下。専用フォルダを作らない。
-- frontmatter: createdAt / updatedAt とも ${NOW} (ISO-T)。status: active。tags は 3 つ程度・大枠カテゴリのみ・日本語優先・既存タグ再利用 (新規タグは既存に該当が無い場合のみ)。
-- 気づきノートは tags に 気づき。洞察ノートは tags に 洞察＋frontmatter source: に繋いだ元ノートを各行 '  - "[[ノート名]]"' で列挙。タスクノートは tags に タスク＋progress: backlog。検証済みの事実・仕様・作業レポートにはどれも付けない (トピックタグのみ)。
-- 層の判別: 気づき＝作業を通じて立ち上がった主観的な学び・判断・方針。事実＝外部検証可能な客観 (特定ツールの狭いスペック)。決め手はタイトルの高度——主語をツールから一般化した教訓は気づき側。高度は 事実/仕様 → 気づき → 原理・方針 → 洞察 の順。
-- 本文: H1 禁止 (H2 から)。冒頭に > [!NOTE] AI Context callout で主題を 1〜2 文。概念・元ノートへ本文 wikilink を張る。末尾に ## 更新履歴 と「- [[${TODAY}]] — <理由>」行 (journal 日付 wikilink はここに集約し本文に散らさない)。
-- タスク本文: ## やること を plain な「- 」箇条書き (チェックボックス「- [ ]」禁止)。③ 由来は ## 元ノート(なぜ重要) 必須。ラベル文字 ①②③ は label field のみに書き、タスクノートのタイトル・content に残さない (タスク以外の kind が素材原文の ①②③ を引用するのは正当——回避表記に書き換えない)。
-- 捏造補完しない: 元の素材から復元できる範囲に留める。素材に無い感覚・詳細を想像で埋めない。
-- 突き合わせ: 明白に同一物の既出だけ既存ノードへ畳む (fold_into)。迷ったら分けて作りリンクする (失敗は重複でなく orphan。重複生成は主題が繰り返すシグナル)。
-- imports/kindle/ imports/wallabag/ はリンク先に使ってよいが編集対象にしない。`
+- frontmatter: createdAt / updatedAt とも ${NOW} (ISO-T)。status: active。tags は 3 つ程度・日本語優先・既存タグ再利用。
+- 気づきは tags に 気づき。洞察は tags に 洞察＋frontmatter source: で繋いだ元ノートを '  - "[[ノート名]]"' で列挙。タスクは tags に タスク＋progress: backlog。事実・作業レポートはトピックタグのみ。
+- 層: 事実/仕様 → 気づき (主観的学び) → 原理・方針 → 洞察 (繋いで見える第三知見)。主語の高度で判別する。
+- 本文: H1 禁止 (H2 から)。冒頭に > [!NOTE] AI Context callout で主題を 1〜2 文。本文 wikilink を張る。末尾に ## 更新履歴 と「- [[${TODAY}]] — <理由>」(journal 日付 wikilink はここに集約)。
+- タスク本文: ## やること を「- 」箇条書き (チェックボックス禁止)。③ 由来は ## 元ノート(なぜ重要) 必須。ラベル文字 ①②③ は label field のみ。
+- 突き合わせ: 明白に同一物だけ fold_into。迷ったら分けて作りリンクする。
+- 捏造補完しない: 素材に無い感覚・詳細を想像で埋めない。
+- imports/kindle/ imports/wallabag/ はリンク先のみ (編集対象にしない)。`
 
-// 命名規約は kind 共通の craft（複文禁止・plain・scope・接地）と kind 固有の作法（気づき=観察を名指す／洞察=判断軸を名指す）に分割する。
-// 各 prompt には共通＋当該 kind だけを注入する（無関係 kind の作法でプロンプトを膨らませない）。失敗接地: 2026-06-14 気づき・洞察を一括ポリシーにし、命名層が洞察にも失敗形を要求して rule5（判断軸）と矛盾していた。
-// 失敗接地: 2026-06-14 第2弾——気づき側に失敗形を必須化していたため中立な観察（「ツールは機能でなく配布で淘汰される」型）が gate でループした。気づきは観察であって失敗事例探しではない。失敗形は default の一例に降格し、解の指示形・徳の称揚だけを外す。
+// 命名規約は kind 共通の核と kind 固有の作法（気づき=観察を名指す／洞察=判断軸を名指す）に分割する。
+// 各 prompt には共通＋当該 kind だけを注入する（無関係 kind の作法でプロンプトを膨らませない）。
 const NAMING_COMMON = `
-命名規約 (kind 共通の craft):
-- 1 タイトル＝1 要点。plain な確立語で名指す (jargon・造語・狭い実装語・抽象的な徳を避ける)。
-- 比喩・メタファー・personification で濁さない。動詞主体で何が起きるかを直接名指す。失敗例: 「ガードを指す番地は消える記憶では迷子になる」——「ガード」「番地」「迷子」「消える記憶」のような抽象語/技術メタファーの連結で何が起きるかが直接読めない型は不可。
-- 偏愛語 (泥臭さ／手触り／解像度／本質／営み／文脈)・必殺技造語 (真理／虚飾／美学／境地)・横文字メタファー (思考の OS／ハック／インストール／リファクタリング) を撒かない。
-- false agency を作らない: モノを主語に人間動詞をさせない (「データが示す」「文化が醸成される」型は誰が何をしたかに書き換える)。
-- 主語の一般化は「具体事象から構造を抽出する一般化」のみ。「人々は」「我々は」「現代社会において」型の空虚な一般化はしない。
-- 条件と結果の複文にしない。要点を 1 動詞に圧縮する (「〜すると」「〜して〜する」「Xは Y で Z する」は 2 主張の混在)。説明文型の長文にせず短い言い切りにする。
-- scope は固有名詞で狭めず hedge で合わせる (「場合がある」等)。ただしツール固有のクセ・仕様は固有名詞を残す。
-- 抽象は本文/リンクが事例で接地している時だけ。作業ログ・調査記録のタイトルは具体のまま据え置く (抽象化すると何を調べたか消える実害)。
-- 「なぜ重要」「応用」はソフトウェア開発に転用できる形を最低 1 つ接地させる (読み手は SWE)。
-タスクの命名 (別軸): 動詞主体の短句 (「〜する」「〜を確認する」) で何の行動かを言い切る。複文化しないのは共通。
+命名規約 (kind 共通の核):
+- 1 タイトル＝1 要点。動詞主体で短い言い切り。
+- 複文にしない (「〜すると〜」「〜して〜」「Xは Y で Z する」は 2 主張の混在)。
+- モノを主語に人間動詞を当てない (false agency 禁止)。
+- 解の指示形「〜する」(行動はタスクへ) と空虚な徳の称揚を避ける。
+- 比喩・メタファー・造語・狭い実装語・偏愛語を撒かない。日常語で名指す。
+- scope は固有名詞で狭めず hedge で合わせる (「場合がある」等)。ただしツール固有のクセは固有名詞を残す。
 
-共通 craft の実例 (✗→○。複文回避・plain・length・nuance の家風。抽象規則より実例を優先):
-- 複文・長文を 1 要点に: 「整合を後追いの横断パスに切り出すと責務が二箇所に割れる」✗ → 「整合を後から足すと責務が割れる」○
-- 手段でなく本質: 「手段で指定された依頼を額面で受けると枠組みが崩れる」✗ → 「手段で来た依頼は真の課題を隠す」○
-- 硬い比喩より日常語: 「概念は軸に割ると例外が見える」✗ → 「別物を同じ名前で呼ぶと噛み合わない」○
-- 説明文型の長文を短い言い切りに: 「ツール境界の引数型は呼び出し側の渡し方に依存して検証で即死する場合がある」✗ → 「境界の引数は渡し方で型が変わる」○
-- 条件節を捨て 1 動詞に: 「機械検証できるものを prompt に書いたまま規約文書が肥大化する」✗ → 「コードにできる規約は文書を太らせる」○
-- 連用形 2 動詞を 1 動詞に: 「決定論で済む検証を LLM 本体に負わせ対症療法の防御規約が肥大する」✗ → 「LLM 任せの検証は対症療法を積み上げる」○
-- 造語・狭語を確立語に: 「対の系統」✗→「ペア」○ / 「mtime」✗→「タイムスタンプ」○ / 「ISO-T」✗→「ISO 8601」○ / 「未文書バグ」✗→「未報告のバグ」○
-- scope の hedge: 「Obsidian Sync は mtime を保持しない」→ 一般現象なら「ファイル同期はタイムスタンプを保持しない場合がある」(ツール固有のクセなら固有名詞を残す)
-- 語そのものに nuance を運ばせる: 「食い違う」(単にズレる) と「食い合う」(正統を奪い合う) は別物。要点の nuance を持つ語を選ぶ。${
-  DISTILL_LOG.pairs.length
-    ? `
+タスクの命名 (別軸): 動詞主体の短句 (「〜する」「〜化する」「〜を確認する」) で何の行動かを言い切る。複文化しないのは共通。
 
-運用ログ採用済みの ✗→○ ペア (過去の distill 実走で人ゲートが訂正した実例。直近 ${Math.min(15, DISTILL_LOG.pairs.length)} 件・最も家風に合致するので最優先で倣う):
-${DISTILL_LOG.pairs
-  .slice(-15)
-  .map((p) => `- 「${p.bad}」✗ → 「${p.good}」○`)
-  .join('\n')}`
-    : ''
-}${
-  DISTILL_LOG.approved.length
-    ? `
-
-運用ログ採用済みタイトル (人ゲート approve 済み・最近 ${Math.min(20, DISTILL_LOG.approved.length)} 件):
-${DISTILL_LOG.approved.slice(-20).map((t) => `- ${t}`).join('\n')}`
-    : ''
-}${
-  STYLE_TITLES.length
-    ? `
-
-この vault の既存タイトル (確立した家風。新しいタイトルはこの並びに違和感なく混ざること・上記運用ログ採用と重複する場合は運用ログ側を優先):
-${STYLE_TITLES.map((t) => `- ${t}`).join('\n')}`
-    : ''
-}`
+参考実例 (1 つだけ): 「機械検証できるものを prompt に書いたまま規約文書が肥大化する」✗ → 「コードにできる規約は文書を太らせる」○`
 
 const NAMING_KIZUKI = `
-気づきの命名: 観察 (事実・機序・関係) を要点で言い切る。失敗形 (避けたい失敗・問題を名指す) はよく効く default だが必須ではない——失敗発でない中立な観察もそのまま名指してよい。避けるのは解の指示形 (「〜する」= 解・行動はタスクか本文へ逃がす) と中身のない徳の称揚 (これらは観察でないから外す。肯定形か失敗形かは問わない)。
-実例 (✗→○・○のまま):
-- 解の指示形を観察に: 「単一オーナー化が解」✗ → 「順序の決まらない同期はどの基盤でも正統を奪い合う」○
-- 徳の称揚を観察に: 「誠実さは件数ノルマに優先」✗ → 「数合わせのために中身を水増ししない」○
-- 中立な観察はそのまま (失敗形に変形しなくてよい): 「ツールは機能でなく配布で淘汰される」○ / 「生成は指示文より few-shot 実例に従う」○`
+気づきの命名: 観察 (事実・機序・関係) を据える。失敗形でも中立な事実形でもよい (失敗形は必須でない)。避けるのは解の指示形 (「〜する」= 行動はタスクへ) と中身のない徳の称揚 (観察でないから外す)。`
 
 const NAMING_INSIGHT = `
-洞察の命名: 失敗形でなく判断軸・規則を名指す (「次にどう振る舞うか／何で判断するか」)。失敗の再記述「〜と損する/間違える/死ぬ」は気づき側の作法で洞察では不可。判断軸は次を満たす: (a) source 気づきの単純合算・症状の相関の言い切り (「X も Y も決まる」等) でなく、その上に立つ第三の軸。(b) 成果物に対して観測できる規則・境界 (レビュー観点・設計制約に使える)。作者の内的手順 (「〜する前に確かめる」等・成果物に現れず自己申告に退化する) は不可。(c) 「良い◯◯は…で決まる」等の型を中身なく当てない (対象と基準の関係が芯にあること)。判断軸が要る根拠 (例: 失敗が沈黙する) はタイトルでなく本文へ。
-実例 (✗→○):
-- 失敗形を判断軸に: 「構造を文字列で探すと黙って間違える」✗ → 「文字列検索は構造のないデータにだけ使う」○
-- 相関の言い切りを第三の軸に: 「構造解釈力で速度も精度も決まる」✗ → 「文字列検索は構造のないデータにだけ使う」○
-- 既存の良い洞察に倣う: 「良い索引かは生成、参照、命名で決まる」「同じ意味のものは同じ内容でなければならない」`
+洞察の命名: 失敗の再記述でなく判断軸・規則を名指す (「次にどう振る舞うか／何で判断するか」)。失敗形は不可。判断軸は (a) source 気づきの単純合算・症状の相関でない第三の軸、(b) 成果物に対して観測できる規則 (レビュー観点・設計制約に使える) を満たす。
+
+参考実例: 「構造を文字列で探すと黙って間違える」✗ (失敗形) → 「文字列検索は構造のないデータにだけ使う」○ (判断軸)`
 
 const NAMING_FOR_KIZUKI = NAMING_COMMON + NAMING_KIZUKI
 const NAMING_FOR_INSIGHT = NAMING_COMMON + NAMING_INSIGHT
