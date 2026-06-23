@@ -17,15 +17,12 @@
 
 ## Obsidian vault 機械生成カタログ（AI 索引）
 
-下の `@import` で `notes/obsidian/Life/notes/` の機械生成ノード索引を standing context に載せる。harvest-pipeline 等の **workflow subagent が突き合わせ・洞察近傍の一次索引**に使い、Grep fan-out を避ける（背景: vault の [[安く再生成できる索引は腐敗しない]] / [[動的索引はクエリを実行できない参照者に機能しない]]）。
+`notes/obsidian/Life/.ai-index/vault-catalog.md`（および `.json`）に機械生成ノード索引を保持する。harvest-pipeline 等の **workflow subagent が突き合わせ・洞察近傍の一次索引**として参照する想定（背景: vault の [[安く再生成できる索引は腐敗しない]] / [[動的索引はクエリを実行できない参照者に機能しない]]）。
 
-- **ここ（workspace-root CLAUDE.md）に置く理由**: subagent は cwd から上方向の階層＋global CLAUDE.md は継承するが、nested な `Life/CLAUDE.md` は継承しない（実測で確認）。matcher は subagent 側で走るので、subagent が継承する workspace-root に置く必要がある。
 - **形式**: 各行 `title · layer · #tags · →[outlinks]`（layer＝気づき/洞察/タスク/tool/無印、outlinks＝実 wikilink の解決先、タグ共有＝弱いエッジ）。
-- **生成元**: `~/.claude/scripts/vault_catalog.py`（実 wikilink・frontmatter link・tags のみ抽出。MOC/ は Dataview 集約で静的エッジを持たないので走査しない）。
-- **再生成**: SessionStart hook（`~/.claude/hooks/regen-vault-catalog.sh`）が workspace 配下セッションの開始時に更新。CLAUDE.md は session 開始時に 1 回読まれて固定されるため mid-session 再生成は反映されない（その回は前回生成分が載る）。人は編集しない（再生成で上書き・`.ai-index/` はドットディレクトリで Obsidian は無視）。
-- ~1000 ノードまでは常時ロード（prompt cache の Project context レイヤに載る）で運用。それを超えたら CLAUDE.md 常時ロードを離れ動的索引（args 注入・`--format json`）へ切替予定。
-
-@notes/obsidian/Life/.ai-index/vault-catalog.md
+- **生成元**: `~/.claude/scripts/vault_catalog.py`（実 wikilink・frontmatter link・tags のみ抽出。MOC/ は Dataview 集約で静的エッジを持たないので走査しない）。`--format md` で本ファイル、`--format json --stdout` で動的索引向けに出力可能。
+- **再生成**: SessionStart hook（`~/.claude/hooks/regen-vault-catalog.sh`）が workspace 配下セッションの開始時に更新。人は編集しない（再生成で上書き・`.ai-index/` はドットディレクトリで Obsidian は無視）。
+- **参照方法**: トークンコストが嵩んだため CLAUDE.md からの `@import` 常時ロードを解除した。subagent からの参照は workflow 側で `--format json` を介した動的索引に組み込む想定（現状未実装。組み込むまでは subagent からカタログには届かない）。
 
 ### 作業ディレクトリ
 
