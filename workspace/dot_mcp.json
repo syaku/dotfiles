@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "vault-catalog": {
+      "type": "http",
+      "url": "https://vault-catalog-mcp.syaku.me/mcp"
+    }
+  }
+}
