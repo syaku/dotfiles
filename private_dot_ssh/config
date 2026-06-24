@@ -11,3 +11,10 @@ HOST app.syaku.me
   User root
   IdentityFile ~/.ssh/id_ed25519
   SetEnv TERM=xterm-256color
+
+HOST apps-vm
+  HostName app.syaku.me
+  User root
+  IdentityFile ~/.ssh/id_ed25519
+  SetEnv TERM=xterm-256color
+
