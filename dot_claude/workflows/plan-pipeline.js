@@ -1,17 +1,17 @@
 export const meta = {
   name: 'plan-pipeline',
-  description: 'plan スキルの計画作成パイプライン: 調査→起草→検証/レビュー(並列)→出典付き訂正→リトライ収束。件数・状態の集計は script がコードで計算し、自己申告に依存しない',
+  description: 'plan スキルの設計・計画作成パイプライン: 調査→起草 (設計と Phase 分割を条件付き節で含む)→検証/レビュー(並列)→出典付き訂正→リトライ収束。件数・状態の集計は script がコードで計算し、自己申告に依存しない',
   whenToUse: 'plan スキル本体 (SKILL.md) から scriptPath 指定で起動される。単体起動は想定しない',
   phases: [
     { title: '調査', detail: '対象リポジトリの関連ファイル・再利用候補・現状挙動を構造化' },
-    { title: '起草', detail: 'plan.md 全文の起草' },
-    { title: '検証・レビュー', detail: '事実 grounding と計画妥当性の独立並列評価' },
+    { title: '起草', detail: 'plan.md 全文の起草 (設計判断と Phase 分割を必要時に含む)' },
+    { title: '検証・レビュー', detail: '事実 grounding と計画妥当性 (目的整合・設計・Phase・検証) の独立並列評価' },
     { title: '取り込み・収束', detail: '出典付き訂正の適用とリトライ収束ループ' },
   ],
 }
 
 // ---- 入力 ----
-// args: { plan_path, repo_path, request, premise_path?, skill_review_report_path? }
+// args: { plan_path, repo_path, request, premise_path?, skill_review_report_path?, complexity? }
 // 呼び出し側が JSON 文字列で渡してしまった場合の fallback (本来は実 JSON object で渡す)
 let input = args
 if (typeof input === 'string') {
@@ -29,6 +29,11 @@ const REPO = input.repo_path
 const REQUEST = input.request
 const PREMISE = input.premise_path || null
 const SKILL_REVIEW_REPORT = input.skill_review_report_path || null // 既存 skill 改修の pre-plan 評価レポート (任意の参照入力。premise と並ぶ別チャネル)
+// 重量ヒント: 起草時に Design / Phase 節を立てるかを呼び出し元から指定可能。
+// 'light' = Design / Phase は立てない (軽量タスク確定)
+// 'heavy' = Design と Phase を必ず立てる (重い実装確定)
+// 'auto'  = 起草 agent が判定 (デフォルト)
+const COMPLEXITY = (input.complexity === 'light' || input.complexity === 'heavy') ? input.complexity : 'auto'
 
 // ---- schema (enum に null を使わず 'none' を番兵にする) ----
 const EXPLORE_SCHEMA = {
@@ -123,9 +128,21 @@ const REVIEW_POLICY = `
 レビュー方針 (厳守):
 - 指摘の数より質を優先せよ。各指摘は plan の特定の文・節に紐づき、改修可能なアクションに紐づくこと。指摘ゼロでも問題なければそれは正当な出力。「観点 N 個ずつ何か言う」「観点ごとに 1 件以上」の網羅はしない (観点を増やすほど指摘下限が機械的に上がる観点インフレを起こさない)。
 - status=problem-none の項目 (supportive / 変更不要 / 観測前提の未決) も findings に必ず含める。「指摘事項」だけを返すと母数が縮む。
-- severity の基準: high = plan の Verification が不可能になる / スコープ外の再計画が必要 / plan の前提を覆す。medium = 改修すべきだが Verification は通る。low = nice-to-have。
-- レビューは plan の内部整合 (前提と Verification の噛み合い・Approach の依存関係) に限定し、リポジトリを独自に調べない (repo level の事実確認は検証エージェントの領分)。
-- deferred-by-design: plan が observe-driven 設計で v1 観測前提の未決を故意に残している論点は、status=problem-none, subtype=deferred-by-design とする。「決め切っていない」を「曖昧 → medium」と読み替えない。付ける場合は plan 本文の observe-driven 宣言 (「観測してから決める」等) を quote_text に逐語抜粋すること (200 文字以内・原文ママ)。抜粋できなければ deferred-by-design を付けない。quote_text は機械照合される (plan に含まれない抜粋は demote される)。`
+- レビューはリポジトリを独自に調べない (repo level の事実確認は検証エージェントの領分)。
+
+評価観点 (plan の節構成に応じて該当するもののみ評価。該当節が無い観点で指摘を作らない):
+- 目的整合 (premise.md がある場合のみ評価): premise.md の Purpose (目的) / Acceptance (受入条件) と plan の Context / Verification / Approach / Design / Phase が対応しているか。premise.md の Purpose / Acceptance を plan の本体側で再定義していないか (sear-me が正本)。
+- 設計妥当性 (Design 節があるときのみ評価): 責務境界の妥当性・依存方向・抽象の粒度・再利用判断 (Reusable utilities との整合)・YAGNI 違反・複雑度。
+- Phase 妥当性 (Phase 節があるときのみ評価): 粒度・順序・依存関係・各 Phase の独立検証可能性・可逆性・落としどころ。
+- 検証十分性 (常時評価): Verification 節が Approach / Design / Phase の各成果を覆えているか。Phase 節があれば Phase 別に検証可能か。
+- 内部整合 (常時評価): Context・Approach・Design・Phase・Verification の前提が噛み合っているか。
+
+severity の基準:
+- high: 目的を達成しない設計 / 致命的な手戻り構造 (Phase 順序が不可逆性を壊す等) / Verification が不可能になる / plan の前提を覆す事実誤認 / スコープ外の再計画が必要。
+- medium: 改修すべきだが上記の致命性は無い。
+- low: nice-to-have。
+
+deferred-by-design: plan が observe-driven 設計で v1 観測前提の未決を故意に残している論点は、status=problem-none, subtype=deferred-by-design とする。「決め切っていない」を「曖昧 → medium」と読み替えない。付ける場合は plan 本文の observe-driven 宣言 (「観測してから決める」等) を quote_text に逐語抜粋すること (200 文字以内・原文ママ)。抜粋できなければ deferred-by-design を付けない。quote_text は機械照合される (plan に含まれない抜粋は demote される)。`
 
 function findingsTable(items) {
   return items.map((f) => `- F${f.id} [${f.severity}] ${f.summary}`).join('\n')
@@ -169,7 +186,7 @@ phase('調査')
 const explore = await agent(
   `対象リポジトリ: ${REPO}
 依頼: ${REQUEST}
-${PREMISE ? `前提整理 (premise.md): ${PREMISE} を Read して Goal / Scope / Open questions を踏まえること。` : ''}
+${PREMISE ? `前提整理 (premise.md): ${PREMISE} を Read し、Purpose (目的) / Acceptance (受入条件) / Scope / Open questions を踏まえること。Purpose / Acceptance は premise が正本——調査結果と矛盾しても premise を優先する。` : ''}
 ${SKILL_REVIEW_REPORT ? `skill-review レポート: ${SKILL_REVIEW_REPORT} を Read し、既存 skill の改善点 (逐語引用付き findings) を改善対象として踏まえること。機械照合は skill-review 側で済んでいるので再照合は不要、散文として読めばよい。` : ''}
 
 この依頼の計画立案に必要な現状調査を行い、構造化して返せ:
@@ -198,13 +215,26 @@ ${SKILL_REVIEW_REPORT ? `skill-review レポート: ${SKILL_REVIEW_REPORT} を R
 調査結果 (構造化済み):
 ${JSON.stringify(explore, null, 2)}
 
-plan.md の構成:
-- Context: 背景と目的 (なぜこの変更が必要か)
-- Approach: 推奨案のみ。代替案は載せない
-- Critical files: 変更対象のファイル (パターンが繰り返されるなら 1 回説明＋代表パス数件)
-- Reusable utilities: 再利用する既存実装 (パス付き)。on_integration_branch=false のものは「先行マージ待ち」か「自前新設」かを Approach に明記する
-- Verification: 実行・テスト方法
-- Risks: 未解消の Open questions・前提リスク
+plan.md の構成 (設計と計画の両面を含める。設計の場が要らない軽量タスクでは Design / Phase 節は立てない):
+
+[必須節]
+- Context: 背景と目的 (なぜこの変更が必要か)。premise.md があれば Purpose (目的) / Acceptance (受入条件) を踏まえる (premise が正本——ここで再定義しない・改稿しない・抜き書きで足りる)。
+- Approach: 推奨案のみ。代替案は載せない。
+- Critical files: 変更対象のファイル (パターンが繰り返されるなら 1 回説明＋代表パス数件)。
+- Reusable utilities: 再利用する既存実装 (パス付き)。on_integration_branch=false のものは「先行マージ待ち」か「自前新設」かを Approach に明記する。
+- Verification: 実行・テスト方法。Phase 節を立てた場合は Phase 別に検証可能であることを示す。
+- Risks: 未解消の Open questions・前提リスク。
+
+[条件付き節] (該当しないなら節を立てない。立てるなら中身を埋める。「該当なし」「単一 Phase」と書いて空節を残さない):
+- Design: 構造判断の場。データモデル・インターフェース契約・責務境界・依存方向・拡張点・既存抽象の変更。
+  立てる条件 (どれか満たす): 新規データ構造が要る / 複数モジュールを跨ぐ / 非自明な責務分割が必要 / 既存抽象を変更する / 競合する設計選択肢がある。
+- Phase 分割: 段取りの場。各 Phase に {目的, 変更スコープ, 受入条件, 可逆性, 次 Phase との接続} を書く。
+  立てる条件 (どれか満たす): 1 コミット／1 PR で完結しない / 段階的に可逆性を担保したい / 部分デプロイで観測してから次に進みたい / 移行ステップが本質的に複数段。
+
+complexity hint: ${COMPLEXITY}
+- 'light': Design / Phase は立てない (軽量タスク確定。判定スキップ)。
+- 'heavy': Design と Phase を必ず立てる (重い実装確定。判定スキップ)。
+- 'auto':  上記の判定条件に従って起草時に判断する (デフォルト)。
 
 調査結果に無い事実主張を足す場合は自分で Read/Glob/Grep で確認してから書く。learning loop 設計で v1 観測前提の未決を故意に残す論点は「観測してから決める」と明文化する。`,
   { schema: DRAFT_SCHEMA, label: 'draft', phase: '起草' },
@@ -234,10 +264,18 @@ ${plan}
     ),
   () =>
     agent(
-      `以下の plan をレビューせよ。ラウンド 1 の観点は「計画全体の前提」と「Verification の十分性」を重点に見る。
+      `以下の plan をレビューせよ。
+
+評価手順:
+1. plan の節構成を確認する (Design 節の有無 / Phase 節の有無 / premise.md の有無)。
+2. 該当する観点だけを評価する。該当節が無い観点で指摘を作らない (例: Design 節が無い軽量 plan で責務境界を指摘しない・Phase 節が無い plan で順序の可逆性を指摘しない)。
+3. 該当節がある場合、設計妥当性 / Phase 妥当性は重点的に評価する (この plan の核なので、無評価で通さない)。
+4. 内部整合と検証十分性は常時評価する。
+
 ${REVIEW_POLICY}
 
 元の依頼: ${REQUEST}
+${PREMISE ? `前提整理 (premise.md): ${PREMISE} を Read し、目的整合の評価軸とせよ (premise の Purpose / Acceptance と plan の Context / Verification / Phase 別受入の対応を見る。Verification と Phase 別受入は Acceptance を辿れる粒度か、Context は Purpose を抜き書きで反映しているかを判定軸にする)。` : '前提整理 (premise.md) は存在しない。目的整合の観点はスキップする。'}
 
 --- plan ここから ---
 ${plan}
@@ -334,7 +372,7 @@ while (openTotals().high > 0) {
   const highs = openProblems().filter((f) => f.severity === 'high')
   await revise(
     `revise:retry-${retries}`,
-    `前提を覆す指摘 (severity:high) への対応。以下の指摘を解消するように plan を書き直す:
+    `severity:high の指摘 (目的未達設計・致命的手戻り構造・Verification 不可能化・前提誤認等) への対応。以下の指摘を解消するように plan を書き直す。指摘の解消に必要な範囲なら Design / Phase 節の新設・改変を行ってよい:
 ${findingsTable(highs)}
 medium / low の指摘はユーザ判断に委ねるため、この改稿では触らない。`,
   )
