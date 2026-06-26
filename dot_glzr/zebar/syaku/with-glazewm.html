@@ -35,7 +35,6 @@
         network: { type: 'network' },
         glazewm: { type: 'glazewm' },
         cpu: { type: 'cpu' },
-        date: { type: 'date', formatting: 'yyyy-MM-dd HH:mm' },
         battery: { type: 'battery' },
         memory: { type: 'memory' },
         weather: { type: 'weather' },
@@ -251,9 +250,6 @@
                 </div>
               )}
 
-              {output.date && (
-                <div className="clock">{output.date.formatted}</div>
-              )}
             </div>
           </div>
         );
