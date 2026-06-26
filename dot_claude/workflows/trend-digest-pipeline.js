@@ -18,15 +18,112 @@ if (typeof input === 'string') {
     throw new Error('args が JSON として解釈できない文字列で渡された: ' + e.message)
   }
 }
-if (!input || !input.vault || !input.now || !input.today || !input.profile || !input.pool) {
-  throw new Error('args に vault / now / today / profile / pool が必要 (script は Date 不可なので時刻は呼び出し側が渡す)')
+if (!input || !input.vault || !input.now || !input.today) {
+  throw new Error('args に vault / now / today が必要 (script は Date 不可なので時刻は呼び出し側が渡す)')
+}
+if (!input.profile && !input.profile_path) {
+  throw new Error('args に profile または profile_path が必要 (inline 渡しか、Read tool で取得する path 渡しのいずれか)')
+}
+if (!input.pool && !input.pool_path) {
+  throw new Error('args に pool または pool_path が必要 (inline 渡しか、Read tool で取得する path 渡しのいずれか)')
 }
 const VAULT = input.vault
 const NOW = input.now // YYYY-MM-DD HH:mm (既存ノートの createdAt 書式)
 const TODAY = input.today // YYYY-MM-DD
-const PROFILE = input.profile // 関心プロファイル.md の全文
-let POOL = input.pool // fetch_trends.py の出力 JSON (正規化・再掲除外済み)
-if (typeof POOL === 'string') POOL = JSON.parse(POOL)
+
+// ---- path 渡し時の subagent 読み込み (args の inline 膨張を避ける) ----
+// 設計: workflow runtime は fs 非アクセスなので、path 文字列を渡して subagent (Explore) に Read tool で読ませる方式を採る。
+// 隣接 plan-pipeline / harvest-pipeline も同じく path 文字列を保持して agent プロンプト内で Read を指示しており、それに揃えている。
+// 後方互換: profile / pool を inline で受けたらそのまま使う (subagent を起動しない)。
+const POOL_SCHEMA = {
+  type: 'object',
+  // 将来の fetch_trends.py 出力フィールド追加に脆くしないため、required は最小限。
+  // hn_keywords_used / lobsters_tags_used / excluded_as_seen / pool_size は欠けても workflow が落ちない方が安全。
+  required: ['sources', 'items'],
+  properties: {
+    sources: { type: 'object', description: 'per-source の {ok, ...} (fetch_trends.py の出力構造)' },
+    items: { type: 'array', description: '正規化済み候補プール (poolLine が読む構造)' },
+    hn_keywords_used: { type: 'array', items: { type: 'string' } },
+    lobsters_tags_used: { type: 'array', items: { type: 'string' } },
+    excluded_as_seen: { type: 'integer' },
+    pool_size: { type: 'integer' },
+  },
+}
+
+const PROFILE_SCHEMA = {
+  type: 'object',
+  required: ['profile_md'],
+  properties: {
+    profile_md: { type: 'string', description: '関心プロファイル.md の本文をそのまま (frontmatter 含めて素通し)' },
+  },
+}
+
+// parseMode='json' は JSON.parse して構造化結果に詰める (pool 用)、parseMode='string' は全文を 1 文字列で返す (profile 用)。
+// 差分は parseMode の分岐 1 箇所だけで、それ以外 (Read の使い方・offset/limit 禁止・不在/不正時の早期エラー) は共通なので統合する。
+function readPathPrompt({ path, parseMode }) {
+  const tail =
+    parseMode === 'json'
+      ? `2. 読んだ本文を JSON.parse で解釈する (fetch_trends.py が書いた JSON 構造)。
+3. 結果オブジェクトの sources / items / hn_keywords_used / lobsters_tags_used / excluded_as_seen / pool_size をそのまま返す。中身は加工しない (キーの取捨選択も並べ替えも不要)。
+
+ファイルが存在しない・JSON として不正な場合は、その旨を分かるエラーで停止せよ (取り繕って空オブジェクトを返さない)。`
+      : `2. 読んだ全文 (frontmatter を含む) を profile_md にそのまま入れて返す。要約・抜粋・整形をしない。
+
+ファイルが存在しない場合は、その旨を分かるエラーで停止せよ (空文字を返さない)。`
+  const head =
+    parseMode === 'json'
+      ? `次のファイルを Read tool で開き、内容を JSON として解釈した上で構造化結果に詰めて返せ。`
+      : `次のファイルを Read tool で開き、本文をそのまま 1 つの文字列として返せ。`
+  return `${head}
+ファイル: ${path}
+
+手順:
+1. Read tool で上記 path を開く (offset/limit は使わず全文を読む)。
+${tail}`
+}
+
+// loader 関数化: inline ケースは agent() を呼ばずに済ませ、path ケースだけ subagent を起動する。
+// 両方が path 渡しのときは parallel() で wall-clock を半減できる (#3)。inline と path の混在ケースでも壊れない。
+const profileLoader =
+  typeof input.profile === 'string'
+    ? () => input.profile
+    : async () => {
+        const r = await agent(readPathPrompt({ path: input.profile_path, parseMode: 'string' }), {
+          agentType: 'Explore',
+          schema: PROFILE_SCHEMA,
+          model: 'haiku',
+          label: 'read:profile_path',
+          phase: '入力読み込み',
+        })
+        if (!r || typeof r.profile_md !== 'string') throw new Error(`profile_path の Read に失敗: ${input.profile_path}`)
+        return r.profile_md
+      }
+
+const poolLoader =
+  input.pool != null
+    ? () => (typeof input.pool === 'string' ? JSON.parse(input.pool) : input.pool)
+    : async () => {
+        const r = await agent(readPathPrompt({ path: input.pool_path, parseMode: 'json' }), {
+          agentType: 'Explore',
+          schema: POOL_SCHEMA,
+          model: 'haiku',
+          label: 'read:pool_path',
+          phase: '入力読み込み',
+        })
+        if (!r || !r.sources || !r.items) throw new Error(`pool_path の Read に失敗: ${input.pool_path}`)
+        return r
+      }
+
+const [PROFILE, POOL] = await parallel([profileLoader, poolLoader])
+// parallel() は thunk の throw を null に消費する仕様 (Workflow runtime)。
+// PROFILE / POOL が null なら loader の throw が呑まれた=入力読み込み失敗なので、loader 内 throw と二段構えで明示エラーで止める。
+// inline 経路の sync JSON.parse 失敗も parallel が呑むので、ここで同じく null として捕捉される。
+if (PROFILE == null) {
+  throw new Error(`profile の読み込みに失敗 (profile_path: ${input.profile_path ?? 'inline'})`)
+}
+if (POOL == null) {
+  throw new Error(`pool の読み込みに失敗 (pool_path: ${input.pool_path ?? 'inline'})`)
+}
 
 const NOTE_PATH = `${VAULT}/skill/tech-trends/${TODAY} テックトレンド.md` // basename は journals/<日付>.md と構造的に衝突しない
 

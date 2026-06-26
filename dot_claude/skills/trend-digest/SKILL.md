@@ -37,7 +37,7 @@ Qiita / Zenn / Hacker News / Lobsters のトレンドから、関心と流行の
   - `rg -oN --no-filename 'https?://[^)\s]+' <対象 3 ファイル> | sort -u > /tmp/trend-seen-urls.txt`
 - `python3 ~/.claude/skills/trend-digest/fetch_trends.py --hn-keywords "<カンマ区切り>" --lobsters-tags "<カンマ区切り>" --seen-file /tmp/trend-seen-urls.txt --out /tmp/trend-pool.json` を実行する。
 - stdout のサマリ行で per-source 成否を確認する。全ソース失敗（exit 1）なら報告して停止。一部失敗は続行（失敗ソースは workflow がノートの AI Context に機械記載する）。
-- `/tmp/trend-pool.json` を Read する（正規化済みプール。これが workflow への入力になる）。
+- 生成された `/tmp/trend-pool.json` のパスを step 3 の `pool_path` に渡す（main で Read しない。args 膨張を避けるため workflow 内の haiku subagent が読み込む）。
 
 ### 3. 判断層の起動
 
@@ -47,8 +47,13 @@ Qiita / Zenn / Hacker News / Lobsters のトレンドから、関心と流行の
 - `args`（JSON オブジェクトとして渡す。文字列化しない）:
   - `vault`: vault の絶対パス
   - `now`: `YYYY-MM-DD HH:mm` / `today`: `YYYY-MM-DD`
-  - `profile`: 関心プロファイルの全文
-  - `pool`: step 2 で Read したプール JSON（オブジェクトのまま）
+  - `profile_path`: 関心プロファイルの絶対パス（`<vault>/skill/tech-trends/関心プロファイル.md`）
+  - `pool_path`: step 2 で生成したプール JSON の絶対パス（既定 `/tmp/trend-pool.json`）
+
+path 渡しが一次経路（args は ~250B 程度に収まる）。workflow 内の haiku subagent が Read tool で本文／JSON を取得する。`profile_path` の Read は本文を素通しで `profile_md` 文字列に詰めて返し、`pool_path` の Read は JSON.parse して `sources` / `items` 等を返す。
+ファイル不在・JSON 不正は subagent が早期エラーで失敗する（取り繕った空オブジェクトは返さない）。
+
+後方互換として `profile`（文字列）／`pool`（オブジェクトまたは文字列 JSON）の inline 渡しも残しているが、args サイズが ~40KB に膨らむのでデフォルトは path 渡しを使う。path と inline は profile / pool それぞれ独立に切り替え可能。
 
 ### 4. 書き込みと完了報告
 
@@ -72,6 +77,7 @@ Qiita / Zenn / Hacker News / Lobsters のトレンドから、関心と流行の
 - **「全滅時は空ノートを作らない／一部成功は続行し AI Context に明記」** → python の per-source 成否＋script の早期 return＋AI Context テンプレート。
 - **「深掘りを捏造しない（fetch 失敗はデグレード）」** → `fetch_ok=false` の機械デグレード。
 - **H1 禁止・AI Context callout・Templater 構文禁止・basename 衝突回避・frontmatter 実値** → 組み立てテンプレート＋最終検査（`note_errors`）。
+- **「pool / profile を workflow に inline で詰める」**（失敗接地: 1 回目の Workflow 起動で args が ~40KB に膨らみ、main 占有トークンと工数を圧迫していた）→ `pool_path` / `profile_path` を一次経路に変更。workflow 内の haiku subagent が Read tool で取得し POOL / PROFILE に詰めるため、args は ~250B に圧縮できる（隣接 `plan-pipeline` / `harvest-pipeline` と同じく path 文字列を渡して subagent が Read する方式に揃えた。workflow runtime は fs 非アクセスなので、**step 3 で workflow に渡す args に profile / pool 本文を inline 化せず**、main は path 文字列のみを渡して agent プロンプト内で Read を指示する。**step 1 でプロファイル本文を main が Read するのは別軸**（HN keyword / Lobsters tag 抽出のため必要・継続）。inline 渡しは後方互換として残置。
 
 ## やってはいけないこと
 
