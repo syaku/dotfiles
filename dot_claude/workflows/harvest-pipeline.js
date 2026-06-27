@@ -82,6 +82,15 @@ function candidateItem(kinds, { withInboxOrigin = false } = {}) {
     source_excerpt: { type: 'string', description: 'タイトルの元になった素材の逐語抜粋 (命名点検の元記述)' },
     why_important: { type: 'string', description: 'タスク③は必須。それ以外は空文字可' },
     backlink_edits: { type: 'array', items: BACKLINK_EDIT, description: '関連既存ノード側からの逆リンク追記 (双方向リンク)。fold 時は畳み先への追記' },
+    derivation: {
+      type: 'object',
+      description: '気づき向けの導出 (洞察 derivation 同型・気づき以外は空。kind=気づき のときだけ prompt と script が必須化する)',
+      properties: {
+        source_observations: { type: 'array', items: { type: 'string' }, description: '観察した個別事象の逐語抜粋 (1 件以上・複数文の逐語可)' },
+        lesson_axis: { type: 'string', description: '一段上の機序/教訓を 1 文で言い切ったもの。タイトルの土台になる教訓軸 (洞察の common_axis 同型の役割)' },
+        generalization_check: { type: 'string', description: '主語を固有名詞でない一般語に置換できるか／複数文脈に転用可能かの自己検証文言 (1 文)' },
+      },
+    },
   }
   if (withInboxOrigin) {
     required.push('inbox_origin')
@@ -464,7 +473,9 @@ ${openTasksSection}
 3. 新規候補は content に frontmatter＋本文の完成形を書く。関連既存ノード側からの逆リンク 1 行を backlink_edits に列挙する (双方向リンク。関連が実在するものだけ・弱い繋がりを強引に張らない)。
 4. この inbox のファイル名が昇格で変わる/分割される場合、元 inbox 名を wikilink で指す既存ノートを ${backlinkCmd} で機械的に洗い old_name_referrers に返す (path のリスト。0 ヒットなら空配列。同名昇格なら洗わなくてよい)。
 
-気づき抽出 (作業レポートでも必ず行う): inbox が作業レポート・調査記録であっても、その作業を通じて立ち上がった主観的な学び・判断・方針・再発パターン・踏んだ罠の教訓が本文にあれば、作業レポート本体の 1:1 昇格とは別に kind=気づき の独立ノードとして切り出す。「作業レポートだから 1:1 で終わり」にしない——層は 作業 (レポート) → 気づき で分けるのであって、作業レポートが気づきの抽出元にならないわけではない (作業レポートは洞察の source になれないだけ)。対象は主語をツール固有から一般化できる教訓 (特定ツールの狭いスペック・手順そのものの記述は事実なので切り出さない)。素材に書かれた学びだけを根拠にし、無い学びを想像で足さない (捏造禁止・本当に学びが無ければ 0 件が正当)。作業レポート本体には気づきタグを付けず洞察 source にもしない。切り出した気づきが後段で洞察の素材になりうる。
+気づき抽出 (作業レポートでも必ず行う): inbox が作業レポート・調査記録であっても、その作業を通じて立ち上がった主観的な学び・判断・方針・再発パターン・踏んだ罠の教訓が本文にあれば、作業レポート本体の 1:1 昇格とは別に kind=気づき の独立ノードとして切り出す。「作業レポートだから 1:1 で終わり」にしない——層は 作業 (レポート) → 気づき で分けるのであって、作業レポートが気づきの抽出元にならないわけではない (作業レポートは洞察の source になれないだけ)。対象は主語をツール固有から一般化できる教訓 (特定ツールの狭いスペック・手順そのものの記述は事実なので切り出さない)。本当に学びが無ければ 0 件が正当。作業レポート本体には気づきタグを付けず洞察 source にもしない。切り出した気づきが後段で洞察の素材になりうる。
+
+【気づき候補の導出チェックリスト・毎回必須】各 kind=気づき 候補について \`derivation\` を必ず埋める (洞察の derivation 同型の規律——個別事象・実装意図・事実記述を気づき層に上げない第 1 防御線)。順序: ① \`source_observations\`: 観察した個別事象を inbox 本文から逐語で 1 件以上抜粋する (複数文の逐語可。素材に無い詳細は補完しない)。② \`lesson_axis\`: その観察から「次にどう振る舞うか／何を学んだか」を一段上の機序/教訓として 1 文で言い切る。主語は固有名詞・特定ツール名から一般語に置換する (これが気づきタイトルの土台になる軸)。③ \`generalization_check\`: 「② の主語を一般語に置換できたか／複数文脈に転用可能か」の自己検証を 1 文で書く。置換できない・1 文脈にしか効かないなら気づきにせず作業レポート・事実側に倒す (個別事象・実装意図・事実記述を気づきに上げない)。kind が気づき以外の候補では derivation は空のままでよい。
 タスク抽出: inbox 中の未着手の行動を kind=タスク で抽出する。ラベルは ① 明示 TODO (「TODO」「未実施」「やる」等が plain にある) / ② 次タスク候補 (「次は〜」等の先送り表明) / ③ ノート分析で出た課題 (論理ギャップ・矛盾・未解決。why_important 必須)。
 洞察はここで作らない (後段の専用 agent が担う)。
 
@@ -584,6 +595,16 @@ if (MODE === 'drain') {
       for (const c of ex.promotions) {
         // inbox_origin はプロンプトで埋めさせているが、念のため script 側でも保証する (集約段の DUPLICATE_DETECTED 照合キー・belt-and-suspenders)
         if (!c.inbox_origin) c.inbox_origin = f.path
+        // 導出チェックリストが毎回実施されたかを機械チェック (自己申告でなく出力の充足で検証)。
+        // source_observations は 1 件以上 (気づきは 1 観察起点が中心)・lesson_axis/generalization_check 非空。未充足は triage で明示する。
+        if (c.kind === '気づき') {
+          const d = c.derivation || {}
+          c.derivation_ok =
+            Array.isArray(d.source_observations) &&
+            d.source_observations.filter((s) => s && s.trim()).length >= 1 &&
+            !!(d.lesson_axis && d.lesson_axis.trim()) &&
+            !!(d.generalization_check && d.generalization_check.trim())
+        }
       }
       // 同一 inbox の候補は揃った時点で即ゲートに流す (他 inbox の抽出を待たない)
       await parallel(ex.promotions.filter(needsGate).map((c) => () => runGate(c)))
@@ -787,11 +808,12 @@ const totals = {
   gate_unresolved: candidates.filter((c) => c.gate && (c.gate.unresolved || c.gate.undecidable)).length,
   validation_failed: candidates.filter((c) => (c.validation_errors || []).length).length,
   insights_derivation_incomplete: candidates.filter((c) => c.kind === '洞察' && !c.derivation_ok).length,
+  kizuki_derivation_incomplete: candidates.filter((c) => c.kind === '気づき' && !c.fold_into && !c.derivation_ok).length,
   done_candidates: doneCandidates.length,
   duplicate_detected: duplicateDetected.length,
 }
 log(
-  `集計: ${totals.count} 候補 (気づき ${totals.kizuki} / 洞察 ${totals.insights} / タスク ${totals.tasks} / レポート・事実 ${totals.reports} / fold ${totals.folds}) 再命名 ${totals.renamed} / ゲート未解決 ${totals.gate_unresolved} / 検証落ち ${totals.validation_failed} / 洞察導出未完 ${totals.insights_derivation_incomplete} / 重複検出 ${totals.duplicate_detected}`,
+  `集計: ${totals.count} 候補 (気づき ${totals.kizuki} / 洞察 ${totals.insights} / タスク ${totals.tasks} / レポート・事実 ${totals.reports} / fold ${totals.folds}) 再命名 ${totals.renamed} / ゲート未解決 ${totals.gate_unresolved} / 検証落ち ${totals.validation_failed} / 洞察導出未完 ${totals.insights_derivation_incomplete} / 気づき導出未完 ${totals.kizuki_derivation_incomplete} / 重複検出 ${totals.duplicate_detected}`,
 )
 
 return {
