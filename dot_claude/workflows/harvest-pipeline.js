@@ -600,12 +600,20 @@ if (MODE === 'drain') {
         // source_observations は 1 件以上 (気づきは 1 観察起点が中心)・pattern_generalization/lesson_axis/generalization_check 非空。未充足は triage で明示する。
         if (c.kind === '気づき') {
           const d = c.derivation || {}
+          const hasLessonAxis = !!(d.lesson_axis && d.lesson_axis.trim())
           c.derivation_ok =
             Array.isArray(d.source_observations) &&
             d.source_observations.filter((s) => s && s.trim()).length >= 1 &&
             !!(d.pattern_generalization && d.pattern_generalization.trim()) &&
-            !!(d.lesson_axis && d.lesson_axis.trim()) &&
+            hasLessonAxis &&
             !!(d.generalization_check && d.generalization_check.trim())
+          // 命名は lesson_axis から導く (title=判断軸)。命名点検 (nameGate) の元記述に
+          // source_excerpt (素材逐語抜粋＝具体事例文) でなく lesson_axis を渡す
+          // ——具体事例起点だと表層圧縮に流れ④単純圧縮で命名ゲートを通らない
+          // (失敗接地 2026-06-27: drain 20 回目 ID2「人ゲートの審査対象にならない」で
+          // source_excerpt の具体事例文脈に引きずられ r2 ④で hit→ユーザ訂正)。
+          // lesson_axis 欠落時のみ既存 source_excerpt に退避。
+          if (hasLessonAxis) c.source_excerpt = d.lesson_axis
         }
       }
       // 同一 inbox の候補は揃った時点で即ゲートに流す (他 inbox の抽出を待たない)
