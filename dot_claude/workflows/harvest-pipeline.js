@@ -87,6 +87,7 @@ function candidateItem(kinds, { withInboxOrigin = false } = {}) {
       description: '気づき向けの導出 (洞察 derivation 同型・気づき以外は空。kind=気づき のときだけ prompt と script が必須化する)',
       properties: {
         source_observations: { type: 'array', items: { type: 'string' }, description: '観察した個別事象の逐語抜粋 (1 件以上・複数文の逐語可)' },
+        pattern_generalization: { type: 'string', description: '観察した個別事象から事象に固有でない pattern (繰り返し見える構造・固有名詞を抜いた骨格) を 1 文で抽出した中間段。固有名詞・特定ツール・特定文脈の語を一般語に置換した形で書く。lesson_axis (次にどう振る舞うか) の前段で、subagent の抽象化過程を出力に残すための段' },
         lesson_axis: { type: 'string', description: '一段上の機序/教訓を 1 文で言い切ったもの。タイトルの土台になる教訓軸 (洞察の common_axis 同型の役割)' },
         generalization_check: { type: 'string', description: '主語を固有名詞でない一般語に置換できるか／複数文脈に転用可能かの自己検証文言 (1 文)' },
       },
@@ -475,7 +476,7 @@ ${openTasksSection}
 
 気づき抽出 (作業レポートでも必ず行う): inbox が作業レポート・調査記録であっても、その作業を通じて立ち上がった主観的な学び・判断・方針・再発パターン・踏んだ罠の教訓が本文にあれば、作業レポート本体の 1:1 昇格とは別に kind=気づき の独立ノードとして切り出す。「作業レポートだから 1:1 で終わり」にしない——層は 作業 (レポート) → 気づき で分けるのであって、作業レポートが気づきの抽出元にならないわけではない (作業レポートは洞察の source になれないだけ)。対象は主語をツール固有から一般化できる教訓 (特定ツールの狭いスペック・手順そのものの記述は事実なので切り出さない)。本当に学びが無ければ 0 件が正当。作業レポート本体には気づきタグを付けず洞察 source にもしない。切り出した気づきが後段で洞察の素材になりうる。
 
-【気づき候補の導出チェックリスト・毎回必須】各 kind=気づき 候補について \`derivation\` を必ず埋める (洞察の derivation 同型の規律——個別事象・実装意図・事実記述を気づき層に上げない第 1 防御線)。順序: ① \`source_observations\`: 観察した個別事象を inbox 本文から逐語で 1 件以上抜粋する (複数文の逐語可。素材に無い詳細は補完しない)。② \`lesson_axis\`: その観察から「次にどう振る舞うか／何を学んだか」を一段上の機序/教訓として 1 文で言い切る。主語は固有名詞・特定ツール名から一般語に置換する (これが気づきタイトルの土台になる軸)。③ \`generalization_check\`: 「② の主語を一般語に置換できたか／複数文脈に転用可能か」の自己検証を 1 文で書く。置換できない・1 文脈にしか効かないなら気づきにせず作業レポート・事実側に倒す (個別事象・実装意図・事実記述を気づきに上げない)。kind が気づき以外の候補では derivation は空のままでよい。
+【気づき候補の導出チェックリスト・毎回必須】各 kind=気づき 候補について \`derivation\` を必ず埋める (洞察の derivation 同型の規律——個別事象・実装意図・事実記述を気づき層に上げない第 1 防御線)。順序: ① \`source_observations\`: 観察した個別事象を inbox 本文から逐語で 1 件以上抜粋する (複数文の逐語可。素材に無い詳細は補完しない)。② \`pattern_generalization\`: 観察した個別事象から「事象に固有でない pattern (繰り返し見える構造・固有名詞を抜いた骨格)」を 1 文で抽出する。固有名詞・特定ツール・特定文脈の語を一般語に置換した形で書く (subagent の抽象化過程を出力に残す中間段。ここを ① の逐語と同じ言葉で埋めたら抽象化が起きていない＝再考する)。③ \`lesson_axis\`: ② で抽出した pattern から「次にどう振る舞うか／何を学んだか」を一段上の機序/教訓として 1 文で言い切る (これが気づきタイトルの土台になる軸。② の単純な言い換えに止めず ② を踏まえて規範的に言い切る)。④ \`generalization_check\`: 「③ の主語を一般語に置換できたか／複数文脈に転用可能か」の自己検証を 1 文で書く。置換できない・1 文脈にしか効かないなら気づきにせず作業レポート・事実側に倒す (個別事象・実装意図・事実記述を気づきに上げない)。kind が気づき以外の候補では derivation は空のままでよい。
 タスク抽出: inbox 中の未着手の行動を kind=タスク で抽出する。ラベルは ① 明示 TODO (「TODO」「未実施」「やる」等が plain にある) / ② 次タスク候補 (「次は〜」等の先送り表明) / ③ ノート分析で出た課題 (論理ギャップ・矛盾・未解決。why_important 必須)。
 洞察はここで作らない (後段の専用 agent が担う)。
 
@@ -596,12 +597,13 @@ if (MODE === 'drain') {
         // inbox_origin はプロンプトで埋めさせているが、念のため script 側でも保証する (集約段の DUPLICATE_DETECTED 照合キー・belt-and-suspenders)
         if (!c.inbox_origin) c.inbox_origin = f.path
         // 導出チェックリストが毎回実施されたかを機械チェック (自己申告でなく出力の充足で検証)。
-        // source_observations は 1 件以上 (気づきは 1 観察起点が中心)・lesson_axis/generalization_check 非空。未充足は triage で明示する。
+        // source_observations は 1 件以上 (気づきは 1 観察起点が中心)・pattern_generalization/lesson_axis/generalization_check 非空。未充足は triage で明示する。
         if (c.kind === '気づき') {
           const d = c.derivation || {}
           c.derivation_ok =
             Array.isArray(d.source_observations) &&
             d.source_observations.filter((s) => s && s.trim()).length >= 1 &&
+            !!(d.pattern_generalization && d.pattern_generalization.trim()) &&
             !!(d.lesson_axis && d.lesson_axis.trim()) &&
             !!(d.generalization_check && d.generalization_check.trim())
         }
