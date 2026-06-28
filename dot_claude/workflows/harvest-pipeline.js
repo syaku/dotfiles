@@ -1,12 +1,12 @@
 export const meta = {
   name: 'harvest-pipeline',
-  description: 'drain (即時 ingestion)・backfill (期間 reconciliation) の 2 層蒸留パイプライン: 素材整理 (既存突き合わせ・候補生成・命名ゲート inline)→洞察検出→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない',
+  description: 'drain (即時 ingestion)・backfill (期間 reconciliation) の 2 層蒸留パイプライン: 素材整理 (既存突き合わせ・候補生成・命名ゲート inline)→洞察検出 (backfill のみ)→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない。drain の気づき抽出・洞察検出は Phase 4 で skill 本体側に移管した (A 化命名ゲート: Agent tool の name 付き spawn + SendMessage で抽出 context を保ったまま再命名する設計)',
   whenToUse: 'drain / harvest スキル本体 (SKILL.md) から scriptPath 指定で起動される。単体起動は想定しない',
   phases: [
-    { title: '素材整理', detail: 'inbox 昇格候補 (drain=sonnet・done 候補検出も併合) / 期間素材 (backfill=opus) の構造化と既存ノード突き合わせ。命名ゲート (機械 regex → 別 context 点検 agent → 再命名 → 再点検・最大 2 ラウンド) も素材整理 phase 内インラインで走る' },
-    { title: '洞察検出', detail: 'ノード間の繋がりから第三の知見を検出 (opus・0 件は正当・backfill は蓄積グラフの創発/メタ洞察が主眼)。drain では各候補の source_excerpt 直結の lightMaterial を渡す (corpus 全文注入は廃止)' },
-    { title: 'タスク・完了検出', detail: '既存タスクの done 候補検出。drain では素材整理段で併合済み (donePrompt 呼び出しは廃止・引用は集約段で script が包含照合)。backfill は期間内作業レポート本文を corpus に donePrompt を走らせる' },
-    { title: '集計', detail: 'ノート規約の機械検証 (frontmatter/更新履歴/ラベル残存/タグ整合) と totals 計算。DUPLICATE_DETECTED (done と promotions の inbox_origin 衝突) と INSIGHT_ZERO のログも出す' },
+    { title: '素材整理', detail: 'inbox 昇格候補 (drain=sonnet・taskDoneExtract / reportExtract の 2 並列抽出。気づき抽出は Phase 4 で skill 本体側に移管・workflow からは呼ばない) / 期間素材 (backfill=opus) の構造化と既存ノード突き合わせ。命名ゲート (機械 regex → 別 context 点検 agent → 再命名 → 再点検・最大 2 ラウンド) も素材整理 phase 内インラインで走る (drain では LLM Wiki=light gate・タスクのみ full gate)' },
+    { title: '洞察検出', detail: 'ノード間の繋がりから第三の知見を検出 (opus・0 件は正当・backfill 専用)。drain の洞察検出は Phase 4 で skill 本体側に移管 (A 化命名ゲート経由)・workflow では実行しない' },
+    { title: 'タスク・完了検出', detail: '既存タスクの done 候補検出。drain では素材整理段で taskDoneExtract subagent が並列実行済み (donePrompt 呼び出しは廃止・引用は集約段で script が包含照合)。backfill は期間内作業レポート本文を corpus に donePrompt を走らせる' },
+    { title: '集計', detail: 'ノート規約の機械検証 (frontmatter/更新履歴/ラベル残存/タグ整合) と totals 計算 + 整形パートの per_part_metrics 算出 (Phase 4 で 整形パート物理配置は workflow script 段に確定)。DUPLICATE_DETECTED (done と task_promotions の inbox_origin 衝突) と INSIGHT_ZERO のログも出す' },
   ],
 }
 
@@ -14,7 +14,7 @@ export const meta = {
 //   共通: mode ('drain'|'backfill') / vault (絶対パス) / now (ISO-T) / today (YYYY-MM-DD)
 //   drain:
 //     inbox_files: [{path, content?}] 必須 — path のみが主流路。content 省略時は subagent が Read tool で取得 (main 占有トークン削減)。
-//     open_tasks: [{path, title}] 必須 — 既存タスクノート一覧。drain 抽出 subagent が done 候補検出のために突き合わせる素材。
+//     open_tasks: [{path, title}] 必須 — 既存タスクノート一覧。taskDoneExtract subagent が done 候補検出のために突き合わせる素材。
 //     obsidian_available: boolean — 被リンク洗いコマンド分岐
 //   backfill:
 //     period: {from, to} 必須
@@ -36,9 +36,9 @@ if (!['drain', 'backfill'].includes(MODE)) throw new Error('mode は drain | bac
 const VAULT = input.vault
 const NOW = input.now // ISO-T (YYYY-MM-DDTHH:mm)
 const TODAY = input.today // YYYY-MM-DD
-const INBOX_FILES = input.inbox_files || [] // drain: [{path}] が主流路。content は省略可 (drain 抽出 subagent が Read tool で本文を取る)。
+const INBOX_FILES = input.inbox_files || [] // drain: [{path}] が主流路。content は省略可 (workflow 内の各抽出 subagent (taskDoneExtract / reportExtract) と skill 本体側の気づき抽出 agent (Phase 4 で skill 本体側に移管) が Read tool で本文を取る)。
 // 後方互換として content 同梱もサポート (subagent 側で Read をスキップ)。v6 plan で main 占有トークンを削減するため。
-const OPEN_TASKS = input.open_tasks // drain: [{path, title}] — 既存タスクノート一覧。drain 抽出 subagent が done 候補検出のために突き合わせる素材。drain 必須で || [] の既定値は取らない (validation 不発を防ぐため)
+const OPEN_TASKS = input.open_tasks // drain: [{path, title}] — 既存タスクノート一覧。taskDoneExtract subagent が done 候補検出のために突き合わせる素材。drain 必須で || [] の既定値は取らない (validation 不発を防ぐため)
 const PERIOD = input.period || null // backfill: {from, to}
 
 // Obsidian 起動の有無 (タグ列挙・被リンク洗いを obsidian-cli にするか rg にするかの分岐)。起動判定は run 中で不変なので
@@ -95,20 +95,38 @@ function candidateItem(kinds, { withInboxOrigin = false } = {}) {
   }
   if (withInboxOrigin) {
     required.push('inbox_origin')
-    properties.inbox_origin = { type: 'string', description: 'この候補がどの inbox から来たか (集約段で done_candidates との重複検出に使う照合キー。drain の場合は drainExtractPrompt が処理中の inbox path を埋める)' }
+    properties.inbox_origin = { type: 'string', description: 'この候補がどの inbox から来たか (集約段で done_candidates との重複検出に使う照合キー。drain の場合は各抽出 subagent が処理中の inbox path を埋める)' }
   }
   return { type: 'object', required, properties }
 }
 
-const EXTRACT_SCHEMA = {
+// Phase 4: drain の気づき抽出 agent と旧戻り schema (kizuki_promotions / old_name_referrers の 2 field 版) は廃止された。
+// 気づき抽出責務は skill 本体側 (drain SKILL.md) に移管され、Agent tool の name 付き spawn + SendMessage で
+// 抽出 context を保ったまま再命名する A 化版命名ゲートで運用される。workflow からは 気づき抽出 prompt を呼ばない。
+
+// Phase 2: reportExtract agent (LLM Wiki パート) の戻り schema。作業レポート・事実 のみを kind enum に持ち、
+// taskDoneExtract と並列起動して同一 inbox を独立に処理する (Phase 4 で 気づき抽出 廃止後は 2 並列構成)。
+// old_name_referrers は集約段で union 取得 (skill 本体側で kizuki/insight 由来の rename referrers を merge する想定だが Phase 4 では reportExtract のみが referrers を返す)。
+const REPORT_EXTRACT_SCHEMA = {
   type: 'object',
-  required: ['promotions', 'old_name_referrers', 'done_candidates'],
+  required: ['report_promotions', 'old_name_referrers', 'referrers_scanned'],
   properties: {
-    // drain 抽出 subagent に done 検出を併合 (v6 plan・全体最適優先)。promotions 側にも inbox_origin 照合キーを持たせ、
-    // 集約段で done_candidates と promotions の同 inbox_origin 重複を DUPLICATE_DETECTED として検出する (prompt 内 order 強制
-    // と排他指示のフェイルセーフ)。
-    promotions: { type: 'array', items: candidateItem(['気づき', 'タスク', '作業レポート・事実'], { withInboxOrigin: true }) },
-    old_name_referrers: { type: 'array', items: { type: 'string' }, description: '昇格でこの inbox 名が変わる/分割される場合、元 inbox 名を wikilink で指す既存ノートの path (obsidian backlinks / rg -l の結果)' },
+    report_promotions: { type: 'array', items: candidateItem(['作業レポート・事実'], { withInboxOrigin: true }) },
+    old_name_referrers: { type: 'array', items: { type: 'string' }, description: '昇格でこの inbox 名が変わる/分割される場合、元 inbox 名を wikilink で指す既存ノートの path (Phase 4 で drainExtract 廃止後は reportExtract が唯一の referrers 源)' },
+    referrers_scanned: { type: 'boolean', description: 'old_name_referrers の洗い出しを実際に実行したか (true=scan 実行・false=skip)。0 件返ったとき「scan して 0 件」と「skip して 0 件」を区別するため必須 (R2-8)。skip 時は archive 退避除外対象にする' },
+  },
+}
+
+// Phase 3: taskDoneExtract agent (タスク done パート) の戻り schema。旧 drain 抽出 prompt からタスク抽出 + done 検出責務を
+// 切り出した分離後の構成。Phase 4 以降は reportExtract と並列起動して同一 inbox を独立に処理する (2 並列 fan-out)。
+// task_promotions の inbox_origin と done_candidates の inbox_origin は同じ inbox を指すので集約段で交差判定
+// (DUPLICATE_DETECTED) する。done_candidates の schema は旧抽出 schema から逐字移植 (集約段の包含照合・quote_verified の
+// 自己申告規約は不変)。
+const TASK_DONE_EXTRACT_SCHEMA = {
+  type: 'object',
+  required: ['task_promotions', 'done_candidates'],
+  properties: {
+    task_promotions: { type: 'array', items: candidateItem(['タスク'], { withInboxOrigin: true }) },
     done_candidates: {
       type: 'array',
       description: '既存タスクノートのうち、この inbox の本文に完了示唆が読み取れるもの。0 件が正当 (推測で done 候補にしない)',
@@ -120,7 +138,7 @@ const EXTRACT_SCHEMA = {
           evidence_quote: { type: 'string', description: 'inbox 本文中の完了示唆の逐語引用 (集約段で script が包含照合する)' },
           basis: { type: 'string', description: 'やることのどの項目が満たされたかの説明' },
           quote_verified: { type: 'boolean', description: 'subagent が自分の context 内で evidence_quote が inbox 本文に包含されることを確認した真偽 (集約段でも script が再照合する)' },
-          inbox_origin: { type: 'string', description: 'この done 候補がどの inbox から来たか (drainExtractPrompt が処理中の inbox path を埋める。集約段の DUPLICATE_DETECTED 照合キー)' },
+          inbox_origin: { type: 'string', description: 'この done 候補がどの inbox から来たか (taskDoneExtractPrompt が処理中の inbox path を埋める。集約段の DUPLICATE_DETECTED 照合キー)' },
         },
       },
     },
@@ -270,13 +288,16 @@ function regexHits(title) {
 function checkerPrompt(kind, title, excerpt) {
   const taskCriteria = `- 動詞主体の短句か (「〜する」「〜化する」「〜を確認する」)。
 - 複文化していないか (条件節・並列。連用形「〜して」の 2 動詞構造、主述 1 文の条件結果型「Xは Y で Z する」もすり抜け対象として見る)。`
-  const noteCriteria = `① 観察を名指しているか: タイトル本体は観察 (事実・機序・関係) を据える——失敗形でも中立な事実形でもよい (失敗形は必須でない・肯定形そのものは違反でない)。違反は解の指示形「〜する」(解・行動はタスクか本文へ) と中身のない徳の称揚だけ (これらは観察でない)。
-② 平易な日常語で、メタファー連結になっていないか: jargon・英語混入・造語・狭い実装語が無いこと、および比喩/メタファー/personification の連結で抽象語が並んでいないか (vault で確立した技術術語は許容)。失敗例「ガードを指す番地は消える記憶では迷子になる」型——「ガード」「番地」「迷子」「消える記憶」のような抽象語/技術メタファーの連結で何が起きるかが直接読めない型は違反。偏愛語 (泥臭さ／手触り／解像度／本質／営み／文脈)・必殺技造語 (真理／虚飾／美学／境地)・横文字メタファー (思考の OS／ハック／インストール／リファクタリング) も違反。
-③ 不自然な動詞-目的語結合が無いか: 圧縮で生じる不自然結合 (「過剰を取り込む」等) は元記述の意味を消すシグナル。
-④ 元記述の単純な圧縮になっていないか: 述語・名詞の順序入替・短縮だけで語彙構成が変わっていなければ要点が抽出されていない。
-⑤ 条件結果の 2 動詞構造になっていないか: 連用形「〜して〜する」、主述 1 文の条件結果型。要点を 1 動詞に圧縮できるかで判定する (できなければ 2 主張の混在＝複文)。
-⑥ false agency になっていないか: モノを主語に人間動詞をさせる型 (「データが示す」「文化が醸成される」等) は違反——誰が何をしたかに書き換える対象。
-⑦ 主語の空虚な一般化になっていないか: 「人々は」「我々は」「現代社会において」型の空虚な一般化は違反 (具体事象から構造を抽出する一般化は OK)。`
+  // Phase 2 lightNameGate 用 (作業レポート・事実)。気づき/洞察の作法 (観察/判断軸の名指し) は要件外なので
+  // ①観察を名指す/①判断軸を名指す はかけない——「平易な日常語」「不自然動詞結合」「条件結果 2 動詞構造」「false agency」
+  // など作業レポート題でも避けたい構造シグナルだけに絞る。renamer は呼ばないので「該当」は素直に unresolved に倒れる。
+  const reportCriteria = `① 平易な日常語で、メタファー連結になっていないか: jargon・英語混入・造語・狭い実装語の連結が無いこと、および比喩/メタファー/personification の連結で抽象語が並んでいないか (vault で確立した技術術語は許容)。偏愛語 (泥臭さ／手触り／解像度／本質／営み／文脈)・必殺技造語 (真理／虚飾／美学／境地)・横文字メタファー (思考の OS／ハック／インストール／リファクタリング) も違反。
+② 不自然な動詞-目的語結合が無いか: 圧縮で生じる不自然結合 (「過剰を取り込む」等) は元記述の意味を消すシグナル。
+③ 条件結果の 2 動詞構造になっていないか: 連用形「〜して〜する」、主述 1 文の条件結果型。要点を 1 動詞に圧縮できるかで判定する (できなければ 2 主張の混在＝複文)。
+④ false agency になっていないか: モノを主語に人間動詞をさせる型 (「データが示す」「文化が醸成される」等) は違反——誰が何をしたかに書き換える対象。`
+  // Phase 4 + R2-12: 気づき checker (旧 noteCriteria) は skill 本体 step 4.2 (A 化命名ゲート) に移管した。
+  // workflow に kind='気づき' の候補は流入しない (REPORT/TASK_DONE/BACKFILL/INSIGHT_SCHEMA のいずれも気づきを enum しない)。
+  // drain SKILL.md L162-172 が稼働中の正本——本 workflow から noteCriteria 定義を撤去し、非対称ドリフトの温床を断つ。
   // 洞察は気づきと作法が違う: 判断軸を名指す (失敗形は不可)。気づきは観察 (失敗形/中立どちらも可) なので noteCriteria① とは別基準にする (失敗接地: 2026-06-14 洞察タイトルを失敗形/相関/型空当てで 4 回外した)
   const insightCriteria = `① 判断軸を名指しているか: 「次にどう振る舞うか／何で判断するか」の規則・観点になっているか。失敗の再記述 (「〜と損する/間違える/死ぬ」等の失敗形) は気づき側の作法で、洞察では不可 (失敗形=該当)。
 ② 平易な日常語で、メタファー連結になっていないか: jargon・英語混入・造語・狭い実装語が無いこと、および比喩/メタファー/personification の連結で抽象語が並んでいないか (vault で確立した技術術語は許容)。失敗例「ガードを指す番地は消える記憶では迷子になる」型——「ガード」「番地」「迷子」「消える記憶」のような抽象語/技術メタファーの連結で何が起きるかが直接読めない型は違反。偏愛語 (泥臭さ／手触り／解像度／本質／営み／文脈)・必殺技造語 (真理／虚飾／美学／境地)・横文字メタファー (思考の OS／ハック／インストール／リファクタリング) も違反。
@@ -293,7 +314,7 @@ function checkerPrompt(kind, title, excerpt) {
 ${excerpt || '(元記述なし)'}
 
 判断基準:
-${kind === 'タスク' ? taskCriteria : kind === '洞察' ? insightCriteria : noteCriteria}
+${kind === 'タスク' ? taskCriteria : kind === '洞察' ? insightCriteria : kind === '作業レポート・事実' ? reportCriteria : (() => { throw new Error(`checkerPrompt: 想定外の kind=${kind} (気づき checker は skill 本体 step 4.2 に移管・workflow には流入しないはず)`) })()}
 
 verdict: 違反あり=該当 / 違反なし=非該当 / 元記述が薄く判定できない=判断不能 (note に理由を 1 行)。`
 }
@@ -316,7 +337,48 @@ function renameCandidate(c, newTitle) {
   for (const e of c.backlink_edits || []) e.add_line = e.add_line.split(`[[${old}]]`).join(`[[${newTitle}]]`)
 }
 
+// Phase 2: 作業レポート・事実 (LLM Wiki パート) 専用の軽量命名ゲート。
+// regex hit → checker 該当 → unresolved の 1 ラウンドで打ち切り、renamer agent は呼ばない。
+// 命名規約の難所 (②メタファー連結・⑤型空当て) は気づき・洞察にしか直撃しないため、作業レポート題には
+// renamer 起動コストを払わない (Phase 2 plan L156-158 の renamer 撤廃方針)。
+async function lightNameGate(c) {
+  const g = { initial_title: c.title, final_title: c.title, rounds: 1, log: [], unresolved: false, undecidable: false }
+  const hits = regexHits(c.title)
+  if (hits.length) {
+    g.log.push(`r1: 機械ゲート hit: ${[...new Set(hits)].join(' ')} (light gate・renamer 呼ばずに unresolved)`)
+    g.unresolved = true
+    return g
+  }
+  const v = await agent(checkerPrompt(c.kind, c.title, c.source_excerpt), {
+    schema: CHECK_SCHEMA,
+    model: M_CHECK,
+    label: `check:${c.title.slice(0, 14)}`,
+    phase: '命名ゲート',
+  })
+  if (!v) {
+    g.log.push('r1: 点検 agent 失敗 (light gate・unresolved)')
+    g.unresolved = true
+    return g
+  }
+  if (v.verdict === '非該当') {
+    g.log.push('r1: 非該当 (通過)')
+    return g
+  }
+  if (v.verdict === '判断不能') {
+    g.log.push(`r1: 判断不能 — ${(v.violations[0] && v.violations[0].note) || '理由不明'}`)
+    g.undecidable = true
+    return g
+  }
+  // 該当 → renamer 呼ばずに unresolved (light gate: rounds=1 で打ち切り)
+  const issues = v.violations.map((x) => `基準${x.criterion}: 「${x.quote}」 ${x.note}`).join(' / ')
+  g.log.push(`r1: 該当 ${issues} (light gate・renamer 呼ばずに unresolved)`)
+  g.unresolved = true
+  return g
+}
+
 async function nameGate(c, renameModel) {
+  // Phase 2: 作業レポート・事実 は軽量ゲートに dispatch (renamer 撤廃)
+  if (c.kind === '作業レポート・事実') return await lightNameGate(c)
   const g = { initial_title: c.title, final_title: c.title, rounds: 0, log: [], unresolved: false, undecidable: false }
   for (let round = 1; round <= 2; round++) {
     g.rounds = round
@@ -370,7 +432,9 @@ async function nameGate(c, renameModel) {
 }
 
 function needsGate(c) {
-  return !c.fold_into && (c.kind === '気づき' || c.kind === 'タスク' || c.kind === '洞察')
+  // Phase 2: 作業レポート・事実 も軽量ゲート (regex+checker のみ) の対象に含める。fold は対象外。
+  // Phase 4: 気づき gate は skill 本体側 step 4.2 (A 化命名ゲート) に移管 (workflow 経路の `kind === '気づき'` は到達不能・R2-9)。
+  return !c.fold_into && (c.kind === 'タスク' || c.kind === '洞察' || c.kind === '作業レポート・事実')
 }
 async function runGate(c) {
   c.gate = await nameGate(c, c.kind === '洞察' ? M_INSIGHT : M_EXTRACT)
@@ -434,14 +498,60 @@ ${c.content}
 }
 
 // ---- プロンプト (モード別素材整理) ----
-// drain 抽出 subagent は責務を「気づき／作業レポート／タスク候補／done 候補」の 4 系統に集約する (v6 plan 併合案・全体最適)。
-// 後段の donePrompt(corpus) 呼び出しは drain mode のみ廃止 (backfill mode は残す)。inbox 本文は呼び出し側が Read 済み content
-// を渡してきた場合はそれを使い、そうでなければ subagent が Read tool で取得する (main 占有トークン削減のため content 省略を主流路に)。
-function drainExtractPrompt(f, openTasksList) {
-  // 被リンク洗いコマンドは script が決定論で解決する (起動判定は SKILL.md step 1 が渡した flag)。agent は実行のみ。
+// Phase 4: drain の気づき抽出 prompt は廃止された。気づき抽出責務は skill 本体側 (drain SKILL.md) に移管され、
+// Agent tool の name 付き spawn + SendMessage で抽出 context を保ったまま再命名する A 化版命名ゲートで運用される。
+// 関連 prompt 本文 (kizuki extraction / insight detection / checker / renamer) は skill 本体側に転記済み。
+// drain mode の workflow は reportExtract (LLM Wiki) と taskDoneExtract (タスク done) の 2 agent fan-out に縮小された。
+
+// Phase 2: reportExtract agent (LLM Wiki パート) のプロンプト。元の 4 系統併合抽出 prompt から作業レポート・事実 抽出責務を切り出し、
+// inbox 1 件を単独で読み込み 作業レポート・事実 候補だけを構造化して返す。Phase 4 以降は taskDoneExtract と並列起動
+// (script の pipeline + Promise.all で 1 inbox=2 agent fan-out)・気づき抽出は skill 本体側で並列に動く (本 agent からは見えない)。
+// 責務順序強制 (作業レポート 1:1 昇格)・MCP 突き合わせ・MCP fallback 規約は元の併合 prompt から継承する。
+function reportExtractPrompt(f) {
   const backlinkCmd = OBSIDIAN_AVAILABLE
     ? 'obsidian backlinks file=<元 inbox 名 (拡張子なし)> (実リンクグラフを解決するので alias・heading リンクも拾う)'
     : `rg -l '\\[\\[<元 inbox 名 (拡張子なし)>\\]\\]' ${VAULT}`
+  const hasContent = !!(f.content && f.content.length)
+  const bodySection = hasContent
+    ? `--- 内容ここから ---\n${f.content}\n--- 内容ここまで ---`
+    : `本文取得: Read tool で \`${f.path}\` を開き、本文を加工せず subagent context 内で扱う。**読んだ全文を戻り値に再掲しない** (集約段が肥大化する。逐語が要るのは source_excerpt だけ)。`
+  return `あなたは vault inbox 排出 (drain) の **作業レポート・事実 (LLM Wiki パート) 抽出担当**。以下の inbox ノート 1 件を読み、notes/ へ昇格させる **作業レポート・事実 候補のみ** を構造化して返せ。ファイルへの書き込みは一切しない (Read/Grep/Glob のみ。Write は呼び出し元の責務)。
+
+vault: ${VAULT}
+inbox ノート: ${f.path}
+${bodySection}
+
+**責務の限定 (Phase 2 で分離された LLM Wiki パート)**:
+- あなたは **作業レポート・事実 (調査記録・1:1 昇格対象・客観事実・仕様・スペック) のみ** を report_promotions に出す。schema enum で 作業レポート・事実 以外は表現不能だが、念のため指示。
+- 気づき (主観的な学び・判断・教訓・方針) は **skill 本体側 (drain SKILL.md) の気づき抽出担当の責務**なので本 agent では切り出さない (主語をツール固有から一般化した主観的教訓は気づき側で扱う)。
+- タスク (未着手の行動) と done 検出 は **並行する taskDoneExtract agent の責務**。
+- 同一 inbox は taskDoneExtract と並列 (workflow 内) ＋ skill 本体側の気づき抽出と並列 (workflow 外) で処理される——あなたの戻りに気づき/タスク/done を混ぜない (他 agent と重複する)。
+
+手順:
+1. この inbox の内容を「名付けられる粒度」で **作業レポート・事実** の昇格候補に分ける (1 inbox から複数可)。作業レポート・調査記録はそれ自体を 1:1・具体タイトルのまま kind=作業レポート・事実 として昇格する。検証で確定した客観事実・仕様・スペックも 作業レポート・事実 として扱う。**気づきはここで切り出さない** (skill 本体側の気づき抽出担当の責務)。
+2. 各候補について vault 既存ノードを突き合わせ、関連ノート・既出を洗う。一次索引は MCP tool 経由で動的に引く (常時ロードのカタログは持たない・subagent には届かない)。
+   - タイトル一致・意味近傍: \`mcp__vault-catalog__search_hybrid(query=候補タイトル, limit=5)\` を呼ぶ。返る hits の path/title/tags/body_snippet を見て当たりを付ける。
+   - タグ共有での当たり付け: inbox 本文中に既存の #タグ 表記や明示的なタグキーワードが読み取れる場合に限り、それらを引数に \`mcp__vault-catalog__search_by_tag(tags=[<読み取ったタグ列>], limit=10)\` を呼ぶ。inbox 本文にタグの手掛かりが無ければこの step を飛ばす。
+   - fold 判定や本文確認が要るものだけ Read する (全 notes の Grep fan-out はしない)。MOC/ は Dataview 集約で MCP に乗らないため、必要時のみ別途 Read する。
+   - **MCP 結果は近傍候補であって fold 判定の根拠ではない**。fold を判断するなら必ず本文を Read して同一物であることを確認する (MCP の曖昧 hit を fold 根拠に取り違えない)。
+   - MCP 該当が無く Read でも既存に該当が見つからなければ新しい主題＝新規候補。
+3. 新規候補は content に frontmatter＋本文の完成形を書く。関連既存ノード側からの逆リンク 1 行を backlink_edits に列挙する (双方向リンク。関連が実在するものだけ・弱い繋がりを強引に張らない)。**作業レポート・事実 は tags に 気づき / 洞察 を付けない** (トピックタグのみ・script 側の機械検証でも検査される)。
+4. 各候補に inbox_origin = \`${f.path}\` を埋める (集約段の照合キー)。
+5. この inbox のファイル名が昇格で変わる/分割される場合、元 inbox 名を wikilink で指す既存ノートを ${backlinkCmd} で機械的に洗い old_name_referrers に返す (path のリスト。0 ヒットなら空配列。同名昇格なら洗わなくてよい)。**Phase 4 で drainExtract が廃止されたため reportExtract が referrers の唯一の供給源**——本 agent では report_promotions が 0 件でも (taskDoneExtract や skill 本体側の気づき抽出が inbox 名を変える場合があるので) 必ず referrers の洗い出しは実行する。**referrers の洗い出しを実行した場合は referrers_scanned=true で明示申告し、(同名昇格と判断して) skip した場合は referrers_scanned=false で明示する** (集約段が「scan して 0 件」と「skip して 0 件」を区別するため・R2-8)。
+
+捏造補完しない: 素材に無い感覚・詳細を想像で埋めない。
+
+MCP 不達時の fallback: MCP tool 呼び出しで exception が出た場合 (network error / server down / timeout / unreachable 等) は Grep (\`rg '<query>' ${VAULT}/notes\` 等) に retreat し処理を継続する。失敗したまま止めない。fallback した呼び出しごとに \`log('MCP_FALLBACK: <tool> <reason>')\` を 1 行出してから続行する (script 側でカウンタを持たないので grep で頻度を後から数える)。
+${VAULT_RULES}
+${NAMING_COMMON}`
+}
+
+// Phase 3: taskDoneExtract agent (タスク done パート) のプロンプト。元の 4 系統併合抽出 prompt から タスク抽出 + done 検出責務を
+// 切り出し、inbox 1 件を単独で読み込み (a) 新規タスク候補と (b) 既存タスクの done 候補を構造化して返す。Phase 4 以降は
+// reportExtract と並列起動 (script の pipeline + Promise.all で 1 inbox=2 agent fan-out)・気づき抽出は skill 本体側で
+// 並列に動く (本 agent からは見えない)。責務順序強制 (まず done → 残りからタスク抽出)・MCP 突き合わせ・MCP fallback 規約は
+// 元の併合 prompt から該当箇所を継承する。既存タスクノート一覧 (open_tasks) はこの agent にだけ渡る (done 突き合わせ素材)。
+function taskDoneExtractPrompt(f, openTasksList) {
   const hasContent = !!(f.content && f.content.length)
   const bodySection = hasContent
     ? `--- 内容ここから ---\n${f.content}\n--- 内容ここまで ---`
@@ -449,7 +559,7 @@ function drainExtractPrompt(f, openTasksList) {
   const openTasksSection = (openTasksList && openTasksList.length)
     ? `既存タスクノート一覧 (done 候補検出の突き合わせ素材。これ以外を done 候補にしない):\n${openTasksList.map((t) => `- ${t.path}${t.title ? ` — ${t.title}` : ''}`).join('\n')}`
     : '既存タスクノート一覧: (なし。done 候補は 0 件のまま返す)'
-  return `あなたは vault inbox 排出 (drain) の昇格担当。以下の inbox ノート 1 件を読み、notes/ へ昇格させる候補と完了 (done) 候補を構造化して返せ。ファイルへの書き込みは一切しない (Read/Grep/Glob のみ。Write は呼び出し元の責務)。
+  return `あなたは vault inbox 排出 (drain) の **タスク抽出 + 完了 (done) 検出担当**。以下の inbox ノート 1 件を読み、(a) notes/ へ新規昇格させる **タスク (未着手の行動) 候補** と (b) 既存タスクの **完了 (done) 候補** を構造化して返せ。ファイルへの書き込みは一切しない (Read/Grep/Glob のみ。Write は呼び出し元の責務)。
 
 vault: ${VAULT}
 inbox ノート: ${f.path}
@@ -457,32 +567,35 @@ ${bodySection}
 
 ${openTasksSection}
 
+**責務の限定 (Phase 3 で分離された タスク done パート)**:
+- あなたは **タスク (未着手の行動) と done 候補のみ** を返す。schema enum で task_promotions の kind は タスク 以外を表現できないが、念のため指示。
+- 気づき (主観的な学び・判断・教訓・方針) は **skill 本体側 (drain SKILL.md) の気づき抽出担当の責務**なので本 agent では切り出さない。
+- 作業レポート・事実 (調査記録・1:1 昇格対象) は **並行する reportExtract agent の責務**なので本 agent では切り出さない。
+- 同一 inbox は reportExtract と並列 (workflow 内) ＋ skill 本体側の気づき抽出と並列 (workflow 外) で処理される——あなたの戻りに気づき/作業レポートを混ぜない (他 agent と重複する)。
+
 **責務の順序強制と排他**:
 - まず **done 検出**: Read した inbox 本文と上の既存タスクノート一覧を突き合わせ、完了示唆 (「X 完了」「やった」「実装した」「やることが満たされた」等が plain に読める) のあるタスクを done_candidates に返す。evidence_quote は **inbox 本文中の逐語引用** (要約・言い換えは集約段の包含照合に落ちる)。basis は「やることのどの項目が満たされたか」の説明。quote_verified は **subagent 自身が evidence_quote の inbox 本文への包含を確認した真偽** (true なら集約段の再照合も通る前提・false なら確認に落ちた)。inbox_origin は処理中の inbox path = \`${f.path}\` を埋める。
-- **残り**で気づき/タスク候補/作業レポートを組み立てる: done 検出で拾った既存タスクの完了示唆は **気づき/タスク候補に含めない**。それ以外の素材から promotions を組み立てる。
-- **排他指示**: 同じ記述を done_candidates と promotions の両方に出さない。done 候補に該当する記述は done_candidates にだけ出す (集約段で同じ inbox_origin から両者が出ると DUPLICATE_DETECTED が立つ)。
-- promotions の各候補に inbox_origin = \`${f.path}\` を埋める (集約段の重複検出と洞察検出 lightMaterial の照合キー)。
+- **残り**で タスク 候補を組み立てる: done 検出で拾った既存タスクの完了示唆は **task_promotions に含めない**。それ以外の素材から新規タスク候補を組み立てる。
+- **排他指示**: 同じ記述を done_candidates と task_promotions の両方に出さない。done 候補に該当する記述は done_candidates にだけ出す (集約段で同じ inbox_origin から両者が出ると DUPLICATE_DETECTED が立つ)。
+- task_promotions の各候補に inbox_origin = \`${f.path}\` を埋める (集約段の DUPLICATE_DETECTED 照合キー)。
 
 手順:
-1. この inbox の内容を「名付けられる粒度」で昇格候補に分ける (1 inbox から複数可)。作業レポート・調査記録はそれ自体を 1:1・具体タイトルのまま kind=作業レポート・事実 として昇格する。ただし 1:1 で終わらせず、下記「気づき抽出」を必ず併走させる (1 inbox が 作業レポート＋気づき＋タスク を同時に生むのは正常)。
-2. 各候補について vault 既存ノードを突き合わせ、関連ノート・既出を洗う。一次索引は MCP tool 経由で動的に引く (常時ロードのカタログは持たない・subagent には届かない)。
+1. **done 検出を最初に行う** (上記順序強制)。既存タスクノート一覧から完了示唆のあるものを done_candidates として返す。
+2. 残りの記述から、未着手の行動を kind=タスク で抽出する。ラベルは ① 明示 TODO (「TODO」「未実施」「やる」等が plain にある) / ② 次タスク候補 (「次は〜」等の先送り表明) / ③ ノート分析で出た課題 (論理ギャップ・矛盾・未解決。why_important 必須)。
+3. 各タスク候補について vault 既存ノードを突き合わせ、関連ノート・既出を洗う。一次索引は MCP tool 経由で動的に引く (常時ロードのカタログは持たない・subagent には届かない)。
    - タイトル一致・意味近傍: \`mcp__vault-catalog__search_hybrid(query=候補タイトル, limit=5)\` を呼ぶ。返る hits の path/title/tags/body_snippet を見て当たりを付ける。
-   - タグ共有での当たり付け: inbox 本文中に既存の #タグ 表記や明示的なタグキーワード (例: 「気づき」「洞察」「タスク」や個別ジャンルの確立タグ) が読み取れる場合に限り、それらを引数に \`mcp__vault-catalog__search_by_tag(tags=[<読み取ったタグ列>], limit=10)\` を呼ぶ。inbox 本文にタグの手掛かりが無ければこの step を飛ばす (この時点で候補の最終タグ列は未確定なので候補のタグ列を引数にしない)。
-   - fold 判定や本文確認が要るものだけ Read する (全 notes の Grep fan-out はしない)。MOC/ は Dataview 集約で MCP に乗らないため、必要時のみ別途 Read する。
+   - 既存タスクとの突き合わせ: 上記 open_tasks 一覧も近傍判定の入口にする。同一物の確認は Read して本文を見る。
+   - fold 判定や本文確認が要るものだけ Read する (全 notes の Grep fan-out はしない)。
    - **MCP 結果は近傍候補であって fold 判定の根拠ではない**。fold を判断するなら必ず本文を Read して同一物であることを確認する (MCP の曖昧 hit を fold 根拠に取り違えない)。
    - MCP 該当が無く Read でも既存に該当が見つからなければ新しい主題＝新規候補。
-3. 新規候補は content に frontmatter＋本文の完成形を書く。関連既存ノード側からの逆リンク 1 行を backlink_edits に列挙する (双方向リンク。関連が実在するものだけ・弱い繋がりを強引に張らない)。
-4. この inbox のファイル名が昇格で変わる/分割される場合、元 inbox 名を wikilink で指す既存ノートを ${backlinkCmd} で機械的に洗い old_name_referrers に返す (path のリスト。0 ヒットなら空配列。同名昇格なら洗わなくてよい)。
+4. 新規タスク候補は content に frontmatter＋本文の完成形を書く (## やること を「- 」箇条書きで・チェックボックス \`- [ ]\` 禁止・ラベル ③ は ## 元ノート(なぜ重要) を含む)。関連既存ノード側からの逆リンク 1 行を backlink_edits に列挙する (双方向リンク。関連が実在するものだけ・弱い繋がりを強引に張らない)。
+5. この inbox のファイル名が昇格で変わる/分割される場合に元 inbox 名を wikilink で指す既存ノートの洗い出し (old_name_referrers) は **reportExtract agent の責務** (本 agent では行わない・Phase 4 で drainExtract が廃止されて以降 reportExtract が唯一の referrers 供給源)。
 
-気づき抽出 (作業レポートでも必ず行う): inbox が作業レポート・調査記録であっても、その作業を通じて立ち上がった主観的な学び・判断・方針・再発パターン・踏んだ罠の教訓が本文にあれば、作業レポート本体の 1:1 昇格とは別に kind=気づき の独立ノードとして切り出す。「作業レポートだから 1:1 で終わり」にしない——層は 作業 (レポート) → 気づき で分けるのであって、作業レポートが気づきの抽出元にならないわけではない (作業レポートは洞察の source になれないだけ)。対象は主語をツール固有から一般化できる教訓 (特定ツールの狭いスペック・手順そのものの記述は事実なので切り出さない)。本当に学びが無ければ 0 件が正当。作業レポート本体には気づきタグを付けず洞察 source にもしない。切り出した気づきが後段で洞察の素材になりうる。
-
-【気づき候補の導出チェックリスト・毎回必須】各 kind=気づき 候補について \`derivation\` を必ず埋める (洞察の derivation 同型の規律——個別事象・実装意図・事実記述を気づき層に上げない第 1 防御線)。順序: ① \`source_observations\`: 観察した個別事象を inbox 本文から逐語で 1 件以上抜粋する (複数文の逐語可。素材に無い詳細は補完しない)。② \`pattern_generalization\`: 観察した個別事象から「事象に固有でない pattern (繰り返し見える構造・固有名詞を抜いた骨格)」を 1 文で抽出する。固有名詞・特定ツール・特定文脈の語を一般語に置換した形で書く (subagent の抽象化過程を出力に残す中間段。ここを ① の逐語と同じ言葉で埋めたら抽象化が起きていない＝再考する)。③ \`lesson_axis\`: ② で抽出した pattern から「次にどう振る舞うか／何を学んだか」を一段上の機序/教訓として 1 文で言い切る (これが気づきタイトルの土台になる軸。② の単純な言い換えに止めず ② を踏まえて規範的に言い切る)。④ \`generalization_check\`: 「③ の主語を一般語に置換できたか／複数文脈に転用可能か」の自己検証を 1 文で書く。置換できない・1 文脈にしか効かないなら気づきにせず作業レポート・事実側に倒す (個別事象・実装意図・事実記述を気づきに上げない)。kind が気づき以外の候補では derivation は空のままでよい。
-タスク抽出: inbox 中の未着手の行動を kind=タスク で抽出する。ラベルは ① 明示 TODO (「TODO」「未実施」「やる」等が plain にある) / ② 次タスク候補 (「次は〜」等の先送り表明) / ③ ノート分析で出た課題 (論理ギャップ・矛盾・未解決。why_important 必須)。
-洞察はここで作らない (後段の専用 agent が担う)。
+捏造補完しない: 素材に無い感覚・詳細を想像で埋めない。
 
 MCP 不達時の fallback: MCP tool 呼び出しで exception が出た場合 (network error / server down / timeout / unreachable 等) は Grep (\`rg '<query>' ${VAULT}/notes\` 等) に retreat し処理を継続する。失敗したまま止めない。fallback した呼び出しごとに \`log('MCP_FALLBACK: <tool> <reason>')\` を 1 行出してから続行する (script 側でカウンタを持たないので grep で頻度を後から数える)。
 ${VAULT_RULES}
-${NAMING_FOR_KIZUKI}`
+${NAMING_COMMON}`
 }
 
 function backfillPrompt() {
@@ -574,58 +687,76 @@ log(`mode=${MODE} / 素材: ${MODE === 'drain' ? INBOX_FILES.length + ' inbox fi
 let candidates = []
 let linkRewrites = []
 let backfillMaterial = null
-let corpus = '' // done 検出の証拠照合用テキスト (script が手元に持つ素材だけが照合対象)。drain では未使用 (drain 抽出 subagent が併合済み)
-let drainDoneCandidates = [] // drain mode の done 候補は drain 抽出 subagent が返したものを flatten する (donePrompt は呼ばない)
-const flags = { extraction_failed: [], insight_failed: false, done_failed: false, done_skipped_no_reports: false }
+let corpus = '' // done 検出の証拠照合用テキスト (script が手元に持つ素材だけが照合対象)。drain では未使用 (taskDoneExtract subagent が素材整理段で並列に done 検出する)
+let drainDoneCandidates = [] // drain mode の done 候補は taskDoneExtract subagent が返したものを flatten する (donePrompt は呼ばない)
+// Phase 4: drainExtract (気づき) は skill 本体側に移管したので flags.extraction_failed は廃止。
+// report_extraction_failed / task_done_extraction_failed の 2 軸で workflow 側の失敗を追う。
+// 気づき抽出 / 洞察検出の失敗は skill 本体側で追跡する (workflow には流れない)。
+const flags = { report_extraction_failed: [], task_done_extraction_failed: [], insight_failed: false, done_failed: false, done_skipped_no_reports: false }
 
 if (MODE === 'drain') {
+  // Phase 4: drainExtract (気づき) は skill 本体側に移管 (A 化命名ゲート: name 付き spawn + SendMessage で再命名)。
+  // workflow は taskDoneExtract (タスク+done) / reportExtract (作業レポート・事実) の 2 並列で
+  // inbox ごとに fan-out する (Phase 3 の 3 並列から Phase 4 で 2 並列に縮小)。
+  // 2 agent の戻りが揃った時点で promotions を merge して命名ゲートに流す (他 inbox の抽出を待たない)。
+  // 各 agent の戻りは独立に処理し、いずれかが失敗してもこの inbox の処理を止めない (フォールバック構造)。
   await pipeline(
     INBOX_FILES,
-    (f) =>
-      agent(drainExtractPrompt(f, OPEN_TASKS), {
-        schema: EXTRACT_SCHEMA,
-        model: M_EXTRACT,
-        label: `extract:${f.path.split('/').pop()}`,
-        phase: '素材整理',
-      }),
-    async (ex, f) => {
-      if (!ex) {
-        flags.extraction_failed.push(f.path)
-        return null
-      }
-      for (const c of ex.promotions) {
-        // inbox_origin はプロンプトで埋めさせているが、念のため script 側でも保証する (集約段の DUPLICATE_DETECTED 照合キー・belt-and-suspenders)
-        if (!c.inbox_origin) c.inbox_origin = f.path
-        // 導出チェックリストが毎回実施されたかを機械チェック (自己申告でなく出力の充足で検証)。
-        // source_observations は 1 件以上 (気づきは 1 観察起点が中心)・pattern_generalization/lesson_axis/generalization_check 非空。未充足は triage で明示する。
-        if (c.kind === '気づき') {
-          const d = c.derivation || {}
-          const hasLessonAxis = !!(d.lesson_axis && d.lesson_axis.trim())
-          c.derivation_ok =
-            Array.isArray(d.source_observations) &&
-            d.source_observations.filter((s) => s && s.trim()).length >= 1 &&
-            !!(d.pattern_generalization && d.pattern_generalization.trim()) &&
-            hasLessonAxis &&
-            !!(d.generalization_check && d.generalization_check.trim())
-          // 命名は lesson_axis から導く (title=判断軸)。命名点検 (nameGate) の元記述に
-          // source_excerpt (素材逐語抜粋＝具体事例文) でなく lesson_axis を渡す
-          // ——具体事例起点だと表層圧縮に流れ④単純圧縮で命名ゲートを通らない
-          // (失敗接地 2026-06-27: drain 20 回目 ID2「人ゲートの審査対象にならない」で
-          // source_excerpt の具体事例文脈に引きずられ r2 ④で hit→ユーザ訂正)。
-          // lesson_axis 欠落時のみ既存 source_excerpt に退避。
-          if (hasLessonAxis) c.source_excerpt = d.lesson_axis
+    async (f) => {
+      const [tex, rex] = await Promise.all([
+        agent(taskDoneExtractPrompt(f, OPEN_TASKS), {
+          schema: TASK_DONE_EXTRACT_SCHEMA,
+          model: M_EXTRACT,
+          label: `taskDoneExtract:${f.path.split('/').pop()}`,
+          phase: '素材整理',
+        }),
+        agent(reportExtractPrompt(f), {
+          schema: REPORT_EXTRACT_SCHEMA,
+          model: M_EXTRACT,
+          label: `reportExtract:${f.path.split('/').pop()}`,
+          phase: '素材整理',
+        }),
+      ])
+      return { tex, rex }
+    },
+    async ({ tex, rex }, f) => {
+      const mergedPromotions = []
+      const mergedOldNameReferrers = new Set()
+      const doneCands = []
+
+      if (!tex) {
+        flags.task_done_extraction_failed.push(f.path)
+      } else {
+        for (const c of tex.task_promotions || []) {
+          // inbox_origin はプロンプトで埋めさせているが、念のため script 側でも保証する (集約段の DUPLICATE_DETECTED 照合キー・belt-and-suspenders)
+          if (!c.inbox_origin) c.inbox_origin = f.path
+          mergedPromotions.push(c)
+        }
+        for (const d of tex.done_candidates || []) {
+          if (!d.inbox_origin) d.inbox_origin = f.path
+          doneCands.push(d)
         }
       }
-      // 同一 inbox の候補は揃った時点で即ゲートに流す (他 inbox の抽出を待たない)
-      await parallel(ex.promotions.filter(needsGate).map((c) => () => runGate(c)))
-      candidates.push(...ex.promotions)
-      if (ex.old_name_referrers.length) linkRewrites.push({ inbox: f.path, referrers: ex.old_name_referrers })
-      // inbox_origin は念のため script 側でも保証する (belt-and-suspenders)
-      for (const d of (ex.done_candidates || [])) {
-        if (!d.inbox_origin) d.inbox_origin = f.path
-        drainDoneCandidates.push(d)
+
+      if (!rex) {
+        flags.report_extraction_failed.push(f.path)
+      } else {
+        for (const c of rex.report_promotions || []) {
+          if (!c.inbox_origin) c.inbox_origin = f.path
+          mergedPromotions.push(c)
+        }
+        // Phase 4: drainExtract 廃止後は reportExtract が唯一の referrers 供給源
+        for (const ref of rex.old_name_referrers || []) mergedOldNameReferrers.add(ref)
+        // R2-8: referrers_scanned=false (skip 申告) は「scan して 0 件」と区別不能なので、rex 成功時でも
+        // report_extraction_failed 相当の archive 退避除外対象として flag に push する (rename を伴う昇格は次回 drain へ持ち越し)。
+        if (rex.referrers_scanned === false) flags.report_extraction_failed.push(f.path)
       }
-      return ex
+
+      // 同一 inbox の候補 (taskDoneExtract+reportExtract の merge) は揃った時点で即ゲートに流す (他 inbox の抽出を待たない)
+      await parallel(mergedPromotions.filter(needsGate).map((c) => () => runGate(c)))
+      candidates.push(...mergedPromotions)
+      drainDoneCandidates.push(...doneCands)
+      if (mergedOldNameReferrers.size) linkRewrites.push({ inbox: f.path, referrers: [...mergedOldNameReferrers] })
     },
   )
 } else {
@@ -650,28 +781,15 @@ if (MODE === 'drain') {
 log(`素材整理: 候補 ${candidates.length} 件 (うち fold ${candidates.filter((c) => c.fold_into).length})`)
 
 // ============================================================
+// Phase 4: drain の洞察検出は skill 本体側に移管した (Agent tool で insight-detect agent を name 付き spawn し、
+// A 化命名ゲート＝SendMessage で再命名する設計)。workflow では backfill mode のみ洞察検出を実行する。
 phase('洞察検出')
-const nonTask = candidates.filter((c) => c.kind !== 'タスク')
-let extraMaterial = ''
-let newNotesList = ''
-let sourceExcerptEmptyCount = 0
 if (MODE === 'drain') {
-  // drain は corpus 全文注入を廃止し、各候補の source_excerpt 直結の lightMaterial を別途渡す (v6 plan・全体最適)。
-  // newNotesList は insightPrompt の canonical anchor として保持 (`今回の新規/更新ノード` 節が "(なし)" になると洞察検出が
-  // 新規 0 件と誤読する)。drain でも `[kind] title` 形式で必ず生成する (lightMaterial 側で gist=source_excerpt を補強する)。
-  sourceExcerptEmptyCount = nonTask.filter((c) => !c.source_excerpt).length
-  newNotesList = nonTask
-    .map((c) => `- [${c.kind}] ${c.title}${c.fold_into ? ` (→ ${c.fold_into} へ畳む)` : ''}`)
-    .join('\n')
-  // lightMaterial: source_excerpt は長文時に lightMaterial 全体を肥大化させるので 200 字までで切る (洞察検出の入口素材として
-  // 十分・行き止まりの絞り込みは subagent が MCP/Read で再取得する)。
-  extraMaterial = `昇格元 inbox から立った新規気づき・候補 (path + gist=source_excerpt 直結・gist は 200 字までで truncate):\n${nonTask
-    .map((c) => `- [${c.kind}] [[${c.title}]] (${c.inbox_origin || '(no origin)'}): ${(c.source_excerpt || '(no excerpt)').slice(0, 200)}`)
-    .join('\n')}`
-}
-if (MODE === 'backfill') {
-  // backfill は従来の newNotesList 生成を維持する (lightMaterial は drain と別経路)。
-  newNotesList = nonTask
+  log('drain mode: 洞察検出は skill 本体の責務 (insight-detect agent を skill 側で name 付き spawn) — workflow ではスキップ')
+} else {
+  // backfill: 期間素材を入口に洞察検出を回す。新規ノード一覧 (period_pages の #気づき/#洞察 起点) を素材として渡す。
+  const nonTask = candidates.filter((c) => c.kind !== 'タスク')
+  const newNotesList = nonTask
     .map((c) => `- [${c.kind}] ${c.title}${c.fold_into ? ` (→ ${c.fold_into} へ畳む)` : ''}`)
     .join('\n')
   // body 全量は注入しない (done sweep の証跡照合は corpus 側が full body で担うので insight に body は不要)。
@@ -680,45 +798,39 @@ if (MODE === 'backfill') {
     period_pages: (backfillMaterial.period_pages || []).map((p) => ({ path: p.path, gist: p.gist })),
     journal_notes: backfillMaterial.journal_notes,
   }
-  extraMaterial = `期間素材 (path と 1 行要旨の一覧。これを入口に Grep/Read で本文を辿る):\n${JSON.stringify(lightMaterial, null, 2)}`
-}
+  const extraMaterial = `期間素材 (path と 1 行要旨の一覧。これを入口に Grep/Read で本文を辿る):\n${JSON.stringify(lightMaterial, null, 2)}`
 
-const ir = await agent(insightPrompt(newNotesList, extraMaterial), {
-  schema: INSIGHT_SCHEMA,
-  model: M_INSIGHT,
-  label: 'insight-detect',
-  phase: '洞察検出',
-})
-if (!ir) {
-  flags.insight_failed = true
-} else {
-  const insights = ir.insights
-  for (const i of insights) {
-    i.kind = '洞察'
-    i.label = 'none'
-    i.fold_into = ''
-    // 命名は common_axis から導く (title=判断軸)。命名点検 (nameGate) の元記述に claim でなく common_axis を渡す
-    // ——claim 起点だと失敗形/内的手順に流れ命名ゲートを通らない (失敗接地 2026-06-15: ID8 を claim/手元の像で
-    // 命名し④内的手順・存在論言い直しで 2R 未解決→common_axis 起点で 2R 通過)。common_axis 欠落時のみ claim に退避。
-    i.source_excerpt = i.derivation && i.derivation.common_axis && i.derivation.common_axis.trim() ? i.derivation.common_axis : i.claim
-    // 導出チェックリストが毎回実施されたかを機械チェック (自己申告でなく出力の充足で検証)。
-    // source_avoidances は 2 件以上 (洞察は 2+ source)・common_point/common_axis 非空。未充足は triage で明示する。
-    const d = i.derivation || {}
-    i.derivation_ok =
-      Array.isArray(d.source_avoidances) &&
-      d.source_avoidances.filter((s) => s && s.trim()).length >= 2 &&
-      !!(d.common_point && d.common_point.trim()) &&
-      !!(d.common_axis && d.common_axis.trim())
+  const ir = await agent(insightPrompt(newNotesList, extraMaterial), {
+    schema: INSIGHT_SCHEMA,
+    model: M_INSIGHT,
+    label: 'insight-detect',
+    phase: '洞察検出',
+  })
+  if (!ir) {
+    flags.insight_failed = true
+  } else {
+    const insights = ir.insights
+    for (const i of insights) {
+      i.kind = '洞察'
+      i.label = 'none'
+      i.fold_into = ''
+      // 命名は common_axis から導く (title=判断軸)。命名点検 (nameGate) の元記述に claim でなく common_axis を渡す
+      // ——claim 起点だと失敗形/内的手順に流れ命名ゲートを通らない (失敗接地 2026-06-15: ID8 を claim/手元の像で
+      // 命名し④内的手順・存在論言い直しで 2R 未解決→common_axis 起点で 2R 通過)。common_axis 欠落時のみ claim に退避。
+      i.source_excerpt = i.derivation && i.derivation.common_axis && i.derivation.common_axis.trim() ? i.derivation.common_axis : i.claim
+      // 導出チェックリストが毎回実施されたかを機械チェック (自己申告でなく出力の充足で検証)。
+      // source_avoidances は 2 件以上 (洞察は 2+ source)・common_point/common_axis 非空。未充足は triage で明示する。
+      const d = i.derivation || {}
+      i.derivation_ok =
+        Array.isArray(d.source_avoidances) &&
+        d.source_avoidances.filter((s) => s && s.trim()).length >= 2 &&
+        !!(d.common_point && d.common_point.trim()) &&
+        !!(d.common_axis && d.common_axis.trim())
+    }
+    await parallel(insights.map((i) => () => runGate(i)))
+    candidates.push(...insights)
   }
-  await parallel(insights.map((i) => () => runGate(i)))
-  candidates.push(...insights)
-}
-log(`洞察検出: ${ir ? ir.insights.length : '失敗'} 件`)
-// INSIGHT_ZERO ログ (drain mode のみ・lightMaterial で素材足りているか観察するための指標)。
-// 判定基準は本 script ではなく外側 (drain 実走を跨いだ 3 回連続発生) で行うので、ここでは件数指標だけ出す。
-if (MODE === 'drain' && ir && ir.insights.length === 0) {
-  // lightMaterial_count は nonTask.length と同値なので 1 つだけ残す (nonTask_count を撤去)
-  log(`INSIGHT_ZERO: lightMaterial_count=${nonTask.length} source_excerpt_empty_count=${sourceExcerptEmptyCount}`)
+  log(`洞察検出: ${ir ? ir.insights.length : '失敗'} 件`)
 }
 
 // ============================================================
@@ -726,16 +838,19 @@ phase('タスク・完了検出')
 let doneCandidates = []
 let duplicateDetected = []
 if (MODE === 'drain') {
-  // drain は素材整理段の drain 抽出 subagent が done 検出責務を併合済み (v6 plan)。donePrompt 呼び出しは廃止。
-  // quote_verified は drain 抽出 subagent の自己申告のみ。workflow 側の再照合は v6 plan で廃止 (drain mode では full inbox
-  // 本文が workflow に流れず再包含照合できない・本格的な再照合 Read agent は YAGNI で別 cycle 候補)。schema で quote_verified
-  // は boolean 確定済みなのでそのまま使う。
+  // drain は素材整理段で taskDoneExtract subagent が done 検出責務を担う (Phase 3 で drainExtract から分離・並列実行)。
+  // donePrompt 呼び出しは廃止 (v6 plan)。quote_verified は taskDoneExtract subagent の自己申告のみ。workflow 側の再照合は
+  // v6 plan で廃止 (drain mode では full inbox 本文が workflow に流れず再包含照合できない・本格的な再照合 Read agent は
+  // YAGNI で別 cycle 候補)。schema で quote_verified は boolean 確定済みなのでそのまま使う。
   doneCandidates = drainDoneCandidates
-  // DUPLICATE_DETECTED: 同じ inbox_origin から done_candidates と promotions の両方が候補を出した場合の重複検出ログ。
-  // prompt 内 order 強制 + 排他指示のフェイルセーフ。粗い判定で false positive が出る (作業レポート・気づき由来の duplicate も
-  // 拾うため) が、false negative は減る方向 (v6 plan で受容済み)。kind === 'タスク' に絞らず全 promotions を対象にする。
+  // DUPLICATE_DETECTED: 同じ inbox_origin から done_candidates と task_promotions の両方が候補を出した場合の重複検出ログ。
+  // taskDoneExtract agent 内 order 強制 + 排他指示のフェイルセーフ。
+  // Phase 3 narrow: 母集団を task_promotions ↔ done_candidates の 2 系統交差に絞った (作業レポート・気づき由来の共起は
+  // 層違いの false positive なので除外する・plan L178)。Phase 2 までは全 promotions を母集団にしていたが、reportExtract
+  // 分離で false positive 母集団が拡大したため Phase 3 で narrow。
+  const taskPromotions = candidates.filter((c) => c.kind === 'タスク')
   for (const d of doneCandidates) {
-    const hits = candidates
+    const hits = taskPromotions
       .filter((c) => c.inbox_origin === d.inbox_origin)
       .map((c) => ({ kind: c.kind, title: c.title }))
     if (hits.length) {
@@ -747,12 +862,12 @@ if (MODE === 'drain') {
   const quoteLengths = doneCandidates.map((d) => (d.evidence_quote || '').length)
   const avgQuoteLen = quoteLengths.length ? Math.round(quoteLengths.reduce((a, b) => a + b, 0) / quoteLengths.length) : 0
   log(
-    `done 候補 (drain・併合済み): ${doneCandidates.length} 件 (quote_verified true ${verifiedCount} / evidence_quote 平均長 ${avgQuoteLen})`,
+    `done 候補 (drain・taskDoneExtract 出力): ${doneCandidates.length} 件 (quote_verified true ${verifiedCount} / evidence_quote 平均長 ${avgQuoteLen})`,
   )
   if (duplicateDetected.length) {
-    log(`DUPLICATE_DETECTED: ${duplicateDetected.length} 件 (done と promotions が同じ inbox_origin から出た組)`)
+    log(`DUPLICATE_DETECTED: ${duplicateDetected.length} 件 (task_promotions と done_candidates が同じ inbox_origin から出た組)`)
     for (const dup of duplicateDetected) {
-      log(`  - inbox=${dup.inbox_origin} done=${dup.done_task_path} promotions=${dup.conflicting_promotions.map((p) => `[${p.kind}]${p.title}`).join(', ')}`)
+      log(`  - inbox=${dup.inbox_origin} done=${dup.done_task_path} task_promotions=${dup.conflicting_promotions.map((p) => p.title).join(', ')}`)
     }
   }
 } else {
@@ -785,11 +900,26 @@ const renamePairs = candidates
   .filter((c) => c.gate && c.gate.initial_title && c.gate.initial_title !== c.title)
   .map((c) => ({ from: c.gate.initial_title, to: c.title }))
 if (renamePairs.length) {
+  // path 置換は境界一致で行う (失敗接地: 単純 split('${from}.md') では from='メタ' で
+  // 'notes/古いメタ.md' も誤マッチして 'notes/古い<to>.md' に書き換わる。Phase 4 で
+  // A 化命名による再命名頻度が上がるほど影響が広がるため、from の直前が path 先頭 (^) または
+  // path separator (/) の場合のみ置換する)。RegExp は pre-compile で hot path のコスト縮約。
+  const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  // to を escape: $ を $$ に置換 (replace template の $ 補間回避)。$1 capture-group reference は意図的なので保持。
+  // 失敗接地: simplify で pre-compile した path 置換が String.prototype.replace の第 2 引数で template 解釈され、
+  // to に `$&` `$$` `$1`〜`$9` が含まれると展開されて誤書換になる (R2-1)。
+  const renameOps = renamePairs.map(({ from, to }) => ({
+    wikiFrom: `[[${from}]]`,
+    wikiTo: `[[${to}]]`,
+    pathRegex: new RegExp('(^|/)' + escapeRegex(from) + '\\.md', 'g'),
+    pathTo: '$1' + to.replace(/\$/g, '$$$$') + '.md',
+  }))
   const swapRefs = (s) => {
     if (!s) return s
-    for (const { from, to } of renamePairs) {
-      s = s.split(`[[${from}]]`).join(`[[${to}]]`) // wikilink (本文・source frontmatter・add_line)
-      s = s.split(`${from}.md`).join(`${to}.md`) // ファイルパス (backlink_edits.path・connected_notes)
+    for (const op of renameOps) {
+      s = s.split(op.wikiFrom).join(op.wikiTo) // wikilink (本文・source frontmatter・add_line)
+      // ファイルパス (backlink_edits.path・connected_notes): from の直前が ^ または / の場合のみ置換 (境界一致)。
+      s = s.replace(op.pathRegex, op.pathTo)
     }
     return s
   }
@@ -822,16 +952,90 @@ const totals = {
   done_candidates: doneCandidates.length,
   duplicate_detected: duplicateDetected.length,
 }
-log(
-  `集計: ${totals.count} 候補 (気づき ${totals.kizuki} / 洞察 ${totals.insights} / タスク ${totals.tasks} / レポート・事実 ${totals.reports} / fold ${totals.folds}) 再命名 ${totals.renamed} / ゲート未解決 ${totals.gate_unresolved} / 検証落ち ${totals.validation_failed} / 洞察導出未完 ${totals.insights_derivation_incomplete} / 気づき導出未完 ${totals.kizuki_derivation_incomplete} / 重複検出 ${totals.duplicate_detected}`,
-)
+if (flags.report_extraction_failed.length) log(`REPORT_EXTRACTION_FAILED: ${flags.report_extraction_failed.length} 件 (失敗した inbox)`)
+if (flags.task_done_extraction_failed.length) log(`TASK_DONE_EXTRACTION_FAILED: ${flags.task_done_extraction_failed.length} 件 (失敗した inbox)`)
+// Phase 4: 集計 log を mode 別に書き分ける。drain mode では workflow を流れるのが reports + tasks のみで
+// 気づき・洞察 は skill 本体側で処理される (workflow の totals.kizuki / totals.insights は 0 確定)。
+// 外部 tool (運用ログ追跡) が「気づき・洞察 0 件」を恒常的に拾わないよう、drain と backfill で log 文言を分ける。
+if (MODE === 'drain') {
+  log(
+    `集計: ${totals.count} 候補 (タスク ${totals.tasks} / レポート・事実 ${totals.reports} / fold ${totals.folds}) 再命名 ${totals.renamed} / ゲート未解決 ${totals.gate_unresolved} / 検証落ち ${totals.validation_failed} / 重複検出 ${totals.duplicate_detected} ※気づき・洞察 は skill 本体側で算出 (workflow 経路では totals.kizuki / totals.insights とも 0 確定)`,
+  )
+} else {
+  log(
+    `集計: ${totals.count} 候補 (気づき ${totals.kizuki} / 洞察 ${totals.insights} / タスク ${totals.tasks} / レポート・事実 ${totals.reports} / fold ${totals.folds}) 再命名 ${totals.renamed} / ゲート未解決 ${totals.gate_unresolved} / 検証落ち ${totals.validation_failed} / 洞察導出未完 ${totals.insights_derivation_incomplete} / 気づき導出未完 ${totals.kizuki_derivation_incomplete} / 重複検出 ${totals.duplicate_detected}`,
+  )
+}
+
+// Phase 2: LLM Wiki パート (作業レポート・事実) の per_part metric を確定。Phase 2 受入条件 (plan.md L162-166):
+// 命名ゲート通過率系・renamer 起動 0 件の確認系・規約検証エラー率系を、実装で観測可能な項目として埋める。
+const reportItems = candidates.filter((c) => c.kind === '作業レポート・事実')
+const reportNonFold = reportItems.filter((c) => !c.fold_into)
+const reportGated = reportNonFold.filter((c) => c.gate)
+const llmWikiMetrics = {
+  count: reportItems.length,
+  fold_count: reportItems.length - reportNonFold.length,
+  gate_total: reportGated.length,
+  gate_passed: reportGated.filter((c) => !c.gate.unresolved && !c.gate.undecidable).length,
+  gate_unresolved: reportGated.filter((c) => c.gate.unresolved).length,
+  gate_undecidable: reportGated.filter((c) => c.gate.undecidable).length,
+  // light gate のサニティチェック: rounds は常に 1・renamer は呼ばれないので initial_title === final_title が常に成り立つ
+  gate_rounds_max: reportGated.reduce((m, c) => Math.max(m, c.gate.rounds || 0), 0),
+  renamer_invocations: reportGated.filter((c) => c.gate.final_title !== c.gate.initial_title).length,
+  validation_failed: reportItems.filter((c) => (c.validation_errors || []).length).length,
+}
+
+// Phase 3: タスク done パートの per_part metric を確定。Phase 3 受入条件 (plan.md L179):
+// quote_verified false 率系・done/task 件数系・DUPLICATE_DETECTED 系を、実装で観測可能な項目として埋める。
+// 構造は llm_wiki と類似 (件数 / fold / gate 通過分布 + kind 固有の failure 件数) だが、項目構成は kind 特性 (done quote_verified / duplicate_detected / task_done_extraction_failed) に応じて llm_wiki とは異なる。
+// drain mode では taskDoneExtract 由来・backfill mode では backfillPrompt + donePrompt 由来の候補が同 metric に集計される
+// (task_count / done_count とも mode 非依存で kind=タスク 件数・done_candidates 件数を数えるため、backfill mode でも非零になる)。
+// duplicate_detected / task_done_extraction_failed は drain mode のみ非零 (DUPLICATE_DETECTED 計算と flag push が drain branch 限定)。
+const taskItems = candidates.filter((c) => c.kind === 'タスク')
+const taskNonFold = taskItems.filter((c) => !c.fold_into)
+const taskGated = taskNonFold.filter((c) => c.gate)
+const doneVerifiedTrue = doneCandidates.filter((d) => d.quote_verified).length
+const taskDoneMetrics = {
+  task_count: taskItems.length,
+  task_fold_count: taskItems.length - taskNonFold.length,
+  task_gate_total: taskGated.length,
+  task_gate_passed: taskGated.filter((c) => !c.gate.unresolved && !c.gate.undecidable).length,
+  task_gate_unresolved: taskGated.filter((c) => c.gate.unresolved).length,
+  done_count: doneCandidates.length,
+  done_quote_verified_true: doneVerifiedTrue,
+  done_quote_verified_false: doneCandidates.length - doneVerifiedTrue,
+  duplicate_detected: duplicateDetected.length,
+  task_done_extraction_failed: flags.task_done_extraction_failed.length,
+}
+
+// Phase 4: 整形・出力パートの per_part metric を確定。Phase 4 plan L188-205 で整形パートの物理配置を
+// **workflow script 段に残す**選択を採った (option a・Phase 1-3 の集計ロジックがすでに workflow にあり移植コストが最小)。
+// 整形パートは workflow が見える範囲 (reportExtract + taskDoneExtract 由来の candidates・命名ゲート後の rename swap・
+// 規約検証・DUPLICATE_DETECTED 計算) で観測可能な値を埋める。
+// 気づき・洞察 由来の candidates は skill 本体側で並列に走り workflow には流れないので、整形パートの metric は
+// workflow が処理した promotion (reports + tasks) と done 検出に限定される (skill 本体側 candidates の追加 metric は
+// kizuki_insight に分離して skill 側で計算する)。
+const formatOutputMetrics = {
+  workflow_candidate_total: candidates.length, // drain では reports + tasks (backfill では tasks + insights)
+  rename_swap_pairs: renamePairs.length, // 候補またぎの旧→新タイトル置換ペア数 (整形 phase の責務)
+  validation_failed: candidates.filter((c) => (c.validation_errors || []).length).length, // 機械検証で残ったエラーを持つ候補数
+  duplicate_detected: duplicateDetected.length, // drain mode のみ非零 (task_promotions ↔ done_candidates 交差)
+  inbox_seen: MODE === 'drain' ? INBOX_FILES.length : 0, // drain で整形パートが見た inbox 件数 (extract 成否を問わない総和。正味の処理数は inbox_seen - report_extraction_failed - task_done_extraction_failed で算出可能)
+  report_extraction_failed: flags.report_extraction_failed.length,
+  task_done_extraction_failed: flags.task_done_extraction_failed.length,
+}
 
 return {
   mode: MODE,
   candidates,
   link_rewrites: linkRewrites,
   done_candidates: doneCandidates,
-  duplicate_detected: duplicateDetected, // drain mode のみ非空。done_candidates と promotions が同じ inbox_origin から出た組
+  duplicate_detected: duplicateDetected, // drain mode のみ非空。Phase 3 narrow 後は task_promotions ↔ done_candidates の 2 系統交差のみ
   totals,
   flags,
+  // 4 パート (LLM Wiki / タスク done / 気づき・洞察 / 整形・出力) の metric。Phase 4 で全パートが実値を持つ。
+  // kizuki_insight は skill 本体側で計算され、運用ログ記録時に書き出される (workflow からは空 dict を返す——気づき抽出 / 洞察検出が
+  // workflow に流れないため、件数集計が skill 側でしか観測できないため)。drain SKILL.md step 7 (完了報告と運用ログ) で
+  // 気づき件数・洞察件数・derivation_ok 率・A 化ゲートラウンド分布等を skill 本体が埋めて 運用ログに書き出す。
+  per_part_metrics: { llm_wiki: llmWikiMetrics, task_done: taskDoneMetrics, kizuki_insight: {}, format_output: formatOutputMetrics },
 }
