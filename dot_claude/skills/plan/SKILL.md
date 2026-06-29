@@ -34,7 +34,7 @@ Design / Phase 節を立てるかの判定基準と complexity hint の効き方
 ### 1. タスクの理解と出力先決定
 
 - 依頼を整理し、曖昧点があれば AskUserQuestion で 1〜2 件に絞って確認する。
-- **同ディレクトリに `premise.md`（sear-me の成果物）があれば読み、その Purpose（目的）/ Acceptance（受入条件）/ Scope / Assumptions / Decisions / Open questions を step1 の確認結果として扱う。premise.md の Open questions に挙がっていない軸は再質問しない**（premise.md が無ければ従来通り 1〜2 問確認する＝疎結合維持）。Purpose / Acceptance は premise.md が正本——plan の本体側で再定義しない。
+- **同ディレクトリに `premise.md`（sear-me の成果物）があれば読み、その Purpose（目的）/ Acceptance（受入条件）/ Non-goals（Purpose 由来の除外）/ Assumptions / Decisions / Open questions を step1 の確認結果として扱う。premise.md の Open questions に挙がっていない軸は再質問しない**（premise.md が無ければ従来通り 1〜2 問確認する＝疎結合維持）。Purpose / Acceptance は premise.md が正本——plan の本体側で再定義しない。**やる側の具体スコープ（Scope: In）は premise には書かれない（plan の領分）**——Approach / Phase 別スコープ / Critical files として plan 側で扱う。
 - **呼び出し元（/develop 等）から skill-review レポートのパス指定があれば、それも参照入力として読む**（既存 skill 改修時の pre-plan 評価結果。premise.md とは別チャネル＝別ファイルとして並存し、自動検出には乗せず明示パス渡しで受ける。premise＝前提整理、skill-review レポート＝既存 skill の改善点で役割が違う）。step 2 で `skill_review_report_path` として workflow に渡す。
 - **premise.md の frontmatter `status` が `final` のものだけを確定済みとして扱う。** `status: draft` は sear-me が確定前に終了した形跡なので、そのまま足場にせず、続行可否（draft のまま進める／sear-me をやり直す）をユーザに確認する。
 - **Open questions の引き継ぎ規約**: premise.md の Open questions は workflow 内の調査・起草で解消させ、**解消できなかったものだけ plan.md の Risks に繰り越す**（未決論点の二重所有を避ける。この規約は workflow の起草 prompt に encode 済み）。

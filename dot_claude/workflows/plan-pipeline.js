@@ -186,7 +186,7 @@ phase('調査')
 const explore = await agent(
   `対象リポジトリ: ${REPO}
 依頼: ${REQUEST}
-${PREMISE ? `前提整理 (premise.md): ${PREMISE} を Read し、Purpose (目的) / Acceptance (受入条件) / Scope / Open questions を踏まえること。Purpose / Acceptance は premise が正本——調査結果と矛盾しても premise を優先する。` : ''}
+${PREMISE ? `前提整理 (premise.md): ${PREMISE} を Read し、Purpose (目的) / Acceptance (受入条件) / Non-goals (Purpose 由来の除外) / Open questions を踏まえること。Purpose / Acceptance は premise が正本——調査結果と矛盾しても premise を優先する。やる側の具体スコープ (Scope: In) は premise には書かれないので、調査・起草の plan 側で Approach / Phase 別スコープ / Critical files として扱うこと。` : ''}
 ${SKILL_REVIEW_REPORT ? `skill-review レポート: ${SKILL_REVIEW_REPORT} を Read し、既存 skill の改善点 (逐語引用付き findings) を改善対象として踏まえること。機械照合は skill-review 側で済んでいるので再照合は不要、散文として読めばよい。` : ''}
 
 この依頼の計画立案に必要な現状調査を行い、構造化して返せ:
