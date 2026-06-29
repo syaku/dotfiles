@@ -1,3 +1,5 @@
+import { scoreRelatedness } from './harvest-pipeline-pure.js'
+
 export const meta = {
   name: 'harvest-pipeline',
   description: 'drain (即時 ingestion)・backfill (期間 reconciliation) の 2 層蒸留パイプライン: 素材整理 (既存突き合わせ・候補生成・命名ゲート inline)→洞察検出 (backfill のみ)→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない。drain の気づき抽出・洞察検出は Phase 4 で skill 本体側に移管した (A 化命名ゲート: Agent tool の name 付き spawn + SendMessage で抽出 context を保ったまま再命名する設計)',
@@ -71,7 +73,7 @@ const BACKLINK_EDIT = {
   },
 }
 
-function candidateItem(kinds, { withInboxOrigin = false } = {}) {
+function candidateItem(kinds, { withInboxOrigin = false, withRelatedHits = false } = {}) {
   const required = ['kind', 'label', 'title', 'content', 'fold_into', 'source_excerpt', 'why_important', 'backlink_edits']
   const properties = {
     kind: { enum: kinds },
@@ -97,6 +99,24 @@ function candidateItem(kinds, { withInboxOrigin = false } = {}) {
     required.push('inbox_origin')
     properties.inbox_origin = { type: 'string', description: 'この候補がどの inbox から来たか (集約段で done_candidates との重複検出に使う照合キー。drain の場合は各抽出 subagent が処理中の inbox path を埋める)' }
   }
+  if (withRelatedHits) {
+    // optional field: MCP search_hybrid の hits を構造化して並べる入口。script 側で scoreRelatedness() に渡して related/fold_candidates を算出する。
+    // LLM の「当たり付け」判断は削除し、agent は MCP 戻りを並べるだけ (純関数化の正本: harvest-pipeline-pure.js)。
+    // 欠落耐性: agent 戻りが空のとき script 側で [] に正規化してから scoreRelatedness に渡す。
+    properties.related_hits = {
+      type: 'array',
+      description: 'MCP mcp__vault-catalog__search_hybrid の hits 配列。各 hit は { path, score_bm25, score_knn } の subset を含む。script 側で純関数 scoreRelatedness() が 2 段階閾値 (related/fold_candidates) を判定する',
+      items: {
+        type: 'object',
+        required: ['path', 'score_bm25', 'score_knn'],
+        properties: {
+          path: { type: 'string', description: '既存ノートの path (vault 内・notes/foo.md 等)' },
+          score_bm25: { type: 'number', description: 'Lucene BM25 score (unbounded・kNN だけが当たって BM25 が 0 のとき 0)' },
+          score_knn: { type: 'number', description: 'kNN cosine 0.0-1.0 (BM25 だけが当たって kNN が 0 のとき 0)' },
+        },
+      },
+    }
+  }
   return { type: 'object', required, properties }
 }
 
@@ -111,7 +131,7 @@ const REPORT_EXTRACT_SCHEMA = {
   type: 'object',
   required: ['report_promotions', 'old_name_referrers', 'referrers_scanned'],
   properties: {
-    report_promotions: { type: 'array', items: candidateItem(['作業レポート・事実'], { withInboxOrigin: true }) },
+    report_promotions: { type: 'array', items: candidateItem(['作業レポート・事実'], { withInboxOrigin: true, withRelatedHits: true }) },
     old_name_referrers: { type: 'array', items: { type: 'string' }, description: '昇格でこの inbox 名が変わる/分割される場合、元 inbox 名を wikilink で指す既存ノートの path (Phase 4 で drainExtract 廃止後は reportExtract が唯一の referrers 源)' },
     referrers_scanned: { type: 'boolean', description: 'old_name_referrers の洗い出しを実際に実行したか (true=scan 実行・false=skip)。0 件返ったとき「scan して 0 件」と「skip して 0 件」を区別するため必須 (R2-8)。skip 時は archive 退避除外対象にする' },
   },
@@ -529,13 +549,17 @@ ${bodySection}
 
 手順:
 1. この inbox の内容を「名付けられる粒度」で **作業レポート・事実** の昇格候補に分ける (1 inbox から複数可)。作業レポート・調査記録はそれ自体を 1:1・具体タイトルのまま kind=作業レポート・事実 として昇格する。検証で確定した客観事実・仕様・スペックも 作業レポート・事実 として扱う。**気づきはここで切り出さない** (skill 本体側の気づき抽出担当の責務)。
-2. 各候補について vault 既存ノードを突き合わせ、関連ノート・既出を洗う。一次索引は MCP tool 経由で動的に引く (常時ロードのカタログは持たない・subagent には届かない)。
-   - タイトル一致・意味近傍: \`mcp__vault-catalog__search_hybrid(query=候補タイトル, limit=5)\` を呼ぶ。返る hits の path/title/tags/body_snippet を見て当たりを付ける。
-   - タグ共有での当たり付け: inbox 本文中に既存の #タグ 表記や明示的なタグキーワードが読み取れる場合に限り、それらを引数に \`mcp__vault-catalog__search_by_tag(tags=[<読み取ったタグ列>], limit=10)\` を呼ぶ。inbox 本文にタグの手掛かりが無ければこの step を飛ばす。
-   - fold 判定や本文確認が要るものだけ Read する (全 notes の Grep fan-out はしない)。MOC/ は Dataview 集約で MCP に乗らないため、必要時のみ別途 Read する。
-   - **MCP 結果は近傍候補であって fold 判定の根拠ではない**。fold を判断するなら必ず本文を Read して同一物であることを確認する (MCP の曖昧 hit を fold 根拠に取り違えない)。
-   - MCP 該当が無く Read でも既存に該当が見つからなければ新しい主題＝新規候補。
-3. 新規候補は content に frontmatter＋本文の完成形を書く。関連既存ノード側からの逆リンク 1 行を backlink_edits に列挙する (双方向リンク。関連が実在するものだけ・弱い繋がりを強引に張らない)。**作業レポート・事実 は tags に 気づき / 洞察 を付けない** (トピックタグのみ・script 側の機械検証でも検査される)。
+2. 各候補について vault 既存ノードを突き合わせる。一次索引は MCP tool 経由で動的に引く (常時ロードのカタログは持たない・subagent には届かない)。**関連既存ノートの認定 (どの hit を逆リンク候補・fold 候補にするか) は判断しない**——script 側の純関数 (scoreRelatedness) が hits の score_knn / score_bm25 で 2 段階閾値判定する。あなたの責務は hits を構造化して並べて返すだけ。
+   - タイトル一致・意味近傍: \`mcp__vault-catalog__search_hybrid(query=候補タイトル, limit=5)\` を呼ぶ。返った hits の各要素から \`path\` / \`score_bm25\` / \`score_knn\` を取り、候補の \`related_hits\` field にそのまま並べる (script が後段で閾値判定する)。**hits の path/title/tags/body_snippet を見て当たりを付けることはしない**——その判断は純関数が score で行う。
+   - タグ共有での当たり付け: inbox 本文中に既存の #タグ 表記や明示的なタグキーワードが読み取れる場合に限り、それらを引数に \`mcp__vault-catalog__search_by_tag(tags=[<読み取ったタグ列>], limit=10)\` を呼ぶ (近傍候補の追加収集として使う・search_hybrid の戻りに含まれる hit と path が重複したら 1 件に集約する。それ以外の hit は related_hits に並べる)。inbox 本文にタグの手掛かりが無ければこの step を飛ばす。
+   - fold 判定が要るもの (script が後段で fold_candidates 認定する path) はあなたではなく集約段で本文 Read 確認に回る。あなたは **MCP 戻りを並べる**だけで本文 Read はしない (全 notes の Grep fan-out もしない)。
+   - MCP 該当が 0 件なら related_hits を空配列で返す。新規候補として扱う。
+3. 新規候補は content に frontmatter＋本文の完成形を書く。**関連既存ノード側からの逆リンクは frontmatter \`related:\` への追記として backlink_edits に列挙する** (本文 \`## 関連\` セクションへの追記は廃止・新方式)。backlink_edits は **related_hits に並べた hit 1 件につき 1 件** を機械的に生成する (どの hit が「関連」「fold 候補」かは集約段の純関数 scoreRelatedness が score_knn 閾値で判定するので、あなたは選別判断をしない・列挙だけする)。テンプレートは以下:
+   - \`where_hint\` = \`'frontmatter related:'\` (固定文字列)
+   - \`add_line\` = \`'  - "[[<新規ノートのタイトル>]]"'\` (frontmatter block list の 1 要素・行頭 2 スペースインデント + \`- \` + ダブルクオート囲み wikilink。SKILL.md 4.7 step 2.1 がこの形のまま list に差し込む)
+   - \`path\` = hit の path (例: \`notes/既存ノート.md\`)
+   - 例: \`{"path": "notes/既存ノート.md", "add_line": "  - \\"[[新規ノートのタイトル]]\\"", "where_hint": "frontmatter related:"}\`
+   related_hits が空配列なら backlink_edits も空配列。**作業レポート・事実 は tags に 気づき / 洞察 を付けない** (トピックタグのみ・script 側の機械検証でも検査される)。
 4. 各候補に inbox_origin = \`${f.path}\` を埋める (集約段の照合キー)。
 5. この inbox のファイル名が昇格で変わる/分割される場合、元 inbox 名を wikilink で指す既存ノートを ${backlinkCmd} で機械的に洗い old_name_referrers に返す (path のリスト。0 ヒットなら空配列。同名昇格なら洗わなくてよい)。**Phase 4 で drainExtract が廃止されたため reportExtract が referrers の唯一の供給源**——本 agent では report_promotions が 0 件でも (taskDoneExtract や skill 本体側の気づき抽出が inbox 名を変える場合があるので) 必ず referrers の洗い出しは実行する。**referrers の洗い出しを実行した場合は referrers_scanned=true で明示申告し、(同名昇格と判断して) skip した場合は referrers_scanned=false で明示する** (集約段が「scan して 0 件」と「skip して 0 件」を区別するため・R2-8)。
 
@@ -743,6 +767,16 @@ if (MODE === 'drain') {
       } else {
         for (const c of rex.report_promotions || []) {
           if (!c.inbox_origin) c.inbox_origin = f.path
+          // 純関数で関連認定 / fold 候補認定 (LLM の「当たり付け」判断を script の決定論判定に置換)。
+          // agent 戻りの related_hits が undefined のときも空配列に正規化してから scoreRelatedness に渡す (欠落耐性)。
+          const sr = scoreRelatedness(c.related_hits || [])
+          c.related = sr.related
+          c.fold_candidates = sr.fold_candidates
+          // finding 1 fix: agent は全 related_hits (最大 5 件) に backlink_edits を機械生成するため、
+          // c.related (純関数で閾値判定済みの path 集合) でフィルタしないと、閾値未満で関連認定されなかった hit にも
+          // frontmatter `related:` への追記が走る。plan.md Acceptance「機械判定された関連リストを受け取り backlink_edits を生成する」
+          // と直接矛盾するため、ここで閾値未満の hit を機械的に drop する。
+          c.backlink_edits = (c.backlink_edits || []).filter((be) => c.related.includes(be.path))
           mergedPromotions.push(c)
         }
         // Phase 4: drainExtract 廃止後は reportExtract が唯一の referrers 供給源
