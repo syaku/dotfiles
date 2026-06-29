@@ -692,7 +692,7 @@ let drainDoneCandidates = [] // drain mode の done 候補は taskDoneExtract su
 // Phase 4: drainExtract (気づき) は skill 本体側に移管したので flags.extraction_failed は廃止。
 // report_extraction_failed / task_done_extraction_failed の 2 軸で workflow 側の失敗を追う。
 // 気づき抽出 / 洞察検出の失敗は skill 本体側で追跡する (workflow には流れない)。
-const flags = { report_extraction_failed: [], task_done_extraction_failed: [], insight_failed: false, done_failed: false, done_skipped_no_reports: false }
+const flags = { report_extraction_failed: [], task_done_extraction_failed: [], report_referrers_skipped: [], insight_failed: false, done_failed: false, done_skipped_no_reports: false }
 
 if (MODE === 'drain') {
   // Phase 4: drainExtract (気づき) は skill 本体側に移管 (A 化命名ゲート: name 付き spawn + SendMessage で再命名)。
@@ -747,9 +747,11 @@ if (MODE === 'drain') {
         }
         // Phase 4: drainExtract 廃止後は reportExtract が唯一の referrers 供給源
         for (const ref of rex.old_name_referrers || []) mergedOldNameReferrers.add(ref)
-        // R2-8: referrers_scanned=false (skip 申告) は「scan して 0 件」と区別不能なので、rex 成功時でも
-        // report_extraction_failed 相当の archive 退避除外対象として flag に push する (rename を伴う昇格は次回 drain へ持ち越し)。
-        if (rex.referrers_scanned === false) flags.report_extraction_failed.push(f.path)
+        // R2-8 / R3-11: referrers_scanned=false (skip 申告) は「scan して 0 件」と区別不能なので、rex 成功時でも
+        // archive 退避除外対象として flag に push する (rename を伴う昇格は次回 drain へ持ち越し)。
+        // R3-11 で `report_extraction_failed` (真の rex 失敗) と `report_referrers_skipped` (referrers 走査 skip) を 1 軸に
+        // 乗せていた混在計上を解消し、archive 退避除外は両 flag の和集合で判定する (skill 本体側 4.7 step 4 で合算)。
+        if (rex.referrers_scanned === false) flags.report_referrers_skipped.push(f.path)
       }
 
       // 同一 inbox の候補 (taskDoneExtract+reportExtract の merge) は揃った時点で即ゲートに流す (他 inbox の抽出を待たない)
@@ -952,7 +954,8 @@ const totals = {
   done_candidates: doneCandidates.length,
   duplicate_detected: duplicateDetected.length,
 }
-if (flags.report_extraction_failed.length) log(`REPORT_EXTRACTION_FAILED: ${flags.report_extraction_failed.length} 件 (失敗した inbox)`)
+if (flags.report_extraction_failed.length) log(`REPORT_EXTRACTION_FAILED: ${flags.report_extraction_failed.length} 件 (rex agent が結果を返さなかった inbox)`)
+if (flags.report_referrers_skipped.length) log(`REPORT_REFERRERS_SKIPPED: ${flags.report_referrers_skipped.length} 件 (rex 成功・referrers 走査 skip の inbox・rename を伴う昇格は次回 drain へ持ち越し)`)
 if (flags.task_done_extraction_failed.length) log(`TASK_DONE_EXTRACTION_FAILED: ${flags.task_done_extraction_failed.length} 件 (失敗した inbox)`)
 // Phase 4: 集計 log を mode 別に書き分ける。drain mode では workflow を流れるのが reports + tasks のみで
 // 気づき・洞察 は skill 本体側で処理される (workflow の totals.kizuki / totals.insights は 0 確定)。
@@ -1020,8 +1023,12 @@ const formatOutputMetrics = {
   rename_swap_pairs: renamePairs.length, // 候補またぎの旧→新タイトル置換ペア数 (整形 phase の責務)
   validation_failed: candidates.filter((c) => (c.validation_errors || []).length).length, // 機械検証で残ったエラーを持つ候補数
   duplicate_detected: duplicateDetected.length, // drain mode のみ非零 (task_promotions ↔ done_candidates 交差)
-  inbox_seen: MODE === 'drain' ? INBOX_FILES.length : 0, // drain で整形パートが見た inbox 件数 (extract 成否を問わない総和。正味の処理数は inbox_seen - report_extraction_failed - task_done_extraction_failed で算出可能)
+  inbox_seen: MODE === 'drain' ? INBOX_FILES.length : 0, // drain で整形パートが見た inbox 件数 (extract 成否を問わない総和。正味の extract 成功数は inbox_seen - report_extraction_failed - task_done_extraction_failed で算出可能。report_referrers_skipped は extract 成功・referrers 走査 skip のみで引き算しない)
   report_extraction_failed: flags.report_extraction_failed.length,
+  // R3-11: report_extraction_failed (真の rex 失敗) と report_referrers_skipped (referrers 走査 skip) を 1 軸に乗せていた
+  // 混在計上を解消。前者は agent が結果を返さなかった件数・後者は agent が結果を返したが referrers 走査を放棄した件数で性質が異なる。
+  // archive 退避除外の hold 判定は両 flag の和集合 (skill 本体側 4.7 step 4 で合算)。
+  report_referrers_skipped: flags.report_referrers_skipped.length,
   task_done_extraction_failed: flags.task_done_extraction_failed.length,
 }
 

@@ -91,7 +91,7 @@ workflow は `{candidates, link_rewrites, done_candidates, duplicate_detected, t
 - `candidates` には **作業レポート・事実 と タスク**（および workflow 側で命名ゲート済み）のみ含まれる。気づき・洞察は含まれない（skill 本体側 step 4 で生成・追加）。
 - `totals.kizuki` / `totals.insights` は 0（workflow に流れないため）。skill 本体側 step 4 で実数を別管理する。
 - `totals` は script 計算。`candidates.length` との一致を一瞥確認する（不一致は script 改変事故なので報告して停止）。
-- `flags.report_extraction_failed` / `flags.task_done_extraction_failed` に入った inbox ファイルは「未処理」と明示し、archive 退避の対象から外す。**気づき抽出は skill 本体側で別途扱う**ので、workflow 側のこの flag は LLM Wiki / タスク done パートの失敗だけを示す。
+- `flags.report_extraction_failed` / `flags.task_done_extraction_failed` / `flags.report_referrers_skipped` に入った inbox ファイルは「未処理」と明示し、archive 退避の対象から外す（合算と hold 判定の正本は 4.7 step 4）。**気づき抽出は skill 本体側で別途扱う**ので、workflow 側のこの flag は LLM Wiki / タスク done パートの失敗だけを示す。`report_referrers_skipped` は rex 成功で `referrers_scanned === false` の inbox（R3-11 で `report_extraction_failed` から分離・rename を伴う昇格のみ次回 drain に持ち越し）。
 - 各 candidate の `gate`（命名ゲートのログ）と `validation_errors` はトリアージ提示に添える。
 - `duplicate_detected` は done 候補と task_promotions が同じ `inbox_origin` から両方出た組（taskDoneExtract subagent の order 強制 + 排他指示のフェイルセーフ。0 件が望ましいが非空なら step 5 で両方提示し人に解消を委ねる）。Phase 3 narrow 後の母集団は task_promotions ↔ done_candidates の 2 系統交差のみ。
 - `link_rewrites` は reportExtract が返した old_name_referrers（Phase 4 で drainExtract 廃止後は reportExtract が唯一の referrers 供給源）。
@@ -213,11 +213,7 @@ prompt の `<VAULT>` `<inbox file path>` `<N>` `<NOW>` `<TODAY>` プレースホ
 
 4. **再点検 (round 2)**: 再命名後の新タイトルに対して step 1 (regex) と step 2 (checker) を再度実施する。**最大 2 ラウンドで打ち切り**。
 5. 2 ラウンド経ても「該当」または「判断不能」が残った候補は `gate.unresolved` または `gate.undecidable` を立て、トリアージで明示する（無理に解消しない・人に委ねる）。
-6. **rename swap (SendMessage で final_title を受領した直後・候補内ローカル swap)・R2-4**: workflow `renameCandidate` (`renameCandidate(c, newTitle)`) が機械的にやっていた処理が Phase 4 で skill 本体へ転記漏れしていたので明示する。renamer から `{title}` を受け取り 4.2 step 4 の再点検で確定したら、その候補 `c` 内部で次の置換を行う:
-   - `c.title = final_title`（既存）
-   - `c.content` 内の `[[initial_title]]` を `[[final_title]]` に置換（文字列分割 join 形式: `c.content.split('[[' + initial_title + ']]').join('[[' + final_title + ']]')`）。frontmatter title の自己参照と本文 `[[old]]` 自己参照の両方を 1 回で処理する。
-   - 各 `c.backlink_edits[*].add_line` 内の `[[initial_title]]` を `[[final_title]]` に同様に置換。
-   `gate.final_title` と `c.title` の最終値は同じになる。この swap が無いと c.content / backlink_edits.add_line 側に旧タイトルの wikilink が残り、step 6 の Write で dangling wikilink が生まれる。
+6. **rename swap (候補内ローカル swap・R2-4)**: SendMessage で final_title を受領し 4.2 step 4 の再点検で確定したら、候補内ローカルの swap を行う。**候補内 swap および候補またぎの cross-candidate swap・path 境界一致 escape の逐語転記は本節 4.7 step 1 (整形・出力パートの集約点) に集約・本節を参照**（重複箇所は本節 4.7 を正本とする）。
 
 各候補に `gate = { initial_title, final_title, rounds, log, unresolved, undecidable }` を残し、トリアージ提示に使う。
 
@@ -300,9 +296,7 @@ i.derivation_ok =
 - 元記述は `derivation.common_axis`（claim でなく common_axis 起点・空のときのみ claim に退避）。
 - SendMessage の宛先は `insight-detect`（1 つだけ spawn しているので名前は固定）。**SendMessage 打鍵 1 回ごとに `sendmessage_invocations` を ++ する** (4.2 step 3 と同型の wire・R2-13)。
 - renamer prompt の命名規約は `NAMING_FOR_INSIGHT`（共通 + `NAMING_INSIGHT`「失敗の再記述でなく判断軸・規則を名指す」）。
-- **rename swap (洞察固有の追加対象)・R2-4**: 4.2 step 6 と同型の `c.title` / `c.content` / `c.backlink_edits[*].add_line` の `[[initial_title]]` → `[[final_title]]` 置換に加えて、洞察候補では以下も同様に置換する:
-  - `c.content` 内の frontmatter `source:` リストの `[[initial_title]]` → `[[final_title]]`（既に `c.content` 全文 split/join で 1 回置換すれば足りるが、source: 行は wikilink を `"[[...]]"` で引用囲みする規約なので `[[...]]` 部分のみ置換すれば形が崩れない）。
-  - `c.connected_notes[*]` の path 表記 `notes/<initial_title>.md` → `notes/<final_title>.md`（path 境界一致で置換。workflow swapRefs L913-921 と同型の境界規則）。
+- **rename swap (洞察固有の追加対象・R2-4)**: 候補内 swap および洞察固有の追加対象 (`source:` リスト・`connected_notes[*]` path 境界一致) は **本節 4.7 step 1 に集約・本節を参照**（重複箇所は本節 4.7 を正本とする）。
 
 ##### checker prompt の本文 (洞察) — 逐語転記
 
@@ -385,7 +379,7 @@ workflow 側 `flags.report_extraction_failed` / `flags.task_done_extraction_fail
 - **`kizuki_extract_malformed`**: Claude Code の Agent tool は workflow agent() ヘルパと異なり structured output schema パラメータを持たない (kizuki-extract agent の戻りは prose 指示で shape を要求するのみ)。**skill 本体側で受け取った戻りに対し、必須 field の存在と値域を Read 後に確認する**: `kizuki_promotions` field が array であること・各候補の必須 field (`kind` `title` `content` `fold_into` `source_excerpt` `why_important` `backlink_edits` `inbox_origin` `derivation`) が揃っていること・**`kind === '気づき'` の厳密一致**（kizuki-extract agent は `kind: '気づき'` 以外を返してはならない・別 kind 混入は step 4.6 統合で workflow 産 task_promotions と層混合してトリアージ二重提示の経路になる・R2-14）・`derivation` の 4 サブフィールド (`source_observations` `pattern_generalization` `lesson_axis` `generalization_check`) が揃っていること。1 つでも違反すれば該当 inbox を `kizuki_extract_malformed` に積む (該当候補だけ捨てて他候補を救う partial recovery はしない——shape が壊れた agent からの他候補も信頼性が落ちるため)。違反 inbox の候補は `candidates` に積まない (`kizuki_extraction_failures` と同列に扱う)。
 - **`insight_detect_failed`**: Agent tool 起動が exception で返った / 戻り値が null|undefined / `insights` field が array でない / 各 insight の必須 field (`claim` `connected_notes` `title` `content` `why_important` `backlink_edits` `derivation`) が揃っていない / `derivation` の 3 サブフィールドが揃っていない。
 
-**archive 退避保護 (step 6 連携)**: step 6 の archive 退避手順では、`kizuki_extraction_failures` と `kizuki_extract_malformed` の和集合に含まれる inbox path も mv 対象から除外する (workflow flags `report_extraction_failed` / `task_done_extraction_failed` の archive 退避保護と対称)。triage 提示時に「気づき抽出失敗のため未処理」と明示する。
+**失敗合算と inbox 単位の hold 判定は本節 4.7 step 4 に集約・本節を参照**（重複箇所は本節 4.7 を正本とする）。`kizuki_extraction_failures` ∪ `kizuki_extract_malformed` ∪ workflow flags の和集合と insight_detect_failed の kind 別 drop ルール（本節 4.7 step 4 参照）を介して archive 退避保護と triage 文言が決まる。
 
 **運用ログ書き出し (step 7 連携)**: 上の各値を `per_part_metrics.kizuki_insight` に転記する:
 
@@ -409,24 +403,224 @@ c.derivation_ok =
 
 `derivation_ok: false` の気づき候補は triage 提示で明示する (step 5 の規約・individual observations / 実装意図 / 事実記述を気づき層に上げない第 1 防御線)。`per_part_metrics.kizuki_insight.kizuki_derivation_ok` の populate もこの値の集計から行う (step 7)。洞察 derivation_ok は step 4.3 で agent 戻り直後に算出済み。
 
-**cross-candidate rename swap (workflow ↔ skill 本体の双方向伝播・R2-5)**: workflow 内 swapRefs (harvest-pipeline.js L913-921) は workflow `candidates` 内 (reports / tasks) しか見ない・workflow 戻り後の skill 本体 kizuki/insight 候補には rename が伝播しない。逆方向 (skill 本体側で確定した final_title が workflow 戻り reports/tasks の content / backlink_edits に残った旧タイトル wikilink) も伝播しない。同一 inbox 内で report と気づき (または洞察) が `[[X]]` を相互参照している場合に dangling 化するため、統合段で次の双方向 swap を 1 回ずつ適用する:
-
-1. **workflow rename pairs を skill 本体 candidates に適用**: workflow 戻りの `candidates` から `c.gate && c.gate.initial_title && c.gate.initial_title !== c.title` を満たす候補を集めて `workflowRenamePairs: [{from: initial_title, to: c.title}]` を構築する。skill 本体側 kizuki_promotions / insights の各候補 `s` に対し、各 (from, to) を適用:
-   - `s.content` 内: `[[from]]` → `[[to]]` 置換
-   - `s.backlink_edits[*].add_line` 内: `[[from]]` → `[[to]]` 置換
-   - `s.derivation.source[*]` (insights 限定・存在時): `[[from]]` → `[[to]]` 置換
-   - `s.connected_notes[*]` (insights 限定・存在時): path 境界一致で `(^|/)from\.md` → `$1to.md` 置換（workflow swapRefs L913-921 と同型の境界規則・basename collision を避ける・workflow 側で escape 規約を適用しているとおり）。
-2. **skill 本体 rename pairs を workflow 戻り candidates に適用**: skill 本体側 kizuki_promotions / insights から `gate.initial_title !== gate.final_title` の候補を集めて `skillBodyRenamePairs: [{from: gate.initial_title, to: gate.final_title}]` を構築する。workflow 戻り `candidates` (reports + tasks) の各 `c` に対し、(from, to) を上記 1 と同じ規則で適用 (content / backlink_edits / connected_notes が対象。reports/tasks に source は無いので除外)。
-
-両方向適用後の統合リスト生成へ進む（連番 id 振り直しはこの swap 後に行う・rename pair 構築には新 id でなく旧 gate を使うので順序は問題ない）。
+**cross-candidate rename swap (workflow ↔ skill 本体の双方向伝播・R2-5)**: 双方向 swap pairs の構築と全候補への適用（workflow swapRefs と同型の境界一致 / escape 規約を含む）は **本節 4.7 step 1 に集約・本節を参照**（重複箇所は本節 4.7 を正本とする）。本節 step 1 で全候補対象の swap pair 構築と適用が完了したものとして統合に進む。
 
 **統合**: skill 本体は以下を合算してトリアージ用 candidate リストを作る:
 
-- workflow 戻りの `candidates`（作業レポート・事実 + タスク・cross-candidate swap 適用済み）
-- skill 本体側 kizuki_promotions（命名ゲート済み・derivation_ok 算出済み・cross-candidate swap 適用済み）
-- skill 本体側 insights（命名ゲート済み・derivation_ok 算出済み・cross-candidate swap 適用済み）
+- workflow 戻りの `candidates`（作業レポート・事実 + タスク・候補内 swap 済み）
+- skill 本体側 kizuki_promotions（命名ゲート済み・derivation_ok 算出済み・候補内 swap 済み）
+- skill 本体側 insights（命名ゲート済み・derivation_ok 算出済み・候補内 swap 済み）
 
-統合リストに対して連番 id を振り直す（workflow 側 id と衝突しないよう全体に再番号）。
+統合リストへの **cross-candidate swap・規約検証・失敗合算 + hold 判定・Write 候補確定** は本節 4.6 ではなく次節 **4.7 整形・出力パート** で集約して回す（4.6 は a + b の合算と素材整理に留め、整形 5 ステップは 4.7 で一括）。連番 id 振り直しは 4.7 step 1 (cross-candidate swap) 完了後に行う（rename pair 構築には旧 gate を使うため id 振り直しは swap の後で問題ない）。
+
+**4.6 → 4.7 handoff の責務境界**: 4.6 は「workflow 戻りの (a) candidates と skill 本体側 (b) kizuki_promotions / insights を 1 つの配列にまとめる素材整理のみ」を担当する。4.7 が引き受けるのは step 1 rename swap (cross-candidate swap + 連番 id 振り直し) / step 2 リンク張り替え (`backlink_edits` 統合 + `link_rewrites` 主流路 + basename matching 判定への参照) / step 3 規約検証 (kind 別検査の再走) / step 4 失敗合算 + hold 判定 (workflow flags ∪ skill 本体 failures の `holdInboxes` 確定 + `insight_detect_failed` の D-3 規則 + basename matching 規則) / step 5 Write + archive 退避決定（hold 通過分の `writeCandidates` / `archiveTargets` 確定）。step 6 (実 Write/Edit/mv) は 4.7 step 5 の決定結果を受けて実行する。
+
+#### 4.7 整形・出力パート (5 ステップの集約点)
+
+drain mode で発生する整形パートの責務（抽出結果との乖離を吸収して最終ノートとして保存する集約点）を 1 箇所に明示する。workflow 側の整形段（reportExtract / taskDoneExtract 直後の swapRefs / validateCandidate / fixAndRevalidate）は **a 中間処理**として稼働継続する（backfill mode で正本・drain mode では a 候補に対する事前処理）。本節は **a + b 全候補が揃った合流点**で 5 ステップを再走らせる集約点で、drain mode では本節が**正本**。物理配置は skill 本体側に固定し、執行モデルは**ハイブリッド**（決定論的処理を prose で記述し sonnet が候補ごとに 1 候補ずつ走らせる・workflow JS は a 中間処理に役割限定）。
+
+5 ステップ（本節で 1 箇所に集約）:
+
+1. **rename swap**: 全候補（workflow 戻り a + skill 本体側 b）の暫定 → 確定 title 置換（wikilink / path / backlink_edits / connected_notes / source 各系統）
+2. **リンク張り替え**: 既存ノートへの `backlink_edits`（workflow `link_rewrites` を含む）＋ 同バッチ新規ノートへの `source` / `connected_notes` 連鎖
+3. **規約検証**: workflow `validateCandidate` / `fixAndRevalidate` と同型の検査を a + b 全候補に対して再度実行（kind 別 frontmatter / 更新履歴 / ラベル残存 / tags 整合 / 洞察 source 必須 / タスク progress 必須・チェックボックス禁止）
+4. **失敗合算 + hold 判定**: workflow flags ∪ skill 本体 failures の和集合 `holdInboxes` を確定。inbox 単位の hold 判定
+5. **Write + archive 退避**: hold 通過分のみ確定書き込み + 原本退避（本節 step 5 は決定だけ・実 Write/mv は step 6 が担う）
+
+##### 4.7 step 1 — rename swap (候補内 swap + cross-candidate swap)
+
+A 化命名ゲート（4.2 / 4.4）で final_title が確定した時点で、まず **候補内ローカル swap** を行い（自候補の `title` / `content` / `backlink_edits[*].add_line` / `connected_notes[*]` / `source:` リスト内の旧 title を最終 title に置換）、次に統合（4.6）で a + b 揃った合流点で **cross-candidate swap** を 1 回ずつ適用する（workflow から skill 本体への伝播と、skill 本体から workflow への伝播の双方向）。これにより同一 inbox 内 cross-reference の dangling を消す（R3-9 / R3-14 を構造で解消）。
+
+**swap pair の構築 (大分類 3 種類)**: 統合段で次の rename pair Set を 1 つにまとめる:
+
+- **workflow から skill 本体への方向**: workflow 戻り `candidates`（reports + tasks）から `c.gate && c.gate.initial_title && c.gate.initial_title !== c.title` を満たす候補を `{from: gate.initial_title, to: c.title}` で抽出
+- **skill 本体から workflow への方向**: skill 本体側 kizuki_promotions / insights から `gate.initial_title !== gate.final_title` を満たす候補を `{from: gate.initial_title, to: gate.final_title}` で抽出
+- **skill 本体 b 同士の cross-reference (3 種類・1 つの Set にまとめる)**: 同一 inbox 内に複数の気づきが立ち、ある気づきが他の気づき名を `[[X]]` で参照しているケース。気づき同士の参照 / 気づきと洞察の双方向参照（kizuki と insight の双方向 pair は 1 件として扱う・「kizuki から insight」「insight から kizuki」を分けて 2 件に数えない） / 洞察同士の参照——いずれも skill 本体側 kizuki_promotions / insights の合算リスト内の cross-candidate swap で押さえる
+
+統合した rename pairs を全候補（workflow 戻り + skill 本体側 kizuki + skill 本体側 insights）に冪等適用する（自候補分の再適用は無害）。
+
+**置換規則 (workflow swapRefs L917-925 を skill 本体側で逐語転記)**:
+
+各候補 `c` の `c.content` / `c.backlink_edits[*].add_line` / `c.backlink_edits[*].path` / `c.connected_notes[*]`（insights 限定・存在時）に対し、各 rename pair `(from, to)` を以下のルールで適用（**R3-2**: 旧 4.6 にあった `s.derivation.source[*]` への置換は schema (`derivation: { source_avoidances, common_point, common_axis }`) に該当 field が無く no-op だったため 4.7 集約時に削除）:
+
+1. **wikilink の置換 (本文・source frontmatter・add_line)**: `[[from]]` を `[[to]]` に文字列分割 join 形式で置換
+
+   ```
+   s = s.split('[[' + from + ']]').join('[[' + to + ']]')
+   ```
+
+   frontmatter title の自己参照と本文 `[[old]]` 自己参照の両方を 1 回で処理する。
+
+2. **ファイルパスの境界一致置換 (backlink_edits.path・connected_notes)**: from の直前が path 先頭 (`^`) または path separator (`/`) の場合のみ置換する（境界一致しない `notes/古いメタ.md` も誤マッチして `notes/古い<to>.md` に書き換わるのを防ぐ）。
+
+   **escapeRegex (workflow L907 を逐語転記・R3-10)**:
+
+   ```
+   const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+   ```
+
+   **境界一致 RegExp (workflow L914 を逐語転記)**:
+
+   ```
+   const pathRegex = new RegExp('(^|/)' + escapeRegex(from) + '\\.md', 'g')
+   ```
+
+   **`to` の `$` escape (workflow L915 を逐語転記・R2-1 / R3-10)**: `to` を `String.prototype.replace` の第 2 引数に渡す場合、`to` に `$&` `$$` `$1`〜`$9` が含まれると template 解釈されて誤書換になるため、`$` を `$$` に置換してから replace template に埋め込む（`$1` capture-group reference は意図的なので保持）。
+
+   ```
+   const pathTo = '$1' + to.replace(/\$/g, '$$$$') + '.md'
+   s = s.replace(pathRegex, pathTo)
+   ```
+
+**swap 後の整合**: cross-candidate swap が完了した時点で、全候補の `c.title` / `c.gate.final_title` の最終値は一致しており、wikilink / path 系統の旧タイトル参照は全て最終タイトルへ反映される。**連番 id 振り直しは cross-candidate swap 完了後に行う**（rename pair 構築には旧 gate を使うため順序は問題ない）。
+
+##### 4.7 step 2 — リンク張り替え
+
+step 1 で確定した最終タイトルを前提に、**既存ノートへの逆リンク** と **同バッチ新規ノートへの連鎖** を統合する。
+
+- **既存ノート への張り替え (workflow `link_rewrites` を含む)**: workflow 戻りの `link_rewrites`（reportExtract が返した old_name_referrers ベース。Phase 4 で drainExtract 廃止後は reportExtract が唯一の referrers 供給源）を主流路として張り替える。inbox 名が変わる/分割される昇格の被リンク元で、元 inbox 名への wikilink を昇格先（複数分割なら主たる行き先）へ張り替える。
+- **同バッチ新規ノートの逆リンク (`backlink_edits`)**: workflow / skill 本体側双方の候補が持つ `backlink_edits` を合算し、既存ノート側へ追記する Set を作る。step 1 の rename swap 適用済みなので、`add_line` 内の `[[X]]` は最終タイトルになっている。
+- **同バッチ新規ノート間の連鎖 (`source` / `connected_notes`)**: skill 本体側 insights の `source:` リスト・`connected_notes[*]` に列挙された同バッチ新規気づき/洞察への参照は、step 1 の cross-candidate swap で最終タイトル/最終 path に置換済み。step 2 で改めて触らない（step 1 で確定する規律）。
+- **`reportExtract` 失敗時の張り替え保護**: `flags.report_extraction_failed` ∪ `flags.report_referrers_skipped` に乗った inbox は `link_rewrites` が空（referrers が機械的に洗えていない）。basename matching の判定（rename を伴う昇格は持ち越し・同名 1:1 は採用可）は step 4 で行う・本節 step 2 は step 4 の判定結果に従う。
+
+step 2 の出力: 既存ノート path → 追記行（複数行の場合あり）の Map と、`link_rewrites` の old_path → new_target の Map。実 Edit/Write は step 5 が決定し step 6 が実行する（本節 step 2 は決定だけ）。
+
+##### 4.7 step 3 — 規約検証 (validateCandidate / fixAndRevalidate と同型)
+
+step 1 / step 2 で最終タイトル・最終リンク状態が確定した a + b 全候補に対して、workflow `validateCandidate` (L444-476) / `fixAndRevalidate` (L478-498) と同型の検査を **再度** 実行する。workflow 側 a 中間処理として L444-476 の検査は backfill mode で稼働継続するが、drain mode では本節 step 3 が a + b 全候補に対する**正本**として再度走らせる（二重実行コストは受容・集約点原則を崩さない側に倒す。R3-13 解消は「集約点で全候補対象」が要件）。
+
+**検査項目 (workflow validateCandidate L444-476 と同型・kind 別分岐を enumerated に列挙)**: 出典は workflow.js の対応行を参照（workflow との keep-in-sync は R3-8 同性質で本 cycle Scope Out・正本ファイル化は別 cycle）。executor は本節を prose 単独で読んで kind 別検査を判定できる。
+
+fold 候補（`c.fold_into` あり）の特例:
+
+- `backlink_edits` が空でないこと（fold 指定なのに畳み先への追記が無いと違反・出典: workflow.js L447）。
+- 以下の共通検査・kind 別検査は fold ではスキップ。
+
+共通検査（fold でない全候補）:
+
+- `c.content` の frontmatter (`^---\n([\s\S]*?)\n---`) が存在すること（出典: workflow.js L451）。
+- frontmatter に `createdAt: <NOW>` と `updatedAt: <NOW>` が含まれること（NOW は drain 開始時の ISO-T・出典: workflow.js L455-456）。
+- 本文に `## 更新履歴` が含まれること（出典: workflow.js L457）。
+- 本文に `[[<TODAY>]]` の当日 wikilink が含まれること（TODAY は drain 開始時の `YYYY-MM-DD`・出典: workflow.js L458）。
+- 本文 (frontmatter を除く) に H1 (`^# `) が無いこと（H2 から始める規約・出典: workflow.js L459）。
+
+kind 別検査:
+
+- **気づき (`c.kind === '気づき'`)**:
+  - frontmatter tags に `気づき` が含まれること（出典: workflow.js L463）。
+  - `derivation` 必須かつ 4 サブフィールド全充足: `source_observations` が non-empty array（≥1 件） / `pattern_generalization` が non-empty string / `lesson_axis` が non-empty string / `generalization_check` が non-empty string（skill 本体 4.6 `derivation_ok` 算出と同型・step 3 で再確認する）。
+
+- **洞察 (`c.kind === '洞察'`)**:
+  - frontmatter tags に `洞察` が含まれること（出典: workflow.js L465）。
+  - frontmatter に `source:` フィールドが存在すること（リスト形式・2 件以上の元ノート列挙・出典: workflow.js L466）。
+  - `derivation` 必須かつ 3 サブフィールド全充足: `source_avoidances` が non-empty string の配列で ≥2 件 / `common_point` が non-empty string / `common_axis` が non-empty string（skill 本体 4.3 `derivation_ok` 算出と同型・step 3 で再確認する）。
+
+- **タスク (`c.kind === 'タスク'`)**:
+  - frontmatter tags に `タスク` が含まれること（出典: workflow.js L469）。
+  - `progress: backlog` が存在すること（progress の取り得る値は backlog / ready / doing / done の enum で、新規 promotion は backlog 固定・出典: workflow.js L470）。
+  - 本文に `- [ ]` (チェックボックス) が含まれないこと（`## やること` は plain な箇条書きで持つ規約・出典: workflow.js L471）。
+  - `c.label === '③'` のとき `why_important` が空でないこと（出典: workflow.js L472）。
+  - `[①②③]` のラベル文字が残存していないこと（タスク限定の検査・全 kind に当てると作業レポートの正当な引用まで書き換わる理由は workflow.js L460-461 コメント参照・出典: workflow.js L462）。
+
+- **作業レポート・事実 (`c.kind === '作業レポート・事実'`)**:
+  - frontmatter の tags 範囲 (`tags:[\s\S]{0,200}?`) に `気づき` `洞察` が含まれないこと（事実・作業レポートに 気づき/洞察 タグが付くと層混入・出典: workflow.js L474）。
+
+- **done (タスク既存ノートの `progress: done` 移行)**:
+  - 対象は inbox 候補でなく既存タスクノートの progress 更新で、`progress: done` への移行と `source_inbox` の埋め込みが伴う（実適用は step 6 が担うため本節 step 3 の検査対象外・done 候補の triage 提示は step 5「トリアージ承認ゲート」が `quote_verified` を含めて行う）。
+
+検査で違反が検出された場合、`fixAndRevalidate` 同型の修正ループを 1 回かける:
+
+- 別 context の sub-agent（schema = `FIX_SCHEMA`・model = sonnet）を spawn し、以下の prompt（workflow `fixAndRevalidate` 内本文の逐語転記）で content 全文を直させる:
+
+  ```
+  以下のノート内容に機械検証で検出された規約違反がある。違反だけを直し、content 全文を返せ。指示に無い改変 (本文の追加・文体調整) を混ぜない。
+  違反: <errs.join(' / ')>
+  参考値: createdAt/updatedAt は <NOW>。更新履歴の日付リンクは [[<TODAY>]]。
+  --- content ここから ---
+  <c.content>
+  --- content ここまで ---
+  ```
+
+- 修正 sub-agent の戻り `r.content` を `c.content` に書き戻し、再度上記の検査を 1 回実行する。
+- 再検査で残った違反は `c.validation_errors` に積み triage 提示で明示する（無理に解消しない・人に委ねる）。
+
+**workflow との非対称性 (R-2)**: workflow 側 `validateCandidate` を変更したときは本節 step 3 の検査項目も同期する（手 keep-in-sync 関係を受け入れる cycle）。発覚契機は drain 実走の質指標悪化 + 運用ログ。
+
+##### 4.7 step 4 — 失敗合算 + hold 判定 (inbox 単位)
+
+drain mode で発生する失敗は 5 種類（workflow 側 2 + skill 本体側 3）あり、これを inbox 単位の hold 判定に合算する。
+
+**失敗ソース**:
+
+- workflow 側 (a 中間処理由来):
+  - `flags.report_extraction_failed: string[]` — reportExtract agent 起動失敗の inbox path
+  - `flags.task_done_extraction_failed: string[]` — taskDoneExtract agent 起動失敗の inbox path
+  - `flags.report_referrers_skipped: string[]` — reportExtract は成功したが `referrers_scanned === false` で referrers 未走査の inbox path（R3-11 で分離。「extraction 失敗」と「referrers skip」を 1 軸に乗せていた混在計上を解消）
+- skill 本体側 (b 由来・step 4.5 で耐久):
+  - `kizuki_extraction_failures: Set<string>` — kizuki-extract agent spawn 失敗の inbox path
+  - `kizuki_extract_malformed: Set<string>` — kizuki-extract 戻り shape 不正の inbox path
+  - `insight_detect_failed: boolean` — insight-detect agent spawn 失敗の真偽
+
+**hold 判定の構成 (Set 実装)**: `holdInboxes` は inbox path の Set。workflow flags の 3 系統と skill 本体側 failures 2 系統を 1 つの Set に合算する。
+
+```
+const holdInboxes = new Set([
+  ...flags.report_extraction_failed,
+  ...flags.task_done_extraction_failed,
+  ...flags.report_referrers_skipped,
+  ...kizuki_extraction_failures,
+  ...kizuki_extract_malformed,
+])
+```
+
+Set による dedup の意味は「同一 inbox path が複数 flag に登録されても 1 件として扱う」（例: 同 inbox で reportExtract と kizuki-extract の両方が失敗した場合）。順序保持は不要 (hold 判定は `holdInboxes.has(inbox_path)` の membership check のみで使う・archive 退避除外と triage 文言分岐の入力)。
+
+**`insight_detect_failed` の扱い (D-3 規則本体・sub-option B 採用)**: `insight_detect_failed = true` のときは:
+
+- 当該 insight 候補 (および同バッチ kizuki への参照を持つ insight 候補) を candidates から drop する。
+- `per_part_metrics.kizuki_insight.insight_detect_failed` を 1 計上する。
+- 他パート (reports / tasks / kizuki) は通常通り進める。
+- `insight_detect_failed` は `holdInboxes` に **含めない**。
+
+sub-option B 採用根拠: insight は 1 inbox の特定パートに紐づかず全 inbox 横断の 1 候補集合として生成され、新規ノート Write 自体が drop 可能で他パートの partial-commit を直接生まない。kizuki 失敗時 (kizuki_extraction_failures / kizuki_extract_malformed は inbox 単位で hold する) と非対称なのは「inbox 単位に紐づく失敗」と「全 inbox 横断の集合 1 つの失敗」で構造が違うため。triage には「洞察検出失敗のため未実施」と明示する (insights 候補を `[]` 扱い)。
+
+**`report_referrers_skipped` 由来 inbox の basename matching ルール (集約点)**: `flags.report_referrers_skipped` に乗った inbox から出た昇格候補は、`link_rewrites` が空のため referrers が洗えていない状態にある。この inbox 由来の候補は basename matching で採否を分ける:
+
+- 採用可: 候補 `c` の `c.title` が inbox basename と一致する（`c.title === inbox_basename` ・rename を伴わない同名 1:1 昇格）。
+- 持ち越し: `c.title !== inbox_basename`（rename を伴う昇格・referrers の張り替えが必要だが対象不明のため hold）。
+
+`inbox_basename` の計算式: `c.inbox_origin` (絶対 path) を `path.basename` で末尾要素にし、`.md` 拡張子を除去した文字列（例: `~/.../inbox/メモ.md` → `メモ`）。本ルールは本節 step 4 が正本で、本節 4.7 step 2（リンク張り替え）・step 5（Write + archive 退避決定）はこの判定結果に従う。
+
+**境界ケース (R-3)**: 「insight-detect 失敗 + 同 inbox の他パート失敗あり」は本節 step 1 の cross-candidate swap で押さえる（insight 候補が drop された後に他パートが進む際の `[[名前]]` 残存は step 1 で全候補対象に swap 適用するため発生しない）。
+
+**hold 後の triage 明示**: `holdInboxes` に含まれる inbox path は triage 提示で次の文言を分けて出す:
+
+- `report_extraction_failed` / `task_done_extraction_failed` のいずれかに含まれる inbox: 「作業レポート/タスク・done 抽出失敗のため未処理」
+- `report_referrers_skipped` に含まれる inbox: 「reportExtract 失敗のため referrers 不明・rename を伴う昇格は次回 drain で再処理」（inbox basename と同名 1:1 の rename なし昇格は採用可）
+- `kizuki_extraction_failures` / `kizuki_extract_malformed` のいずれかに含まれる inbox: 「気づき抽出失敗のため未処理」
+
+##### 4.7 step 5 — Write + archive 退避 (決定だけ)
+
+step 4 で確定した `holdInboxes` 通過分のみ確定書き込み + 原本退避を **決定** する。本節 step 5 は決定だけを担い、実 Write/mv は既存 step 6（承認後の適用と archive 退避）が実行する形に倒す（処理境界の明確化）。
+
+**Write 候補の確定**:
+
+- 統合 candidate リストから、`inbox_origin ∈ holdInboxes` の候補を **次回 drain への持ち越し** に倒す（triage 提示に「hold」と明示・承認対象から外す）。
+- ただし `inbox_origin ∈ flags.report_referrers_skipped` の候補は basename matching の判定結果に従う（採否規則は step 4 が正本・本節は判定結果を消費するのみ）。
+- ID 振り直し済み (step 1 の cross-candidate swap 完了後の振り直し) の連番 id をそのまま triage 提示の per-item ID として使う。
+
+**archive 退避対象の確定**:
+
+- 全 inbox path から `holdInboxes` を除いた集合が archive 退避対象。
+- step 6 で archive 退避を実行する直前に **スナップショット照合** を再度 (step 1 のスナップショットとの集合差分) 行うが、その時点で「未処理 (hold)」の inbox は除外対象として保持する。
+
+**step 5 → step 6 の引き渡し**:
+
+- `writeCandidates: candidates[]` — 承認後に Write される候補（hold 除外済み）
+- `archiveTargets: string[]` — 承認後に `archive/inbox/` へ mv される inbox path
+- `holdInboxes: Set<string>` — 次回 drain に持ち越す inbox path（triage に明示・archive 退避から除外）
+
+実 Edit/Write/mv は step 6 が担う。本節 step 5 で `validation_errors` が残っている候補も triage 提示の per-item に明示する（hold とは別軸——validation_errors は採否を人に委ねる残課題）。
 
 ### 5. トリアージ承認ゲート
 
@@ -446,14 +640,13 @@ c.derivation_ok =
 
 ### 6. 承認後の適用と archive 退避
 
-承認されたものだけ適用する:
+step 4.7 step 5 で確定した `writeCandidates` / `archiveTargets` / `holdInboxes` を受けて、本 step は実 Write / Edit / mv を実行する（**本 step は実 IO 担当・決定は 4.7 step 5 が正本**）。
 
-- 新規ノート: `content` を `notes/<タイトル>.md` に Write。fold は `backlink_edits` を畳み先へ追記。
+- 新規ノート: `writeCandidates` のうち新規分は `content` を `notes/<タイトル>.md` に Write。fold は `backlink_edits` を畳み先へ追記。
 - 逆リンク: `backlink_edits` を各既存ノートへ追記し、`updatedAt` 打ち直し・`## 更新履歴` に当日 `[[日付]]` を冪等追記。
-- リンク張り替え: `link_rewrites`（昇格で inbox 名が変わる/分割される場合の被リンク元）の各ファイルで、元 inbox 名への wikilink を昇格先（複数分割なら主たる行き先）へ張り替える。
+- リンク張り替え: `link_rewrites`（昇格で inbox 名が変わる/分割される場合の被リンク元）の各ファイルで、元 inbox 名への wikilink を昇格先（複数分割なら主たる行き先）へ張り替える。**`reportExtract` 失敗時の張り替え保護 (rename を伴う昇格は次回 drain に持ち越し) は 4.7 step 2 / step 4 に集約・本節を参照**（重複箇所は 4.7 を正本とする）。inbox 自体の archive 退避除外も 4.7 step 4 の `holdInboxes` から `archiveTargets` を引いた結果に従う。
 - done 化: 承認された done 候補の `progress: done` ＋ `updatedAt` 更新＋`## 更新履歴` に「完了」。`status:` は触らない。
-- **`reportExtract` 失敗時のリンク張り替え保護 (Phase 4 で reportExtract が `old_name_referrers` の唯一供給源になった副作用への防御)**: `flags.report_extraction_failed` に乗った inbox については `link_rewrites` が空のまま (referrers が機械的に洗えていない) なので、その inbox から出た skill 本体側 kizuki/insight 候補が **inbox basename と異なる title を持つ場合は Write/採用を次回 drain に持ち越す** (notes/<新タイトル>.md を Write すると、まだ拾えていない [[元 inbox 名]] 参照が dangling 化するため)。inbox basename と同名の昇格 (rename なし) は採用してよい (referrers 不要)。triage 提示時に「reportExtract 失敗のため referrers 不明・rename を伴う昇格は次回 drain で再処理」と明示する。inbox 自体は archive 退避を skip して inbox/ に残す (workflow 側 flag による archive 退避保護と同じ防御で、次回 drain で再評価する)。
-- **archive 退避**: mv の前に `ls ~/workspace/notes/obsidian/Life/inbox/*.md | sort` を再実行し、step 1 のスナップショットと集合差分を取る。**欠落があれば mv せず、欠落ファイル名を報告してユーザ判断を仰ぐ**（Sync 消失の上に mv で状態を複雑化させない）。差分なしなら処理済み原本を `archive/inbox/` へ mv（`mkdir -p` の上で）。昇格先が同名 1:1 の場合は mv 自体が昇格を兼ねてよい（その場合 archive 退避は不要＝原本が notes/ で生きる）。**archive 退避除外**: `flags.report_extraction_failed` / `flags.task_done_extraction_failed` (workflow 側) と `kizuki_extraction_failures` / `kizuki_extract_malformed` (skill 本体側 step 4.5 で記録) の和集合に乗った inbox path は mv 対象から除外する (未処理のため inbox に残す)。
+- **archive 退避**: mv の前に `ls ~/workspace/notes/obsidian/Life/inbox/*.md | sort` を再実行し、step 1 のスナップショットと集合差分を取る。**欠落があれば mv せず、欠落ファイル名を報告してユーザ判断を仰ぐ**（Sync 消失の上に mv で状態を複雑化させない）。差分なしなら `archiveTargets` (4.7 step 5 で確定) の各 inbox path を `archive/inbox/` へ mv（`mkdir -p` の上で）。昇格先が同名 1:1 の場合は mv 自体が昇格を兼ねてよい（その場合 archive 退避は不要＝原本が notes/ で生きる）。`holdInboxes` に乗った inbox path は `archiveTargets` から除外済みなので inbox/ に残る（次回 drain で再処理）。
 
 ### 7. 完了報告と運用ログ
 
@@ -461,16 +654,19 @@ c.derivation_ok =
 - **運用ログ記録**: `notes/distill運用ログ.md` に 1 実行 = 1 ブロックを追記する（記録項目・対記録フォーマットは `/harvest` スキルの「完了報告と運用ログ」節が正本——drain/harvest 共通）。drain で記録する項目:
   - モード `drain` / totals（候補・洞察・タスク・fold・done 候補）。**気づき件数・洞察件数は skill 本体側で別管理した値を補う**（気づき抽出・洞察検出が workflow を経由しないため `totals.kizuki` / `totals.insights` は drain では常に 0）。
   - **`per_part_metrics`**: workflow 戻りの 4 パート metric（`llm_wiki` / `task_done` / `kizuki_insight` / `format_output`）を運用ログに書き出す。`kizuki_insight` は workflow からは空 dict `{}` で返るので skill 本体側で算出した値を埋める（他 3 パートは workflow 戻りの値をそのまま使う）。**項目の例**:
-    - `kizuki_count`: 気づき候補の総件数（fold を除く）
-    - `insight_count`: 洞察候補の総件数
-    - `kizuki_derivation_ok`: derivation_ok=true の気づき件数
-    - `insight_derivation_ok`: derivation_ok=true の洞察件数
-    - `naming_gate_rounds_max`: 気づき+洞察ゲートの最大ラウンド
-    - `naming_gate_unresolved`: 気づき+洞察ゲートで unresolved/undecidable のまま終わった件数
-    - `sendmessage_invocations`: A 化命名ゲートで SendMessage を打った回数（A 化の本質指標）
-    - `kizuki_spawn_failed`: 気づき抽出 agent spawn が失敗した inbox 件数
-    - `kizuki_extract_malformed`: 気づき抽出 agent の戻り shape 不正 (必須 field 欠落) の inbox 件数
-    - `insight_detect_failed`: 洞察検出 agent spawn が失敗したかの真偽
+    - `kizuki_insight.kizuki_count`: 気づき候補の総件数（fold を除く）
+    - `kizuki_insight.insight_count`: 洞察候補の総件数
+    - `kizuki_insight.kizuki_derivation_ok`: derivation_ok=true の気づき件数
+    - `kizuki_insight.insight_derivation_ok`: derivation_ok=true の洞察件数
+    - `kizuki_insight.naming_gate_rounds_max`: 気づき+洞察ゲートの最大ラウンド
+    - `kizuki_insight.naming_gate_unresolved`: 気づき+洞察ゲートで unresolved/undecidable のまま終わった件数
+    - `kizuki_insight.sendmessage_invocations`: A 化命名ゲートで SendMessage を打った回数（A 化の本質指標）
+    - `kizuki_insight.kizuki_spawn_failed`: 気づき抽出 agent spawn が失敗した inbox 件数
+    - `kizuki_insight.kizuki_extract_malformed`: 気づき抽出 agent の戻り shape 不正 (必須 field 欠落) の inbox 件数
+    - `kizuki_insight.insight_detect_failed`: 洞察検出 agent spawn が失敗したかの真偽
+    - `format_output.report_extraction_failed`: reportExtract agent 起動失敗の inbox 件数（真の rex 失敗のみ）
+    - `format_output.report_referrers_skipped`: reportExtract は成功したが `referrers_scanned === false` で referrers 未走査の inbox 件数（R3-11 で分離計上。「extraction 失敗」とは別軸——前者は agent が結果を返さなかった件数・後者は agent が結果を返したが referrers 走査を放棄した件数）
+    - `format_output.task_done_extraction_failed`: taskDoneExtract agent 起動失敗の inbox 件数
   - **推奨/訂正ペア**（パイプライン推奨案 ↔ ユーザ指摘の訂正を 1 項目 1 ペアで・done の誤検出/取りこぼし訂正も含む）／洞察却下。
   - **最小テンプレで始める**（重くして書かなくなるのが最大の失敗）。訂正が無い実行でも totals の 1 ブロックは残す。
 
