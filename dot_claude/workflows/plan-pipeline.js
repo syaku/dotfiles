@@ -208,7 +208,7 @@ const draft = await agent(
 
 依頼: ${REQUEST}
 対象リポジトリ: ${REPO}
-${PREMISE ? `前提整理 (premise.md): ${PREMISE} を Read して踏まえること。premise の Open questions は調査・起草で解消し、解消できなかったものだけ plan の Risks に繰り越す。` : ''}
+${PREMISE ? `前提整理 (premise.md): ${PREMISE} を Read して踏まえること。premise の Open questions は調査・起草で解消し、解消できなかったものだけ plan の Risks に繰り越す。premise に「plan への申し送り」節があれば Approach / Design の参照入力として扱う (Purpose / Acceptance と違い正本ではない——調査結果に照らして別の設計を選んでよい)。` : ''}
 ${SKILL_REVIEW_REPORT ? `skill-review レポート: ${SKILL_REVIEW_REPORT} を Read し、既存 skill の改善点を計画の改善対象として踏まえること (散文として読む。再照合不要)。` : ''}
 出力先 (参考情報): ${PLAN_PATH}
 

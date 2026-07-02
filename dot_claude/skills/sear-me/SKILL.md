@@ -1,92 +1,93 @@
 ---
 name: sear-me
-description: 計画に入る前に、**目的（Purpose / Why）と受入条件（Acceptance / Done）**を中心に、上流目的・隠れた前提・Purpose 由来の除外（Non-goals）を素早く炙り出して <現在の作業スペース>/premise.md に確定するスキル。draft-first 構成——まず Purpose / Acceptance を起点に premise.md の draft を書き、draft に残った分岐点を最大 2 ラウンドで質問して status: final に確定する。Phase 分け・Scope: In（具体的にどこを触るか）は plan の領分で踏み込まない。成果物は premise.md（status: final が plan への引き渡し条件・plan の目的整合レビューの正本になる）。grill-me の軽量版（炙る＝表面だけ素早く）で、芯まで焼く徹底尋問はしない。「前提を整理して」「計画前に炙り出して」「要件を固めて」「目的と受入条件を出して」などの依頼で起動する。
+description: 計画に入る前に、依頼の課題や曖昧な点を炙り出し、**目的（Purpose / Why）と受入条件（Acceptance / Done）**を plan がそのまま使える精度にして <現在の作業スペース>/premise.md に確定するスキル。元ネタ grilling（mattpocock/skills。全設計分岐を執拗に尋問する）の尋問範囲を Purpose / Acceptance / 前提に絞った軽量〜中量級版で、原典の 3 原則（質問は 1 問ずつ依存順に・調べれば分かることは聞かずに調べる・終了はラウンド消化でなく認識的条件）を保つ。設計（Design）・Phase 分け・Scope: In（具体的にどこを触るか）は plan の領分で踏み込まない。成果物は premise.md（status: final が plan への引き渡し条件・plan の目的整合レビューの正本になる）。「前提を整理して」「計画前に炙り出して」「要件を固めて」「目的と受入条件を出して」などの依頼で起動する。
 ---
 
 # sear-me: 前提を炙り出すフェーズ（plan の前段）
 
-依頼を read-only で最小限調べ、まず premise.md の **draft を書き**、draft に残った分岐点だけをユーザに質問し、回答を反映した確定版（`status: final`）を書いて終了するスキル。**plan の目的（Purpose）と受入条件（Acceptance）の正本**を確定するのが役目で、自分で計画・設計は立てず実装にも進まない（plan・implement の責務）。
+依頼を調べ、まず premise.md の draft を自力で埋め、残った分岐だけをユーザに 1 問ずつ聞き、Purpose / Acceptance が「final の条件」を満たしたら `status: final` で確定して plan に渡すスキル。自分で計画・設計は立てず実装にも進まない（plan・implement の責務）。
 
-plan との分担（改修後の plan スキルと整合）:
+元ネタは mattpocock/skills の grilling（全設計分岐を執拗に尋問して shared understanding に達する）。sear-me は尋問の**範囲**を Purpose / Acceptance / 前提に絞ることで軽くする。軽くするのは範囲だけで、原典の 3 原則はそのまま保つ:
+
+1. **質問は 1 問ずつ、依存順に。** 回答を読んでから次の質問を決める。複数質問の同時出しは相手を混乱させ、ゲート設問（答えが他の設問の前提を変える質問）と従属設問を同時に出すと片方が無駄になる（失敗接地: 2026-07-02 vault-catalog 実走。要否見直しのゲートと鮮度要求を同時に出し、ゲートの回答で後者が moot 化した）。
+2. **調べれば分かることは聞かない。** premise の記述を左右する事実は Grep/Read で自分で確認する。plan と分けるのは設計判断・網羅的影響調査・手順化であって、読解の量ではない（失敗接地: 2026-07-02 vault-catalog 実走。Grep 一発で確定する参照有無を確認せず、Acceptance の条件分岐として plan に先送りした）。
+3. **終了は認識的条件で決める（step 3「final の条件」）。** 質問数・ラウンド数の消化を final の根拠にしない（失敗接地: LLM Wiki 純関数化の実走。設問がスコープ・事務の追認のまま final を宣言し、真の Purpose＝コスト・スケールが事後にユーザから出て final を 3 回宣言し直し、手動差し戻しになった）。
+
+plan との分担:
 
 - sear-me が確定: **Purpose（目的・Why）** と **Acceptance（受入条件・Done）**。plan はこの 2 軸を再定義せず参照する。
-- plan が担う: **設計（Design）** と **計画（Phase 分割）**。sear-me は設計・段取りに踏み込まない。
-- plan の目的整合レビューは premise.md の Purpose / Acceptance を逐語参照して plan との対応を見る（plan SKILL.md 側に encode）。
-
-「炙る（sear）」＝表面だけ素早く火を入れる。芯まで焼く `grill-me` の軽量版。軽さは質問数を縛って作るのではなく構造で作る——自分で埋められる前提は draft に埋まった状態で可視化されるので、質問は **Purpose / Acceptance の妥当性確認**（上流目的・受入条件の盲点）に縮む。draft の自己充足仮定の追認だけで Round を埋めない（recommend 連打で 1 ラウンドで閉じ、Purpose / Acceptance の盲点に届かない）。
+- plan が担う: **設計（Design）・計画（Phase 分割）・Scope: In**。sear-me は踏み込まない。
+- 調査・対話で設計材料が判明してしまったら、捨てずに premise の「plan への申し送り」節へ隔離する。禁止だけを置くと行き場の無い情報が他の節に滲む（失敗接地: 実走で Assumptions に tool シグネチャ・Dockerfile 構成まで書き下ろした premise が生成された）。
 
 ## 実行モデル
 
-- **Write は 現在の作業スペース のみ**（draft と確定版の 2 回が基本形）。他のファイルは書かない。
-- 使うツールは Read/Glob/Grep/Write/AskUserQuestion のみ。Bash/Edit/Agent は使わない。この制約をフロントマターの `disallowed-tools` に**置かない**——`Skill` tool は main で動くため、スキルが active な間呼び出し元まで巻き添えでツールを失う（失敗接地: 2026-06-11、plan スキルで確認済みの構造）。
+- **Write は `<現在の作業スペース>/premise.md` のみ**（draft と final の全文 Write。細切れの Edit で継ぎ足さない）。Write は親ディレクトリを自動生成するので mkdir は不要。
+- 調査は Read/Glob/Grep を基本とし、Edit・Agent・状態を変える Bash は使わない。この制約をフロントマターの `disallowed-tools` に**置かない**——`Skill` tool は main で動くため、スキルが active な間呼び出し元まで巻き添えでツールを失う（失敗接地: 2026-06-11、plan スキルで確認済みの構造）。
 
 ## フロー
 
-### 1. 最小調査（read-only・無質問）
+### 1. 調査して draft を書く
 
-- 依頼文を整理し、draft を書くのに必要な最小限の調査だけを Read/Glob/Grep で行う。網羅的なファイル洗い出しはしない（plan 側の調査工程の責務）。
-- 調査と依頼文から自分で埋められる前提はすべて埋める。ただし**ユーザに明示確認していない判断は、次ステップで Assumptions に仮定として記録する**——黙って決めるのではなく、決めた内容を事後 veto できる形にする。
-- **XY problem 判定**: 依頼が手段指定の形か（「X を使って」「Y で実装して」など、解き方を名指しした依頼か）をここで判定する。該当したら step 3 の必須設問になる。
+- 依頼文を整理し、premise の記述を左右する事実を Read/Glob/Grep で確認する。調査の境界は量でなく判断で引く——Purpose / Acceptance / 前提の記述に効く事実（参照の有無・設定の実在・現行挙動）は自分で確認する。設計判断のための調査（実装方式の比較・影響範囲の網羅）は plan の領分。
+- 手段指定の依頼（「X を使って」「Y 化したい」）では、Purpose を手段の名前を使わずに書けるか試す（XY レンズ）。書けなければ、それが最初の質問候補になる。手段が上流の決定で確定済みなら、その旨と根拠を Decisions に 1 行残す（黙った省略と正当な省略を後から区別できるようにする）。
+- 自分で埋められる前提はすべて埋める。ユーザに明示確認していない判断は Assumptions に記録する（黙って決めるのではなく、事後 veto できる形にする）。
+- タスクディレクトリ名は 作業スペース の命名規則に従う（内容が一目で分かる日本語名）。**呼び出し元（/develop 等）からディレクトリ指定があれば命名規則より優先する**。同ディレクトリに premise.md が既にあれば Read し、既存の Decisions / Assumptions を新 draft に引き継ぐ（全文上書きで消さない）。
+- `status: draft` で Write する。
 
-### 2. draft を Write（status: draft）
+### 2. 質問する（1 問ずつ・残差のみ）
 
-- タスクディレクトリ名は 作業スペース の命名規則に従う（内容が一目で分かる日本語名。既存の plan.md があるディレクトリなら同居させる）。
-- 下記「premise.md の構成」の Primary 軸（Purpose / Acceptance）を中核に、必要な軸を埋め、`status: draft` で Write する。
-- 書きながら、質問に値する分岐を抽出する。基準は **decision-changing test**: 答えがどちらでも plan が変わらない質問は捨てる。残った分岐だけが質問になる。
-- 質問の数はタスクの stakes で較正する: 影響範囲が小さく可逆なタスクは 0〜2 問で十分。上限まで使うのは不可逆・影響大の分岐があるときだけ。
-- 分岐がゼロなら質問せず step 5 に直行してよい（0 問パス。Assumptions が事後 veto の面として残るので、聞かずに確定しても安全）。
+- 聞くのは自力で解消できない分岐だけ——ユーザの意図・優先度・許容水準・トレードオフの選好。基準は **decision-changing test**: 答えがどちらでも plan が変わらない質問は捨てる。**質問ゼロは正当な結果**（分岐が無ければ聞かずに step 3 へ。Assumptions が事後 veto の面として残る）。設問ノルマは無い——規則を満たすための質問を作らない。
+- **AskUserQuestion 1 回に 1 問。** 回答を読んでから次の質問を決める。ゲート設問は必ず単独で先に出す。
+- 設問は draft の具体箇所に錨付けする（「draft は A と仮定したが良いか」の形）。ただし **Purpose を問うときは枠外の答えを許す**——閉じた選択肢はモデルの仮説の追認装置になりやすく、真の動機が全選択肢の外にあった実走例がある。「どれでもない場合は自由記述で」と設問文に明示する。
+- 推奨案を先頭（(Recommended) 付き）に置き、各選択肢の description に「選ぶと何が変わるか・何を捨てるか」を書く。選択肢オブジェクトは label と description のみで構成する（preview 等の任意キーを null で付けない。失敗接地: 2026-07-02、preview: null で InputValidationError の 1 往復空費）。
+- safety（中量級の上限）: 質問が 5 問を超えて続きそうなら、残りの分岐を Open questions に整理して提示し、続けるか plan に引き継ぐかをユーザに諮る。ここで黙って final にしない。
 
-### 3. Round 1（AskUserQuestion 1 回・最大 4 問）
+### 3. final を確定する（認識的条件）
 
-- 各設問は draft の具体箇所に錨付けする（「draft は A と仮定したが良いか」の形）。draft と独立な抽象的要件質問にしない。**錨は Purpose / Acceptance に置くのを基本**にし、Assumptions や Non-goals の追認だけで Round 1 を埋めない（追認は recommend で閉じてしまい、上流目的や受入条件の盲点に届かない）。
-- 選択肢は推奨案を先頭（(Recommended) 付き）に置き、**各選択肢の description に「選ぶと何が変わるか・何を捨てるか」を書く**。判断材料がラベルだけの選択肢を出さない。
-- step 1 で手段指定と判定した依頼では、「そもそも何を解きたいか／別アプローチの要否」を必須設問として含める。手段指定でない依頼でも、Purpose の上流（「この目的はより上流の何のための手段か」）か Acceptance の盲点（「この観測条件が満たされても Purpose が達成されないケースは無いか」）のどちらかを 1 問は問い、draft の Primary 軸をそのまま追認するだけのラウンドにしない。
+final を名乗れる条件。**すべて満たすまで final にしない**（満たせない事情で中断するなら draft のまま、何が不足かを添えて報告する）:
 
-### 4. Round 2（任意・最大 4 問）
+- Purpose が手段の名前を使わず 1〜3 行で書けている。
+- Acceptance の各項が観測可能で、**無条件**に書けている——「〜が判明したら差し戻し」のような条件分岐を含まない。条件分岐が残るのは、確認できる事実が未確認（原則 2 に戻って調べる）か、分岐がユーザ未決（step 2 に戻って聞く）かのどちらか。
+- 残る未決が「ユーザにしか決められないこと」か「plan が解く設計判断」だけで、Open questions / Risks に明記されている。
+- 質問した場合、Decisions に質問→回答→含意が記録されている。回答で解消した Assumptions は削除するか Decisions へ昇格済み。
 
-- Round 1 の回答が新たな分岐を開いたときのみ実施する。**ここでハードストップ**——3 ラウンド目には入らず、残った曖昧さは Open questions に書いて plan に引き継ぐ。
-
-### 5. 確定版を Write（status: final）
-
-- 回答を反映して全文を書き直し、`status: final` で Write する。聞いた質問・選ばれた回答・その含意は Decisions に記録する。回答で解消した Assumptions は削除するか Decisions へ昇格させる。
-- frontmatter の `open_questions` を残存件数に更新する。
-- premise.md のパスと、自己充足した仮定（Assumptions）の要点を報告して終了する。plan は同ディレクトリの premise.md を自動で検出して読む（口頭引き継ぎ不要）。
+満たしたら全文を書き直して `status: final` で Write し、premise.md の**フルパス**と、Purpose / Acceptance の要約・Assumptions の要点を報告して終了する。
 
 ## premise.md の構成
 
-frontmatter:
+frontmatter は `status: draft | final` のみ。open_questions 件数フィールドは置かない（自己申告カウントは本文と乖離した実績があり、plan は本文の Open questions 節を読む）。
 
-```yaml
----
-status: draft   # 確定したら final に反転する。final 以外を plan は受け付けない（契約）
-open_questions: 2   # Open questions / Risks の未決論点の件数
----
-```
-
-### Primary 軸（必須・質問の重心）
+### Primary（必須）
 
 - **Request**: 依頼の一文要約（言い直し）。
-- **Purpose (目的・Why)**: なぜこれをやるのか（上流の目的）。plan の Context・目的整合レビューの入力。「何が困っていて」「何を達成したいか」を 1〜3 行で書く。手段の名指しで埋めない。**質問はここを起点に上流（より上の Why はないか）まで届かせる**。
-- **Acceptance (受入条件・Done)**: 観測可能な完了条件。テスト・確認手段・運用上の判定基準に落とせる粒度で書く（「動く」ではなく「X が Y を満たして観測できる」）。plan の Verification 節・Phase 別受入の入力になる。複数あれば箇条書き。**質問はここで盲点（X が満たされても Purpose が達成されないケース）まで届かせる**。
+- **Purpose (目的・Why)**: 何が困っていて何を達成したいか（上流の目的）。手段の名指しで埋めない。plan の Context・目的整合レビューの入力。
+- **Acceptance (受入条件・Done)**: 観測可能な完了条件。「動く」ではなく「X が Y を満たして観測できる」の粒度。plan の Verification 節・Phase 別受入の入力。
 
-Scope: In（やる側の具体線引き）は **書かない**。plan が Phase 分けと一緒に決める領分で、premise に書くと質問の重心が Scope に流れて Primary が追認で閉じる（recommend 連打で 1 ラウンドで終わる）。
+### Secondary（該当時のみ・無ければ節ごと省略）
 
-### Secondary 軸（必須・Primary に従属）
+- **Non-goals**: Purpose 由来で明示的に除外するもの。あれば書く。件数ノルマは無い（ノルマは埋め草の捏造を生み、plan の YAGNI レビューの入力を汚す）。
+- **Assumptions**: 明示確認せず自己充足した仮定の列挙。0 問で final にする場合の事後 veto 面。
+- **Open questions / Risks**: plan が解くべき未決論点。
+- **Decisions**: 質問→回答→含意のトレース（質問した場合は必須）。XY レンズの判定結果（発火したか・上流確定済みで省いたかと根拠）もここに 1 行。
+- **plan への申し送り**: 調査・対話で判明した設計材料・Scope 寄りの情報の行き先。plan は Approach / Design の参照入力として読む（Purpose / Acceptance と違い正本ではない——plan が別の設計を選んでよい）。
+- **Constraints / Known context**: 技術・互換・時間の制約と、質問・仮定の前提になった調査範囲（パス付き）。
 
-- **Non-goals**: Purpose 由来で明示的に除外するもの。**最低 1 つは引き出す**（暗黙の過剰要求の除去。plan の YAGNI レビュー観点と接続）。「やらない」側だけ書く。Scope: In は plan 側で扱う。
-- **Assumptions**: 明示確認せず自己充足した仮定の列挙。0 問パスの事後 veto 面なので、「なし」と書けるのは本当に仮定を置かなかったときだけ。
-- **Open questions / Risks**: plan が解くべき未決論点。**手段指定依頼なら「真の課題への正しい解か（代替アプローチの検討要否）」を必ず含める**（step 1 の判定と連動）。
-
-### 該当時のみ（無ければ省略）
-
-- **Decisions**: 質問→回答→含意のトレース（質問した場合は必須）。plan が「なぜこの Purpose / Acceptance か」を遡る根拠になる。
-- **Constraints**: 技術・互換・時間・譲れない点。
-- **Known context**: 質問・仮定の前提になった調査範囲だけ（パス付き）。網羅調査ではない（plan 側の責務を侵食しない）。
+**深さの天井**: 決定軸（分岐そのもの・選択の理由）は記録するが、関数シグネチャ・設定ファイルの中身・実装手順は書かない。書きたくなったら「plan への申し送り」に 1 行で。
 
 ## plan との契約
 
-- plan は step 1 で同ディレクトリの premise.md を検出して読む（plan SKILL.md 側に記載）。
-- **Purpose / Acceptance は premise.md が正本**。plan は再定義しない（plan の Context は premise の Purpose を踏まえる・plan の Verification と Phase 別受入は premise の Acceptance を辿れる粒度で書かれる）。plan のレビューにおける目的整合観点は、premise.md の Purpose / Acceptance と plan の Context / Verification / Phase の対応を見る（plan-pipeline.js に encode 済み）。
-- `status: draft` のまま終了しない。中断等でやむを得ず draft 止まりになった場合、plan 側は未確定として扱い、続行可否をユーザに確認する。
-- Open questions は plan 側で解消を試み、解消できなかったものだけ plan.md の Risks に繰り越される（未決論点の二重所有を避ける。plan 側規約）。
-- **設計（Design）・計画（Phase 分割）・Scope: In（具体的にどこを触るか）は plan の領分**。premise.md でデータ構造・責務分割・実装手順・触る範囲の線引きに踏み込まない（踏み込むと sear-me が grill-me 寄りに肥大し、plan の設計レビュー対象が premise 側に流出する）。Scope: In を premise に書かないのは、Purpose / Acceptance を質問の重心に保つための構造上の縛りでもある（書くと recommend 追認で閉じる質問が立ちやすくなる）。
+- 引き渡しの主経路は **premise.md のフルパスの明示渡し**（step 3 の報告に含め、plan 起動時に `premise_path` として渡る）。同一セッションの連続実行では plan が同ディレクトリの premise.md を自動検出する（フォールバック）。
+- **Purpose / Acceptance は premise.md が正本**。plan は再定義しない（plan-pipeline の目的整合レビューが premise と plan の対応を見る。plan-pipeline.js に encode 済み）。
+- `status: final` 以外は未確定扱い。plan は draft の premise を足場にせず、続行可否（draft のまま進める／sear-me をやり直す）をユーザに確認する。
+- Open questions は plan 側で解消を試み、解消できなかったものだけ plan.md の Risks に繰り越す（未決論点の二重所有を避ける。plan 側規約）。
+- 「plan への申し送り」は plan の参照入力であって正本ではない。
+
+## やってはいけないこと
+
+- premise.md 以外を Write する。
+- 依存関係のある設問を同時に出す（ゲート設問は単独で先に。原則 1）。
+- 調べれば確定する事実をユーザに質問する、または Acceptance の条件分岐として plan に先送りする（原則 2）。
+- 質問数・ラウンド数の消化を final の根拠にする（final は step 3 の認識的条件で決める。原則 3）。
+- 設問ノルマ・Non-goals ノルマを満たすための埋め草を作る（ゼロは正当な出力）。
+- 設計・実装に踏み込む（データ構造・責務分割・実装手順・Scope: In の線引きは plan/implement の領分。判明済みの設計材料は「plan への申し送り」へ隔離する）。
+- skill フロントマターに `disallowed-tools` を置く（main 巻き添えの構造。失敗接地: 2026-06-11）。
