@@ -104,20 +104,30 @@ const CRITIQUE_SCHEMA = { type: 'object', required: ['findings'], properties: { 
 
 const TRACE_DISCOVERY_SCHEMA = {
   type: 'object',
-  required: ['sessions'],
+  required: ['sessions', 'needle_hits_total', 'excluded_no_launch'],
   properties: {
     sessions: {
       type: 'array',
       items: {
         type: 'object',
-        required: ['path', 'mtime', 'has_subagents'],
+        required: ['path', 'mtime', 'has_subagents', 'evidence'],
         properties: {
           path: { type: 'string', description: 'メインセッション jsonl の実パス (subagents 配下でのヒットは親セッションに丸める)' },
           mtime: { type: 'string', description: 'ISO 形式。新しい順ソートの根拠' },
           has_subagents: { type: 'boolean' },
+          evidence: {
+            type: 'object',
+            required: ['file', 'raw_text'],
+            properties: {
+              file: { type: 'string', description: '実走イベント行がある jsonl の実パス (親セッション jsonl 自身か subagents 配下)' },
+              raw_text: { type: 'string', description: '実走イベント行の逐語原文 300 文字以内。needle を含むこと。機械照合される' },
+            },
+          },
         },
       },
     },
+    needle_hits_total: { type: 'integer', description: 'needle の Grep ヒット総数 (セッション丸め・除外の前のファイル数)' },
+    excluded_no_launch: { type: 'integer', description: '実走イベントゼロと判定して除外したセッション数' },
   },
 }
 
@@ -226,12 +236,41 @@ ${delegatePathBlock}`,
     { schema: CRITIQUE_SCHEMA, label: 'critic:static', phase: '批評' },
   )
 
-let traceInfo = { sessions_found: 0, sessions_analyzed: 0, sessions_dropped: 0, analyzed_paths: [], analyst_failures: 0, skipped: MODE === 'static' ? 'static-mode' : '' }
+let traceInfo = {
+  sessions_found: 0, // 実走判定を通過して scout が返した件数 (旧: needle ヒット数)
+  sessions_analyzed: 0,
+  sessions_dropped: 0, // 検証通過分のうち上限超過で未分析 (旧: found との差)
+  analyzed_paths: [],
+  analyst_failures: 0,
+  dedup_removed: 0, // path 重複で除去した件数
+  evidence_rejected_script: 0, // scout 証跡が script 照合 (マーカー包含・セッション配下) で落ちた件数
+  evidence_rejected_echo: 0, // echo 独立確認で落ちた件数 (found=false / supports=false / quoteIn 失敗)
+  evidence_echo_failures: 0, // echo 不応答の件数 (fail-closed で不通過)
+  scout_needle_hits: 0, // scout 申告: needle の Grep ヒット総数 (第 1 層除外の可視化。機械照合対象外)
+  scout_excluded_no_launch: 0, // scout 申告: 実走イベントゼロと判定して除外した件数 (同上)
+  skipped: MODE === 'static' ? 'static-mode' : '',
+}
 let traceDiscoveryFailed = false
+
+// 自己参照汚染ガード: needle「Launching skill: <name>」は実 Skill tool の実行イベントにも、評価
+// workflow 自身の agent プロンプト内の文字列引用にも現れる (2026-07-02 の sear-me 評価で、実走を
+// 含まないメタセッションが最新実走として拾われた実発生あり)。2026-07-03 の実 jsonl 検分
+// (2026-06-09〜07-03 の 10 セッション) で確認した構造差: 実行イベントは tool_result の content が
+// 丁度 needle の行として記録され、トップレベル JSON に MARKER 断片が非エスケープで現れる。
+// プロンプト内引用は別の文字列フィールド内にエスケープ (\") されて現れるため MARKER を含まない。
+const NEEDLE = `Launching skill: ${NAME}`
+const MARKER = `"content":"${NEEDLE}"`
+const subagentsDir = (jsonlPath) => jsonlPath.replace(/\.jsonl$/, '') + '/subagents/'
 const traceThunk = async () => {
   if (MODE === 'static') return []
   const disc = await agent(
-    `評価対象 skill「${NAME}」の実走トレースを探す read-only 調査。${PROJECTS_DIR} 配下の *.jsonl を「Launching skill: ${NAME}」で Grep し (cwd を限定しない。jsonl path は cwd 依存のディレクトリ名なので特定 cwd に絞ると他 cwd セッションを取りこぼす)、ヒットしたメインセッション jsonl を mtime 降順 (新しい順) で返せ。subagents/agent-*.jsonl でのヒットは親セッションの jsonl に丸める。各セッションの <session-id>/subagents/ ディレクトリの有無も返す。中身の分析はしない (一覧のみ)。`,
+    `評価対象 skill「${NAME}」の実走トレースを探す read-only 調査。${PROJECTS_DIR} 配下の *.jsonl を「${NEEDLE}」で Grep し (cwd を限定しない。jsonl path は cwd 依存のディレクトリ名なので特定 cwd に絞ると他 cwd セッションを取りこぼす)、下記の判別基準で実走セッションだけをメインセッション jsonl に丸めて mtime 降順 (新しい順) で返せ。subagents/agent-*.jsonl でのヒットは親セッションの jsonl に丸める。各セッションの <session-id>/subagents/ ディレクトリの有無も返す。中身の分析はしない (実走判別と証跡取得のみ)。
+
+判別基準 (自己参照汚染ガード): 「${NEEDLE}」は (a) Skill tool の実行イベント (tool_result の content が丁度この文字列である行) と (b) agent プロンプトや自由文中の文字列引用の両方に現れ、grep では区別できない。実走に数えるのは (a) だけ。実行イベント行はトップレベル JSON に非エスケープの断片 ${MARKER} を含む (引用は文字列内にエスケープされて現れるため含まない)。(b) しか無いセッション (例: skill 評価の実行自身のメタセッション) は sessions に入れず excluded_no_launch に数える。
+
+evidence: sessions の各項目に実走イベント行の逐語証跡を付ける。file は実走イベント行がある jsonl の実パス (親セッション jsonl 自身か subagents 配下)、raw_text は該当行の原文から上記断片を含む範囲を 300 文字以内でそのまま切り出す (要約・整形しない)。機械照合される。
+
+集計: needle_hits_total には Grep でヒットした jsonl ファイルの総数 (セッション丸め・除外の前)、excluded_no_launch には実走イベントゼロと判定して除外したセッション数を返す。`,
     { agentType: 'Explore', schema: TRACE_DISCOVERY_SCHEMA, label: 'trace:discovery', phase: '批評' },
   )
   if (!disc) {
@@ -239,14 +278,66 @@ const traceThunk = async () => {
     return []
   }
   traceInfo.sessions_found = disc.sessions.length
-  const picked = disc.sessions.slice(0, MAX_SESSIONS)
-  traceInfo.sessions_dropped = disc.sessions.length - picked.length
+  traceInfo.scout_needle_hits = disc.needle_hits_total
+  traceInfo.scout_excluded_no_launch = disc.excluded_no_launch
+
+  // 1. dedup: mtime 降順をコードで保証してから path で unique 化 (先頭 = 最新を残す)
+  const sorted = [...disc.sessions].sort((a, b) => (a.mtime < b.mtime ? 1 : a.mtime > b.mtime ? -1 : 0))
+  const seenPaths = new Set()
+  const unique = []
+  for (const s of sorted) {
+    if (seenPaths.has(s.path)) continue
+    seenPaths.add(s.path)
+    unique.push(s)
+  }
+  traceInfo.dedup_removed = sorted.length - unique.length
+
+  // 2. scout 証跡の純コード照合: 実行イベントの構造マーカー包含 (needle 包含を内包) と、証跡
+  //    ファイルがそのセッション配下 (親 jsonl 自身か subagents/ 配下) にあること。空証跡もここで落ちる
+  const evidenceInSession = (s) =>
+    s.evidence.file === s.path || (s.evidence.file || '').startsWith(subagentsDir(s.path))
+  const screened = unique.filter((s) => s.evidence && quoteIn(s.evidence.raw_text, MARKER) && evidenceInSession(s))
+  traceInfo.evidence_rejected_script = unique.length - screened.length
+
+  // 3. echo 独立確認: 候補窓 MAX_SESSIONS * 2 に並列で当て、script が quoteIn で照合。不応答・
+  //    不一致・supports=false は不通過 (fail-closed)。窓は広げ直さない (リトライをループで持たない)
+  const windowSessions = screened.slice(0, MAX_SESSIONS * 2)
+  const echoes = await parallel(
+    windowSessions.map((s, i) => () =>
+      agent(
+        `あなたは実走確認担当 (read-only・反証視点)。セッション ${s.path}${s.has_subagents ? ` と ${subagentsDir(s.path)} 配下の agent-*.jsonl` : ''} に、評価対象 skill「${NAME}」の実走イベントが実在するかを独立に確認せよ。
+1. 「${NEEDLE}」を Grep し、Skill tool の実行イベント行 (tool_result の content が丁度この文字列である行。トップレベル JSON に非エスケープの断片 ${MARKER} を含む) を探す。見つけた行の原文を raw_text にそのまま貼る (要約・整形しない。該当断片を含む範囲を 300 文字以内で切り出してよい)。見つからなければ found=false で空文字。
+2. その行が本当に Skill tool の実行イベントか、agent プロンプト・自由文中の文字列引用 (エスケープされた出現) に過ぎないかを反証視点で判定し supports / reason を返す。引用しか見つからない・不確かなら supports=false に倒す。`,
+        { agentType: 'Explore', schema: ECHO_SCHEMA, label: `trace:echo${i + 1}`, phase: '批評' },
+      ),
+    ),
+  )
+  const passed = []
+  windowSessions.forEach((s, i) => {
+    const v = echoes[i]
+    if (!v) {
+      traceInfo.evidence_echo_failures++
+      return
+    }
+    if (!(v.found && quoteIn(v.raw_text, NEEDLE) && v.supports)) {
+      traceInfo.evidence_rejected_echo++
+      return
+    }
+    passed.push(s)
+  })
+
+  // 4. picked = 通過セッションの先頭 MAX_SESSIONS 件 (mtime 降順は保持済み)
+  const picked = passed.slice(0, MAX_SESSIONS)
+  traceInfo.sessions_dropped = passed.length - picked.length
+  const excluded = traceInfo.dedup_removed + traceInfo.evidence_rejected_script + traceInfo.evidence_rejected_echo + traceInfo.evidence_echo_failures
+  if (excluded > 0) log(`自己参照ガード除外: dedup ${traceInfo.dedup_removed} / script 照合 ${traceInfo.evidence_rejected_script} / echo 確認 ${traceInfo.evidence_rejected_echo} / echo 不応答 ${traceInfo.evidence_echo_failures}`)
   if (traceInfo.sessions_dropped > 0) log(`トレース ${traceInfo.sessions_dropped} 件は上限 ${MAX_SESSIONS} 件 (新しい順) の外で未分析`)
+  if (picked.length < MAX_SESSIONS && windowSessions.length > passed.length) log(`検証通過が ${picked.length} 件 (< 上限 ${MAX_SESSIONS})。通過分のみ分析する (窓は広げ直さない)`)
   const results = await parallel(
     picked.map((s, i) => () =>
       agent(
         `あなたは skill 評価のトレース分析担当。評価対象 skill「${NAME}」の実走セッション 1 件を読み、詰まり・無駄・フェーズ間の引き継ぎロスト・ガード破りを findings として返せ。何も変更しない。
-対象: ${s.path} (1 行 1 イベントの jsonl。大きければ Grep で「${NAME}」関連イベントに当たりを付けてから周辺を読む)${s.has_subagents ? `\n併せて ${s.path.replace(/\.jsonl$/, '')}/subagents/ 配下の agent-*.jsonl も対象。` : ''}
+対象: ${s.path} (1 行 1 イベントの jsonl。大きければ Grep で「${NAME}」関連イベントに当たりを付けてから周辺を読む)${s.has_subagents ? `\n併せて ${subagentsDir(s.path)} 配下の agent-*.jsonl も対象。` : ''}
 ${CRITIQUE_POLICY}
 - quote には該当 jsonl イベントの逐語テキスト (要約でなく原文の抜粋・300 文字以内)、file にはその jsonl の実パスを入れる。読んでいないイベントを主張しない。
 - これは 1 件のケーススタディである。統計的一般化をしない (「いつも」「毎回」と書かない)。`,
