@@ -149,7 +149,7 @@ const TRACE_VERIFY_SCHEMA = {
     raw_text: { type: 'string', description: '見つけた該当箇所の原文をそのまま貼る (要約しない)。見つからなければ空文字' },
     supports: { type: 'boolean' },
     reason: { type: 'string' },
-    addressed_in_current: { type: 'boolean', description: '指摘が示す失敗様式に現行 SKILL.md が既に対処済みか (実走当時のバージョンでなく現行文面で判定する)。不確かなら false' },
+    addressed_in_current: { type: 'boolean', description: '指摘が示す失敗様式に現行 SKILL.md が既に対処済みか (実走当時のバージョンでなく現行文面で判定する)。実走当時から存在した規定が破られた型は対処済みにしない。不確かなら false' },
     current_quote: { type: 'string', description: '対処済みの根拠となる現行 SKILL.md の逐語引用 (原文ママ・300 文字以内)。機械照合され、照合に落ちたら対処済み扱いにならない。addressed_in_current=false なら空文字' },
   },
 }
@@ -457,7 +457,7 @@ await parallel(
         `あなたは検証担当 (反証視点)。以下のトレース指摘の裏取りをせよ。
 1. ファイル ${f.file} に下記の引用と一致する記述が実在するか Grep / Read で確認し、見つけた該当箇所の原文を raw_text にそのまま貼る (要約・整形をしない)。見つからなければ found=false。
 2. 実在した場合、その記述は指摘を実際に支持するか (牽強付会・文脈の取り違えでないか) を反証視点で判定し supports / reason を返す。不確かなら supports=false に倒す。
-3. supports=true の場合、下記の現行 SKILL.md 全文と突き合わせ、指摘が示す失敗様式に現行版が既に対処済みか (トレースは過去バージョンの実走でありうる。セッション内にエコーされた SKILL 文面を現行版と混同しない) を判定し addressed_in_current を返す。true なら対処している現行文面の逐語引用を current_quote に貼る (機械照合される)。不確かなら false に倒す (指摘は現行への指摘として残る)。
+3. supports=true の場合、下記の現行 SKILL.md 全文と突き合わせ、指摘が示す失敗様式に現行版が既に対処済みか (トレースは過去バージョンの実走でありうる。セッション内にエコーされた SKILL 文面を現行版と混同しない) を判定し addressed_in_current を返す。規定の存在と規定の実効性を区別する——指摘が「規定が実走で破られた」型で、破られた実走の時点でその規定が既に存在していたなら、現行に同じ文面があることは対処ではない (false にする。対処済みにできるのは、当該失敗様式への規定・構造が実走の後に導入・変更された場合だけ)。true なら対処している現行文面の逐語引用を current_quote に貼る (機械照合される)。不確かなら false に倒す (指摘は現行への指摘として残る)。
 指摘: ${f.summary}
 引用: ${f.quote}
 改善提案: ${f.improvement}
