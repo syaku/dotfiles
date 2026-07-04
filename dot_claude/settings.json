@@ -49,6 +49,7 @@
     "defaultMode": "auto"
   },
   "model": "claude-opus-4-7[1m]",
+  "cleanupPeriodDays": 30,
   "hooks": {
     "PreToolUse": [
       {
@@ -61,12 +62,13 @@
         ]
       }
     ],
-    "SessionStart": [
+    "PostToolUse": [
       {
+        "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/hooks/regen-vault-catalog.sh"
+            "command": "bash ~/.claude/hooks/format-on-edit.sh"
           }
         ]
       }
