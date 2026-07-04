@@ -714,6 +714,8 @@ ${backfillFocus}
    - 【手本の使い方】この具体例・insight.md・既存洞察ノートから倣うのは畳み方/トーン/体裁であって主張内容ではない。手本の主張をなぞって似た洞察を作るな——内容は上記 source 規律 (4) に従い目の前の素材から立てる。
 6. なぜ重要・応用にはソフトウェア開発に転用できる接地を最低 1 つ入れる (読み手は SWE)。
 
+命名訂正事例集: \`~/.claude/skills/drain/naming-corrections.md\` を Read し、収載された訂正ペアの訂正方向 (何が指摘され、どう直ったか) にだけ倣って命名する (事例の主張内容はなぞらない)。命名の確定前に「別の cycle で観察したらどう書くか」を自問し、今回の素材に固有の語彙へ張り付いた命名を避ける。
+
 繋がりが弱ければ 0 件が正当な出力 (「A 止まりですらない」もありうる)。無理に B をでっち上げない。
 
 MCP 不達時の fallback: MCP tool 呼び出しで exception が出た場合は Grep に retreat し処理を継続する (Obsidian 起動時は \`obsidian tag name=気づき / name=洞察\` で実タグ索引、未起動なら frontmatter 形式に当てる multiline rg: \`rg -l --multiline -U '(?s)^---\\n(.*?\\n)*?tags:\\n(\\s*-\\s+[^\\n]*\\n)*\\s*-\\s+気づき' ${VAULT}/notes\` — inline #気づき タグだけを当てる \`rg -l '#気づき'\` は frontmatter 形式を取り逃すので使わない)。失敗したまま止めない。fallback した呼び出しごとに \`log('MCP_FALLBACK: <tool> <reason>')\` を 1 行出してから続行する。
