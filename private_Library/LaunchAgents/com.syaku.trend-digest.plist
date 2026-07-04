@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.syaku.trend-digest</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/syaku/.local/bin/claude</string>
+        <string>-p</string>
+        <string>--allowedTools</string>
+        <string>Bash Read Write Edit Glob Grep Workflow WebFetch WebSearch</string>
+        <string>今日のトレンドまとめて</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/syaku/workspace</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/syaku/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/syaku</string>
+    </dict>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>3</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/syaku/Library/Logs/claude-scheduled/trend-digest.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/syaku/Library/Logs/claude-scheduled/trend-digest.err.log</string>
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

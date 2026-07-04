@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.syaku.drain-reminder</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/syaku/scripts/drain-reminder.sh</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/syaku</string>
+    </dict>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>21</integer>
+        <key>Minute</key>
+        <integer>7</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/syaku/Library/Logs/claude-scheduled/drain-reminder.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/syaku/Library/Logs/claude-scheduled/drain-reminder.err.log</string>
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

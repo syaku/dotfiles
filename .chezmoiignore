@@ -60,6 +60,13 @@
 .config/karabiner
 {{ end }}
 
+# HDMI 切替 AppleScript (~/scripts/hdmi*.scpt)、drain-reminder.sh (osascript 依存)、
+# LaunchAgents (~/Library/LaunchAgents/com.syaku.*.plist) は Mac 専用
+{{ if ne .chezmoi.os "darwin" }}
+scripts
+Library
+{{ end }}
+
 # karabiner-elements は backup を automatic_backups/ に大量に吐く。展開対象外
 .config/karabiner/automatic_backups
 
