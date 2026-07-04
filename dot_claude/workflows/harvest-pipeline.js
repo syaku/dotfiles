@@ -1,5 +1,3 @@
-import { scoreRelatedness } from './harvest-pipeline-pure.js'
-
 export const meta = {
   name: 'harvest-pipeline',
   description: 'drain (即時 ingestion)・backfill (期間 reconciliation) の 2 層蒸留パイプライン: 素材整理 (既存突き合わせ・候補生成・命名ゲート inline)→洞察検出 (backfill のみ)→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない。drain の気づき抽出・洞察検出は Phase 4 で skill 本体側に移管した (A 化命名ゲート: Agent tool の name 付き spawn + SendMessage で抽出 context を保ったまま再命名する設計)',
@@ -10,6 +8,44 @@ export const meta = {
     { title: 'タスク・完了検出', detail: '既存タスクの done 候補検出。drain では素材整理段で taskDoneExtract subagent が並列実行済み (donePrompt 呼び出しは廃止・引用は集約段で script が包含照合)。backfill は期間内作業レポート本文を corpus に donePrompt を走らせる' },
     { title: '集計', detail: 'ノート規約の機械検証 (frontmatter/更新履歴/ラベル残存/タグ整合) と totals 計算 + 整形パートの per_part_metrics 算出 (Phase 4 で 整形パート物理配置は workflow script 段に確定)。DUPLICATE_DETECTED (done と task_promotions の inbox_origin 衝突) と INSIGHT_ZERO のログも出す' },
   ],
+}
+
+// 純関数 scoreRelatedness は Workflow tool の制約 (static import は meta より前不可・後に書くと dynamic import call と誤解析・dynamic `import()` 自体も unsupported) で
+// harvest-pipeline-pure.js から本体に直接コピーする。harvest-pipeline-pure.js は単体テスト用 (harvest-pipeline-pure.test.js) と API/閾値仕様の正本として残し、
+// 本ファイル内の関数本体は手作業で keep-in-sync する (workflow との interface 節と同型の関係)。
+const RELATED_KNN_MIN = 0.70
+const FOLD_KNN_MIN = 0.85
+const FOLD_REQUIRES_BM25_HIT = true
+
+function scoreRelatedness(hits, opts = {}) {
+  const relatedKnnMin = opts.relatedKnnMin ?? RELATED_KNN_MIN
+  const foldKnnMin = opts.foldKnnMin ?? FOLD_KNN_MIN
+  const foldRequiresBm25Hit = opts.foldRequiresBm25Hit ?? FOLD_REQUIRES_BM25_HIT
+
+  if (foldKnnMin < relatedKnnMin) {
+    throw new Error(`scoreRelatedness: foldKnnMin (${foldKnnMin}) must be >= relatedKnnMin (${relatedKnnMin})`)
+  }
+
+  if (!Array.isArray(hits) || hits.length === 0) {
+    return { related: [], fold_candidates: [] }
+  }
+
+  const ranked = hits.slice().sort((a, b) => (b.score_knn || 0) - (a.score_knn || 0))
+
+  const related = []
+  const fold_candidates = []
+  for (const h of ranked) {
+    const knn = h.score_knn || 0
+    const bm25 = h.score_bm25 || 0
+    if (knn >= relatedKnnMin) {
+      related.push(h.path)
+      if (knn >= foldKnnMin && (!foldRequiresBm25Hit || bm25 > 0)) {
+        fold_candidates.push(h.path)
+      }
+    }
+  }
+
+  return { related, fold_candidates }
 }
 
 // args interface:
