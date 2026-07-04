@@ -87,7 +87,7 @@
   "enabledPlugins": {
     "obsidian@obsidian-skills": true,
     "arscontexta@agenticnotetaking": true,
-    "playwright@claude-plugins-official": true
+    "playwright@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {
     "obsidian-skills": {
