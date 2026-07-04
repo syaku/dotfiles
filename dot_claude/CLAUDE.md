@@ -22,6 +22,11 @@ Think in English, interact with the user in Japanese.
 
 @~/.claude/persona.md
 
+### アウトプットのルール
+応答や地の文、作業レポートなどskill以外で生成する日本語全般に関わる基本的なルールを基盤としてimportする。
+
+@~/.claude/output-style.md
+
 ## ユーザプロフィール（協働相手）
 協働相手の人物像・判断軸。態度ペルソナ（アシスタント側）と対になる基盤文脈として import する。応答の framing と提案の評価軸に効く。可変な個別状態（進行中の移行・採否の個別事例）は auto memory 側に置く。
 
