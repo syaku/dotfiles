@@ -1,6 +1,6 @@
 ---
 name: knowledge-placement
-description: 新しく得た規範・知識・ユーザの人物像/好み・運用ノウハウを永続化する際、どの器（auto memory / paths なし rules / paths 付き rules / local-*.md / プロジェクト CLAUDE.md / skill）に置くかを判断するスキル。機密の隔離（同期される正本に書かない・`local-` prefix 運用）や paths glob の書き方も扱う。「これを覚えて」「ルールにして」「規範として残して」など知識・規範の永続化先の判断が要るときに参照する。常時ロードの索引は `~/.claude/rules/knowledge-location.md`。
+description: 新しく得た規範・知識・ユーザの人物像/好み・運用ノウハウを永続化する際、どの器（auto memory / paths なし rules / paths 付き rules / local-*.md / プロジェクト CLAUDE.md / skill）に置くかを判断するスキル。機密の隔離（同期される正本に書かない・`local-` prefix 運用）や paths glob の書き方も扱う。「これを覚えて」「ルールにして」「規範として残して」など知識・規範の永続化先の判断が要るときに参照する。常時ロードの索引は `~/.claude/CLAUDE.md` から @import される `~/.claude/knowledge-location.md`。
 ---
 
 # knowledge-placement: ナレッジの所在を決める
@@ -42,12 +42,12 @@ Claude Code にユーザーレベルの「.local」相当は無い（`CLAUDE.loc
 業務で得た機密（社内事情・人名・チケット番号・インシデント・面談内容など）を含む規範・知識は、chezmoi で全環境に同期される正本（source）へ流出させない。情報漏洩対策であり、`local-` 運用の動機の一つ（もう一つは上表「この環境だけで効かせたい規範・運用知識」の保存で、機密でなくても環境固有なら local- でよい）。
 
 - 機密を含む規範を rules 化するときは、ファイル名に `local-` prefix を付けて `~/.claude/rules/local-*.md` に置く。`.chezmoiignore` の `.claude/rules/local-*.md` 指定で source に取り込まれず、そのマシンに閉じる（編集は target を直接行う。source 編集は不要・不可）。
-- 機密を含む内容を、同期される非 local ファイル（`~/.claude/CLAUDE.md` / paths なし rules / 索引 rule `knowledge-location.md` / この skill 自身 など）には書かない。書けばそれ自体が正本への浸食になる。
+- 機密を含む内容を、同期される非 local ファイル（`~/.claude/CLAUDE.md`（および @import される `~/.claude/knowledge-location.md`）/ paths なし rules / この skill 自身 など）には書かない。書けばそれ自体が正本への浸食になる。
 - auto memory にも機密を書かない（私用端末では Obsidian Sync 経由でクラウド同期されうるため）。業務機密は memory ではなく `local-*.md` へ。行動規範はそもそも memory に溜めない（冒頭の方針どおり）。memory は事実・人物像・タスク状態のみ残す。
 - 確認: `chezmoi managed | grep local-` に出ないこと、`chezmoi add --dry-run <file>` で `warning: ignoring …` が出ることで chezmoi 非管理を検証できる。
 
 ## local-*.md（マシンローカル）を優先する
 
-同テーマで `local-*.md` と同期側（`CLAUDE.md` / paths なし rules / 索引 rule `knowledge-location.md`）の内容が衝突したら、`local-*.md` 側を優先する。そのマシンの事情に合わせて意図的に置かれた、より具体的な層だから。多くの local- ルールは同期側と衝突せず追加的に効くので、これは衝突時のタイブレーク。Claude Code が `local-` 命名を自動で優先するわけではなく、運用上の取り決めとしてここに明記している（マシンによっては該当ファイルが無く no-op）。
+同テーマで `local-*.md` と同期側（`CLAUDE.md`（および @import される `knowledge-location.md`）/ paths なし rules）の内容が衝突したら、`local-*.md` 側を優先する。そのマシンの事情に合わせて意図的に置かれた、より具体的な層だから。多くの local- ルールは同期側と衝突せず追加的に効くので、これは衝突時のタイブレーク。Claude Code が `local-` 命名を自動で優先するわけではなく、運用上の取り決めとしてここに明記している（マシンによっては該当ファイルが無く no-op）。
 
 新しく規範を得たら、まず上の表でどの器かを判断して置く。機密を含むなら上節のとおり `local-` に隔離する。
