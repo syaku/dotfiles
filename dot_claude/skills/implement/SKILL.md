@@ -1,6 +1,6 @@
 ---
 name: implement
-description: 承認済みの plan.md に従って実装を進め、検証と self-review を経て変更概要を返すスキル。実装・検証・self-review・限定リトライは implement-pipeline workflow（~/.claude/workflows/implement-pipeline.js）に決定論オーケストレーションとして委譲し、本体は入力確定・作業ツリー固定・Workflow 起動・本体 Bash による最終客観確認・承認/結果返却に徹する。green 判定・changed_files の合成・件数集計・リトライ上限は workflow script がコードで実行するため自己申告に依存しない。standalone でも /develop のステップ 2 からでも呼ばれてよい（develop 経由は args の明示句で step 4 の承認ゲートを省略し結果返却のみ。明示が無ければ standalone 扱い）。「実装して」「plan に従って作って」などの依頼で起動する。plan と対になる実装フェーズ担当。
+description: 承認済みの plan.md に従って実装を進め、検証と self-review を経て変更概要を返す実装フェーズのスキル。「実装して」「plan に従って作って」などの依頼で起動する。/develop からも呼ばれる。
 ---
 
 # implement: 実装フェーズ

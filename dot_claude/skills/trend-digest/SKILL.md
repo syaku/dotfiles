@@ -1,6 +1,6 @@
 ---
 name: trend-digest
-description: Qiita/Zenn＋海外（Hacker News / Lobsters）トレンドから関心・流行でピックアップし要約+深掘りを1日1ノートに保存するスキル。一覧取得・再掲除外は fetch_trends.py（決定論）、ピックアップ・深掘り・要約・組み立ては trend-digest-pipeline workflow に委譲。関心は ~/workspace/notes/obsidian/Life/skill/tech-trends/関心プロファイル.md を読む。「今日のトレンドまとめて」「テックトレンドをダイジェストして」などで起動する。対象 vault は ~/workspace/notes/obsidian/Life（Obsidian、日本語運用）。
+description: Qiita/Zenn＋海外（Hacker News / Lobsters）トレンドから関心・流行でピックアップし、要約と深掘りを 1 日 1 ノートに保存するスキル。「今日のトレンドまとめて」「テックトレンドをダイジェストして」などで起動する。対象 vault は ~/workspace/notes/obsidian/Life（Obsidian、日本語運用）。
 ---
 
 # trend-digest: トレンド記事の関心・流行ピックアップ → 要約・深掘り

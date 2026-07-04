@@ -1,6 +1,6 @@
 ---
 name: plan
-description: 依頼を整理して <現在の作業スペース>/plan.md に**設計と計画**を書き、承認まで進めるスキル。重い実装では Design（構造判断）と Phase 分割を一級項目として持ち、軽量タスクでは条件付き節として省略する（節を立てるかは complexity hint または起草時判定で決まる）。計画作成（調査・起草・検証/レビュー・リトライ収束）は plan-pipeline workflow（~/.claude/workflows/plan-pipeline.js）に決定論オーケストレーションとして委譲し、本体は入力確定・Workflow 起動・plan.md Write・per-item 判断ゲートに徹する。件数・状態の集計は workflow script がコードで計算するため自己申告に依存しない。standalone でも /develop から呼ばれてもよい。「計画を立てて」「plan して」「設計して」などの依頼で起動する。
+description: 依頼を整理して <現在の作業スペース>/plan.md に**設計と計画**を書き、承認まで進めるスキル。重い実装では Design と Phase 分割を一級項目に、軽量タスクでは条件付き節に省略する。「計画を立てて」「plan して」「設計して」などの依頼で起動する。/develop からも呼ばれる。
 ---
 
 # plan: 設計・計画フェーズ

@@ -1,6 +1,6 @@
 ---
 name: harvest
-description: 期間を切って過去を遡り、未完了タスクの完了（done）を期間内の作業レポートと再照合（reconcile sweep）し、蓄積したノードグラフから創発・メタ洞察を検出する backfill（遡り蒸留）スキル。即時の inbox/ 排出・気づき/done の即時検出は /drain が event-driven で担い、backfill はそのすり抜け残差（順序ギャップで永久 open になったタスク・全構成ノードが過去 drain 済みの創発洞察）を retroactive に拾う。蒸留パイプライン（素材整理（既存突き合わせ・候補生成・命名ゲート inline）→洞察検出→タスク・done reconcile）は harvest-pipeline workflow（~/.claude/workflows/harvest-pipeline.js, mode: backfill）に決定論オーケストレーションとして委譲し、本体は期間確定・Workflow 起動・トリアージ承認ゲート・承認後の Write 適用・運用ログ記録に徹する。モデル出し分けは script が agent 単位で固定するため /model 手動切替は不要。「今週分を harvest」「先週を振り返って」「先月の done を拾い直して」「収穫して」などの期間系で起動する。inbox/ の即時排出・日次の気づきノード化は別スキル /drain が担当（このスキルは inbox/ を処理せず会話素材も掻かない）。対象 vault は ~/workspace/notes/obsidian/Life（Obsidian、日本語運用）。
+description: 期間を切って過去を遡り、未完了タスクの done を期間内の作業レポートと再照合し、蓄積グラフから創発・メタ洞察を検出する backfill スキル。「今週分を harvest」「先週を振り返って」「先月の done を拾い直して」「収穫して」などの期間系で起動する。inbox/ の即時排出は別スキル /drain。対象 vault は ~/workspace/notes/obsidian/Life（Obsidian、日本語運用）。
 ---
 
 # harvest: 期間を切った遡り蒸留（backfill）

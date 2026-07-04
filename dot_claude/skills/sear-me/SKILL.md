@@ -1,6 +1,6 @@
 ---
 name: sear-me
-description: 計画に入る前に、依頼の課題や曖昧な点を炙り出し、**目的（Purpose / Why）と受入条件（Acceptance / Done）**を plan がそのまま使える精度にして <現在の作業スペース>/premise.md に確定するスキル。元ネタ grilling（mattpocock/skills。全設計分岐を執拗に尋問する）の尋問範囲を Purpose / Acceptance / 前提に絞った軽量〜中量級版で、原典の 3 原則（質問は 1 問ずつ依存順に・調べれば分かることは聞かずに調べる・終了はラウンド消化でなく認識的条件）を保つ。設計（Design）・Phase 分け・Scope: In（具体的にどこを触るか）は plan の領分で踏み込まない。成果物は premise.md（status: final が plan への引き渡し条件・plan の目的整合レビューの正本になる）。「前提を整理して」「計画前に炙り出して」「要件を固めて」「目的と受入条件を出して」などの依頼で起動する。
+description: 計画に入る前に、依頼の課題や曖昧な点を炙り出し、**目的（Purpose / Why）と受入条件（Acceptance / Done）**を plan がそのまま使える精度にして <現在の作業スペース>/premise.md に確定するスキル。設計・Phase 分け・具体的な変更箇所は plan の領分で踏み込まない。「前提を整理して」「計画前に炙り出して」「要件を固めて」「目的と受入条件を出して」などの依頼で起動する。
 ---
 
 # sear-me: 前提を炙り出すフェーズ（plan の前段）

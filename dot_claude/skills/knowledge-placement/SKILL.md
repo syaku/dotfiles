@@ -1,6 +1,6 @@
 ---
 name: knowledge-placement
-description: 新しく得た規範・知識・ユーザの人物像/好み・運用ノウハウを永続化する際、どの器（auto memory / paths なし rules / paths 付き rules / local-*.md / プロジェクト CLAUDE.md / skill）に置くかを判断するスキル。機密の隔離（同期される正本に書かない・`local-` prefix 運用）や paths glob の書き方も扱う。「これを覚えて」「ルールにして」「規範として残して」など知識・規範の永続化先の判断が要るときに参照する。常時ロードの索引は `~/.claude/CLAUDE.md` から @import される `~/.claude/knowledge-location.md`。
+description: 新しく得た規範・知識・ユーザの人物像/好み・運用ノウハウを永続化する際、どの器（auto memory / paths なし rules / paths 付き rules / local-*.md / プロジェクト CLAUDE.md / skill）に置くかを判断するスキル。機密の隔離や paths glob の書き方も扱う。「これを覚えて」「ルールにして」「規範として残して」など永続化先の判断が要るときに参照する。
 ---
 
 # knowledge-placement: ナレッジの所在を決める

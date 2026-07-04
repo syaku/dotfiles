@@ -1,6 +1,6 @@
 ---
 name: illumia-chronicle
-description: イルミア大陸の架空年代記（人間族・精霊族・機械族のファンタジー史）を、設定ノート（lore bible）と地続きな形で、対象日の個別ノート `skill/illumia-chronicle/イルミア年代記_YYYY-MM-DD.md` に**ジョークとして**生成するスキル。個別ノートの存在判定・抽出・検証付き作成は chronicle_io.py（決定論）、生成は main が設定ノートの few-shot に倣って行う。journal の `## イルミア年代記` 節には `templates/daily.md` が `![[イルミア年代記_<日付>]]` の埋め込みリンクを自動展開する。「年代記書いて」「今日のイルミア」「架空の歴史を生成して」で当日生成、「年代記の設定を作り直して」で過去エントリからの設定復元を起動する。対象 vault は ~/workspace/notes/obsidian/Life。
+description: イルミア大陸の架空年代記（人間族・精霊族・機械族のファンタジー史）を、設定ノート（lore bible）と地続きな形で当日の個別ノートに**ジョークとして**生成するスキル。「年代記書いて」「今日のイルミア」「架空の歴史を生成して」で当日生成、「年代記の設定を作り直して」で過去エントリからの設定復元を起動する。対象 vault は ~/workspace/notes/obsidian/Life。
 ---
 
 # illumia-chronicle: イルミア年代記の地続き生成

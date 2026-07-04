@@ -1,6 +1,6 @@
 ---
 name: drain
-description: vault の inbox/ に溜まった capture（人の生ダンプ・会話文脈の無い AI 成果物）を notes/ ノードへ昇格させる inbox 排出スキル。昇格時に inbox の作業レポートから既存タスクの完了（done）も検出する（証跡が耐久ファイルに逐語で残る入口なので done 検出は drain の責務）。蒸留パイプラインは 4 パートに分離される——LLM Wiki（作業レポート・事実）と タスク done は harvest-pipeline workflow（~/.claude/workflows/harvest-pipeline.js, mode: drain）に決定論オーケストレーションとして委譲し、気づき・洞察 パートは skill 本体側で Agent tool の name 付き spawn + SendMessage で抽出 context を保ったまま再命名する A 化版命名ゲートで運用する。整形・出力 パートは workflow script 段に残る。モデル出し分けは script と本体が agent 単位で固定するため /model 手動切替は不要。「drain して」「inbox を処理して」「inbox を空にして」などで起動する。遡り蒸留（期間指定の done reconcile・創発/メタ洞察）は別スキル /harvest（backfill）が担当。対象 vault は ~/workspace/notes/obsidian/Life（Obsidian、日本語運用）。
+description: vault の inbox/ に溜まった capture（人の生ダンプ・会話文脈の無い AI 成果物）を notes/ ノードへ昇格させ、作業レポートから既存タスクの done も検出する inbox 排出スキル。「drain して」「inbox を処理して」「inbox を空にして」などで起動する。遡り蒸留（期間指定の done reconcile・創発/メタ洞察）は別スキル /harvest。対象 vault は ~/workspace/notes/obsidian/Life（Obsidian、日本語運用）。
 ---
 
 # drain: inbox/ → notes/ の昇格（inbox 排出）

@@ -1,6 +1,6 @@
 ---
 name: skill-review
-description: 任意の自作 skill（オーケストレータ／単発を問わず）の改善点を3ソース（静的レビュー / 実運用トレース分析 / 実走観察）×4軸（フェーズ設計・委譲構造 / プロンプト・指示の品質 / 失敗・抜け穴の堅牢性 / 成果・目的整合）で洗い出し、根拠付きの改善点レポートにまとめる評価スキル。評価パイプライン（抽出・批評・逐語裏取り・支持判定・畳み込み）は skill-review-pipeline workflow（~/.claude/workflows/skill-review-pipeline.js）に決定論オーケストレーションとして委譲し、本体は対象確定・Workflow 起動・レポート Write・実走観察の承認ゲートに徹する。引用の実在照合・破棄・深刻度格上げ・件数集計は script がコードで実行するため自己申告に依存しない。既定は full（静的＋トレース）で、/develop は既存 skill 改修の **plan 前段（step 0.5）で full を 1 回**回し plan の参照入力にする（develop の post-implement ループの収束計器としては使わない——そちらは code-review）。mode: static は静的レビューのみの軽量 standalone 実行として残す。「<skill 名> を評価して」「skill-review <skill 名>」「<skill 名> の改善点を出して」などの依頼で起動する。
+description: 任意の自作 skill の改善点を、静的レビュー／実運用トレース分析／実走観察の 3 ソース × フェーズ設計・プロンプト品質・堅牢性・成果整合の 4 軸で洗い出し、根拠付きレポートにまとめる評価スキル。「<skill 名> を評価して」「skill-review <skill 名>」「<skill 名> の改善点を出して」などの依頼で起動する。/develop からも呼ばれる（既存 skill 改修時の plan 前段）。
 ---
 
 # skill-review: 任意自作 skill の評価
