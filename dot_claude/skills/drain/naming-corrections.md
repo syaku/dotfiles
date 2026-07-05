@@ -1,6 +1,6 @@
 # 命名訂正事例集（drain 命名ゲート few-shot）
 
-drain の気づき・洞察命名で人ゲートが訂正した推奨・訂正ペアの代表例（`notes/distill運用ログ.md` から人手蒸留した静的スナップショット）。抽出 agent（kizuki-extract / insight-detect）が spawn 時に Read し、初回命名・SendMessage 再命名・軸再考の各段で参照する。
+drain の気づき・洞察命名で人ゲートが訂正した推奨・訂正ペアの代表例（`notes/distill運用ログ.md` から人手蒸留した静的スナップショット）。抽出 agent（kizuki-extract / insight-detect）が spawn 時に Read し、初回命名と self-check（反証点検）で参照する。
 
 ## 使い方の指針（2 点）
 

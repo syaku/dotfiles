@@ -1,10 +1,10 @@
 export const meta = {
   name: 'harvest-pipeline',
-  description: 'drain (即時 ingestion)・backfill (期間 reconciliation) の 2 層蒸留パイプライン: 素材整理 (既存突き合わせ・候補生成・命名ゲート inline)→洞察検出 (backfill のみ)→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない。drain の気づき抽出・洞察検出は Phase 4 で skill 本体側に移管した (A 化命名ゲート: Agent tool の name 付き spawn + SendMessage で抽出 context を保ったまま再命名する設計)',
+  description: 'drain (即時 ingestion)・backfill (期間 reconciliation) の 2 層蒸留パイプライン: 素材整理 (既存突き合わせ・候補生成・命名ゲート inline)→洞察検出 (backfill のみ)→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない。drain の気づき抽出・洞察検出は Phase 4 で skill 本体側に移管した (命名は抽出 prompt 内 self-check + skill 本体の shape コード検査。再命名の agent 往復は 2026-07-05 に廃止)',
   whenToUse: 'drain / harvest スキル本体 (SKILL.md) から scriptPath 指定で起動される。単体起動は想定しない',
   phases: [
     { title: '素材整理', detail: 'inbox 昇格候補 (drain=sonnet・taskDoneExtract / reportExtract の 2 並列抽出。気づき抽出は Phase 4 で skill 本体側に移管・workflow からは呼ばない) / 期間素材 (backfill=opus) の構造化と既存ノード突き合わせ。命名ゲート (機械 regex → 別 context 点検 agent → 再命名 → 再点検・最大 2 ラウンド) も素材整理 phase 内インラインで走る (drain では LLM Wiki=light gate・タスクのみ full gate)' },
-    { title: '洞察検出', detail: 'ノード間の繋がりから第三の知見を検出 (opus・0 件は正当・backfill 専用)。drain の洞察検出は Phase 4 で skill 本体側に移管 (A 化命名ゲート経由)・workflow では実行しない' },
+    { title: '洞察検出', detail: 'ノード間の繋がりから第三の知見を検出 (opus・0 件は正当・backfill 専用)。drain の洞察検出は Phase 4 で skill 本体側に移管 (self-check 命名ゲート経由)・workflow では実行しない' },
     { title: 'タスク・完了検出', detail: '既存タスクの done 候補検出。drain では素材整理段で taskDoneExtract subagent が並列実行済み (donePrompt 呼び出しは廃止・引用は集約段で script が包含照合)。backfill は期間内作業レポート本文を corpus に donePrompt を走らせる' },
     { title: '集計', detail: 'ノート規約の機械検証 (frontmatter/更新履歴/ラベル残存/タグ整合) と totals 計算 + 整形パートの per_part_metrics 算出 (Phase 4 で 整形パート物理配置は workflow script 段に確定)。DUPLICATE_DETECTED (done と task_promotions の inbox_origin 衝突) と INSIGHT_ZERO のログも出す' },
   ],
@@ -157,8 +157,8 @@ function candidateItem(kinds, { withInboxOrigin = false, withRelatedHits = false
 }
 
 // Phase 4: drain の気づき抽出 agent と旧戻り schema (kizuki_promotions / old_name_referrers の 2 field 版) は廃止された。
-// 気づき抽出責務は skill 本体側 (drain SKILL.md) に移管され、Agent tool の name 付き spawn + SendMessage で
-// 抽出 context を保ったまま再命名する A 化版命名ゲートで運用される。workflow からは 気づき抽出 prompt を呼ばない。
+// 気づき抽出責務は skill 本体側 (drain SKILL.md) に移管され、命名は抽出 prompt 内 self-check + skill 本体の
+// shape コード検査で運用される (再命名の agent 往復は 2026-07-05 に廃止)。workflow からは 気づき抽出 prompt を呼ばない。
 
 // Phase 2: reportExtract agent (LLM Wiki パート) の戻り schema。作業レポート・事実 のみを kind enum に持ち、
 // taskDoneExtract と並列起動して同一 inbox を独立に処理する (Phase 4 で 気づき抽出 廃止後は 2 並列構成)。
@@ -351,9 +351,9 @@ function checkerPrompt(kind, title, excerpt) {
 ② 不自然な動詞-目的語結合が無いか: 圧縮で生じる不自然結合 (「過剰を取り込む」等) は元記述の意味を消すシグナル。
 ③ 条件結果の 2 動詞構造になっていないか: 連用形「〜して〜する」、主述 1 文の条件結果型。要点を 1 動詞に圧縮できるかで判定する (できなければ 2 主張の混在＝複文)。
 ④ false agency になっていないか: モノを主語に人間動詞をさせる型 (「データが示す」「文化が醸成される」等) は違反——誰が何をしたかに書き換える対象。`
-  // Phase 4 + R2-12: 気づき checker (旧 noteCriteria) は skill 本体 step 4.2 (A 化命名ゲート) に移管した。
+  // Phase 4 + R2-12: 気づき命名基準 (旧 noteCriteria) は skill 本体側へ移管した。
   // workflow に kind='気づき' の候補は流入しない (REPORT/TASK_DONE/BACKFILL/INSIGHT_SCHEMA のいずれも気づきを enum しない)。
-  // drain SKILL.md L162-172 が稼働中の正本——本 workflow から noteCriteria 定義を撤去し、非対称ドリフトの温床を断つ。
+  // drain references/prompts/kizuki-extract.md の self-check 節が稼働中の正本——本 workflow から noteCriteria 定義を撤去し、非対称ドリフトの温床を断つ。
   // 洞察は気づきと作法が違う: 判断軸を名指す (失敗形は不可)。気づきは観察 (失敗形/中立どちらも可) なので noteCriteria① とは別基準にする (失敗接地: 2026-06-14 洞察タイトルを失敗形/相関/型空当てで 4 回外した)
   const insightCriteria = `① 判断軸を名指しているか: 「次にどう振る舞うか／何で判断するか」の規則・観点になっているか。失敗の再記述 (「〜と損する/間違える/死ぬ」等の失敗形) は気づき側の作法で、洞察では不可 (失敗形=該当)。
 ② 平易な日常語で、メタファー連結になっていないか: jargon・英語混入・造語・狭い実装語が無いこと、および比喩/メタファー/personification の連結で抽象語が並んでいないか (vault で確立した技術術語は許容)。失敗例「ガードを指す番地は消える記憶では迷子になる」型——「ガード」「番地」「迷子」「消える記憶」のような抽象語/技術メタファーの連結で何が起きるかが直接読めない型は違反。偏愛語 (泥臭さ／手触り／解像度／本質／営み／文脈)・必殺技造語 (真理／虚飾／美学／境地)・横文字メタファー (思考の OS／ハック／インストール／リファクタリング) も違反。
@@ -489,7 +489,7 @@ async function nameGate(c, renameModel) {
 
 function needsGate(c) {
   // Phase 2: 作業レポート・事実 も軽量ゲート (regex+checker のみ) の対象に含める。fold は対象外。
-  // Phase 4: 気づき gate は skill 本体側 step 4.2 (A 化命名ゲート) に移管 (workflow 経路の `kind === '気づき'` は到達不能・R2-9)。
+  // Phase 4: 気づき gate は skill 本体側 step 4.2 (self-check 命名ゲート) に移管 (workflow 経路の `kind === '気づき'` は到達不能・R2-9)。
   return !c.fold_into && (c.kind === 'タスク' || c.kind === '洞察' || c.kind === '作業レポート・事実')
 }
 async function runGate(c) {
@@ -555,8 +555,8 @@ ${c.content}
 
 // ---- プロンプト (モード別素材整理) ----
 // Phase 4: drain の気づき抽出 prompt は廃止された。気づき抽出責務は skill 本体側 (drain SKILL.md) に移管され、
-// Agent tool の name 付き spawn + SendMessage で抽出 context を保ったまま再命名する A 化版命名ゲートで運用される。
-// 関連 prompt 本文 (kizuki extraction / insight detection / checker / renamer) は skill 本体側に転記済み。
+// 命名は抽出 prompt 内 self-check + skill 本体の shape コード検査で運用される (再命名の agent 往復は 2026-07-05 に廃止)。
+// 関連 prompt 本文 (kizuki extraction / insight detection・self-check 判断基準) は skill 本体側 references/prompts/ に転記済み。
 // drain mode の workflow は reportExtract (LLM Wiki) と taskDoneExtract (タスク done) の 2 agent fan-out に縮小された。
 
 // Phase 2: reportExtract agent (LLM Wiki パート) のプロンプト。元の 4 系統併合抽出 prompt から作業レポート・事実 抽出責務を切り出し、
@@ -757,7 +757,7 @@ let drainDoneCandidates = [] // drain mode の done 候補は taskDoneExtract su
 const flags = { report_extraction_failed: [], task_done_extraction_failed: [], report_referrers_skipped: [], insight_failed: false, done_failed: false, done_skipped_no_reports: false }
 
 if (MODE === 'drain') {
-  // Phase 4: drainExtract (気づき) は skill 本体側に移管 (A 化命名ゲート: name 付き spawn + SendMessage で再命名)。
+  // Phase 4: drainExtract (気づき) は skill 本体側に移管 (命名は抽出 prompt 内 self-check + shape コード検査)。
   // workflow は taskDoneExtract (タスク+done) / reportExtract (作業レポート・事実) の 2 並列で
   // inbox ごとに fan-out する (Phase 3 の 3 並列から Phase 4 で 2 並列に縮小)。
   // 2 agent の戻りが揃った時点で promotions を merge して命名ゲートに流す (他 inbox の抽出を待たない)。
@@ -855,11 +855,11 @@ if (MODE === 'drain') {
 log(`素材整理: 候補 ${candidates.length} 件 (うち fold ${candidates.filter((c) => c.fold_into).length})`)
 
 // ============================================================
-// Phase 4: drain の洞察検出は skill 本体側に移管した (Agent tool で insight-detect agent を name 付き spawn し、
-// A 化命名ゲート＝SendMessage で再命名する設計)。workflow では backfill mode のみ洞察検出を実行する。
+// Phase 4: drain の洞察検出は skill 本体側に移管した (Agent tool で insight-detect agent を spawn。命名は
+// prompt 内 self-check + shape コード検査)。workflow では backfill mode のみ洞察検出を実行する。
 phase('洞察検出')
 if (MODE === 'drain') {
-  log('drain mode: 洞察検出は skill 本体の責務 (insight-detect agent を skill 側で name 付き spawn) — workflow ではスキップ')
+  log('drain mode: 洞察検出は skill 本体の責務 (insight-detect agent を skill 側で spawn) — workflow ではスキップ')
 } else {
   // backfill: 期間素材を入口に洞察検出を回す。新規ノード一覧 (period_pages の #気づき/#洞察 起点) を素材として渡す。
   const nonTask = candidates.filter((c) => c.kind !== 'タスク')
@@ -976,7 +976,7 @@ const renamePairs = candidates
 if (renamePairs.length) {
   // path 置換は境界一致で行う (失敗接地: 単純 split('${from}.md') では from='メタ' で
   // 'notes/古いメタ.md' も誤マッチして 'notes/古い<to>.md' に書き換わる。Phase 4 で
-  // A 化命名による再命名頻度が上がるほど影響が広がるため、from の直前が path 先頭 (^) または
+  // rename 頻度が上がるほど影響が広がるため、from の直前が path 先頭 (^) または
   // path separator (/) の場合のみ置換する)。RegExp は pre-compile で hot path のコスト縮約。
   const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   // to を escape: $ を $$ に置換 (replace template の $ 補間回避)。$1 capture-group reference は意図的なので保持。
@@ -1115,6 +1115,6 @@ return {
   // 4 パート (LLM Wiki / タスク done / 気づき・洞察 / 整形・出力) の metric。Phase 4 で全パートが実値を持つ。
   // kizuki_insight は skill 本体側で計算され、運用ログ記録時に書き出される (workflow からは空 dict を返す——気づき抽出 / 洞察検出が
   // workflow に流れないため、件数集計が skill 側でしか観測できないため)。drain SKILL.md step 7 (完了報告と運用ログ) で
-  // 気づき件数・洞察件数・derivation_ok 率・A 化ゲートラウンド分布等を skill 本体が埋めて 運用ログに書き出す。
+  // 気づき件数・洞察件数・derivation_ok 率・self-check 指標 (self_flagged / title_human_edits 等) を skill 本体が埋めて 運用ログに書き出す。
   per_part_metrics: { llm_wiki: llmWikiMetrics, task_done: taskDoneMetrics, kizuki_insight: {}, format_output: formatOutputMetrics },
 }
