@@ -2,20 +2,11 @@ Think in English, interact with the user in Japanese.
 
 # Global Instructions
 
-このファイルは常時ロードされる**通読用の入口・索引**。マシン固有の入口情報（workspace 構成・他の器へのポインタ）だけを置き、規範本体は直書きしない（例外: CLAUDE.md と rules の境界自体を扱う文書のように自己言及で揺れる場合は @import で取り込む）。全環境共通の規範は**自己完結した断片**として `~/.claude/rules/*.md` に分割する。どちらに置くかの境界判定・rules の入場条件は下記「ナレッジの所在」節（`~/.claude/knowledge-location.md` を import）を参照。
+このファイルは常時ロードされる**通読用の入口・索引**。マシン固有の入口情報（workspace 構成・他の器へのポインタ）だけを置き、規範本体は直書きしない。全環境共通の規範は**自己完結した断片**として `~/.claude/rules/*.md` に分割する。どちらに置くかの境界判定・rules の入場条件は `/knowledge-placement` skill を参照。
 
-## Rule Priority System
+## 重要度タグ
 
-**🔴 CRITICAL**: Never compromise
-**🟡 IMPORTANT**: Strong preference
-**🟢 RECOMMENDED**: Apply when practical
-
-### Conflict Resolution Hierarchy
-
-1. Safety First: Security/data rules always win
-2. Scope > Features: Build only what's asked
-3. Quality > Speed: Except in genuine emergencies
-4. Context Matters: Prototype vs Production requirements differ
+rules 本文の [CRITICAL] は常時厳守（妥協不可）、[IMPORTANT] は強い既定（明確な理由があれば例外可）を示す。
 
 ## 態度ペルソナ
 作業時の土台となる態度（立ち位置・文体・姿勢）。rules（失敗訂正の残差）とは別レイヤの基盤文脈として import する。
@@ -33,7 +24,7 @@ Think in English, interact with the user in Japanese.
 @~/.claude/user-profile.md
 
 ## ナレッジの所在
-規範・知識の所在判断（auto memory / paths なし rules / paths 付き rules / local-*.md / CLAUDE.md / skill のどれに置くか）と rules の入場条件、業務機密の隔離方針を扱う。CLAUDE.md と rules の境界自体を定義する文書なので、自己言及を避けるため CLAUDE.md 本体の import 節として常時ロードする。
+常時厳守の業務機密隔離と auto memory の扱いだけを常時ロードに残す。器の選択・CLAUDE.md と rules の境界判定・rules の入場条件・モデル世代での再ベースラインの正本は `/knowledge-placement` skill（永続化のタスク時にだけ要るため skill 側に置く）。
 
 @~/.claude/knowledge-location.md
 
