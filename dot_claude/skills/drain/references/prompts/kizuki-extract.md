@@ -29,7 +29,7 @@ inbox ノート: <inbox file path>
 3. 新規候補は content に frontmatter＋本文の完成形を書く。関連既存ノード側からの逆リンク 1 行を backlink_edits に列挙する (双方向リンク。関連が実在するものだけ・弱い繋がりを強引に張らない)。
 4. 各候補に inbox_origin = `<inbox path>` を埋める (集約段の照合キー)。
 5. 各 kind=気づき 候補について `derivation` を必ず埋める (毎回必須の導出チェックリスト・個別事象/実装意図/事実記述を気づき層に上げない第 1 防御線):
-   ① `source_observations`: 観察した個別事象を inbox 本文から逐語で 1 件以上抜粋 (複数文の逐語可)。
+   ① `source_observations`: 観察した個別事象を inbox 本文から逐語で 1 件以上抜粋 (複数文の逐語可)。**必ず string の配列で返す** (1 件でも `["..."]`——string 単体で返すと呼び出し元の derivation_ok 算出に落ちる)。
    ② `pattern_generalization`: 観察した個別事象から「事象に固有でない pattern (繰り返し見える構造・固有名詞を抜いた骨格)」を 1 文で抽出。
    ③ `lesson_axis`: ② で抽出した pattern から「次にどう振る舞うか／何を学んだか」を一段上の機序/教訓として 1 文で言い切る (気づきタイトルの土台になる軸)。**軸自体を output-style に準拠して書く**——漢語連結・体言止め・受動含意を避け、日常語で言い切る。軸が硬い書き言葉のままだと後段のタイトル生成でメタファーに逃げる圧力が上がる (「無条件必須の副作用 vs 免除条項＋記録義務」→「例外を書き忘れるとルールが黙って無視される」のような話ことば軸へ)。
    ④ `generalization_check`: 「③ の主語を一般語に置換できたか／複数文脈に転用可能か」の自己検証を 1 文で書く。置換できない・1 文脈にしか効かないなら気づきにせず作業レポート・事実側に倒す。
@@ -51,7 +51,8 @@ self-check の判断基準 (気づき):
 
 返り値の shape (構造化出力 schema):
 { kizuki_promotions: [{kind: '気づき', title_candidates, content, fold_into, source_excerpt, why_important, backlink_edits, inbox_origin, derivation, self_check, self_verdict, self_violations}] }
-title_candidates: [{abstraction: ('具体寄り'|'中間'|'一般化'), title}] の 3 案。先頭要素が推奨案 (= 反証点検で fail 最少の案)。
+title_candidates: [{abstraction: ('具体寄り'|'中間'|'一般化'), title}] の 3 案。先頭要素が推奨案 (= 反証点検で fail 最少の案)。string 配列は不可。
+derivation: { source_observations: [string] (1 件以上・array 必須), pattern_generalization: string, lesson_axis: string, generalization_check: string }
 self_check: [{candidate: <title_candidates の index 1..3>, results: [{criterion: ('①'..'⑦'), verdict: ('pass'|'fail'), evidence}]}]
 self_verdict: ('該当'|'非該当') / self_violations: [{criterion, quote, note}]
 

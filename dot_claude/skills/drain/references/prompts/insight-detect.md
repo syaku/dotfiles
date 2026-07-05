@@ -9,6 +9,10 @@
 ```
 title は 1 案でなく title_candidates として 3〜4 案出す: 観点形・事実形を各 1 案以上含め (form 必須)、抽象度は中間・一般化をカバーする。主語や動詞の選び方を変え、互いに似せない。いずれも derivation.common_axis を土台に導く (順序: derivation→common_axis→命名 は不変)。(title フィールドの複製整合は不要——呼び出し元が先頭要素から title を導出する)
 
+title_candidates の要素 shape (厳守——string 配列で返すと呼び出し元の shape 検査に落ちる):
+title_candidates: [{abstraction: ('具体寄り'|'中間'|'一般化'), form: ('事実形'|'観点形'), title: string}] の 3〜4 案。先頭要素が推奨案。
+例: [{"abstraction": "一般化", "form": "観点形", "title": "..."}, {"abstraction": "中間", "form": "事実形", "title": "..."}, ...]
+
 **反証点検 (self-check・全候補で必須)**: 各洞察候補の title_candidates 全案それぞれについて、下の判断基準の全 7 項目で「この案を落とす理由」を探す。落とす理由が見つかった基準は verdict=fail とし、案タイトル中の該当表現を evidence に逐語で引用する。探しても落とせなかった基準だけ verdict=pass (evidence は空文字)。全案 × 全 7 基準を self_check に埋める——一括 pass・省略は不可。点検後、fail が最少の案を title_candidates の先頭 (推奨案) に置く (同数なら観点形を優先)。ここで書き直しはしない——選ぶだけ。先頭に fail が残るなら self_verdict='該当'、無ければ '非該当'。残った fail を self_violations に列挙 (無ければ空配列)。fail が残ったまま提出してよい——隠すな (トリアージで人が判断する)。
 
 self-check の判断基準 (洞察):
@@ -27,7 +31,7 @@ self-check の判断基準 (洞察):
 
 ```
 { insights: [{
-    claim, connected_notes: [path], title, title_candidates, content, why_important, backlink_edits: [{path, add_line, where_hint}],
+    claim, connected_notes: [path], title, title_candidates: [{abstraction, form, title}], content, why_important, backlink_edits: [{path, add_line, where_hint}],
     derivation: { source_avoidances: [string], common_point, common_axis },
     self_check: [{candidate, results: [{criterion, verdict: ('pass'|'fail'), evidence}]}],
     self_verdict: ('該当'|'非該当'), self_violations: [{criterion, quote, note}]
