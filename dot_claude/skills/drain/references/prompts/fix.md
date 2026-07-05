@@ -11,4 +11,6 @@
 --- content ここから ---
 <c.content>
 --- content ここまで ---
+
+返信 API 仕様: SendMessage の `message` field は string 型なので、`{"content": "..."}` shape の JSON を JSON.stringify した文字列として渡す (object 直渡しは schema エラー)。summary field には 5-10 語の要約を入れる。
 ```
