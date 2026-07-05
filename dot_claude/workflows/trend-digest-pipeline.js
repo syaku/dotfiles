@@ -374,8 +374,16 @@ function statsText(it) {
   if (it.also_on) parts.push(...it.also_on.map((a) => `${a.source === 'hn' ? 'HN' : 'Lobsters'} 同時掲載${a.points != null ? `（${a.points}pts）` : ''}`))
   return parts.join('・')
 }
+// LLM の StructuredOutput が schema フィールド名を XML タグ様式で本文に漏らすことがある
+// (観測 2026-07-05: DEEP_SCHEMA の detail_md 末尾に </detail_md> が混入)。
+// これらの識別子を XML タグ形式で本文に含める用途は無いので、挿入前・組み立て後の両段で剥がす。
+const STRUCTURED_FIELDS = ['detail_md', 'title_ja', 'summary_ja', 'fetch_ok', 'context_note', 'dropped_trends', 'reason', 'topic']
+const FIELD_TAG_RE = new RegExp(`<\\/?(${STRUCTURED_FIELDS.join('|')})\\s*>`, 'gi')
+function stripFieldTags(s) {
+  return (s || '').replace(FIELD_TAG_RE, '')
+}
 function oneline(s) {
-  return (s || '').replace(/\s*\n+\s*/g, ' ').trim()
+  return stripFieldTags(s).replace(/\s*\n+\s*/g, ' ').trim()
 }
 
 const tags = ['tech-trends', ...(pick.extra_tags || []).slice(0, 2).filter((t) => t && t !== 'tech-trends')]
@@ -404,13 +412,13 @@ if (deepDone.length) {
   lines.push('')
   for (const { p, r } of deepDone) {
     const it = p.item
-    const title = it.section === 'foreign' ? r.title_ja : it.title
+    const title = it.section === 'foreign' ? stripFieldTags(r.title_ja) : it.title
     lines.push(`### ${title}`)
     lines.push('')
     const stats = statsText(it)
     lines.push(`出典: [${srcLabel(it)}](${it.url})${origSuffix(it)}・理由ラベル: **${p.axis}**（${[stats, oneline(p.reason)].filter(Boolean).join('。')}）`)
     lines.push('')
-    lines.push(r.detail_md.trim())
+    lines.push(stripFieldTags(r.detail_md).trim())
     lines.push('')
   }
 }
@@ -424,7 +432,7 @@ for (const [section, heading] of [['domestic', '### 国内（Qiita / Zenn）'], 
   lines.push('')
   for (const row of rows) {
     const it = row.p.item
-    const title = it.section === 'foreign' ? row.title_ja : it.title
+    const title = it.section === 'foreign' ? stripFieldTags(row.title_ja) : it.title
     const stats = statsText(it)
     lines.push(`- **${title}** — [${srcLabel(it)}](${it.url})${origSuffix(it)}。${stats ? `${stats}。` : ''}${oneline(row.summary_ja)} 理由ラベル: **${row.p.axis}**（${oneline(row.p.reason)}）。`)
   }
@@ -433,7 +441,7 @@ for (const [section, heading] of [['domestic', '### 国内（Qiita / Zenn）'], 
 
 lines.push('## 今日は拾わなかった傾向')
 lines.push('')
-lines.push((pick.dropped_trends || '').trim() || '（特になし）')
+lines.push(stripFieldTags(pick.dropped_trends).trim() || '（特になし）')
 lines.push('')
 
 const noteContent = lines.join('\n')
@@ -443,6 +451,9 @@ const noteErrors = []
 if (/^# /m.test(noteContent)) noteErrors.push('本文に H1 が含まれている')
 if (!noteContent.includes('> [!NOTE] AI Context')) noteErrors.push('AI Context callout が無い')
 if (noteContent.includes('<%')) noteErrors.push('Templater 構文が混入している')
+// STRUCTURED_FIELDS のスクラブを通過した残骸検知 (list に無い schema フィールドが追加されたときの regression 検知も兼ねる)
+const leakedTags = noteContent.match(FIELD_TAG_RE)
+if (leakedTags) noteErrors.push(`schema フィールドタグ残骸 (${[...new Set(leakedTags)].join(' / ')}) が混入している`)
 
 return {
   note_path: NOTE_PATH,
