@@ -80,7 +80,7 @@ vault: <VAULT 絶対パス>
 
 MCP 不達時の fallback: MCP tool 呼び出しで exception が出た場合は Grep に retreat し処理を継続する (Obsidian 起動時は `obsidian tag name=気づき / name=洞察` で実タグ索引、未起動なら frontmatter 形式に当てる multiline rg を使う)。失敗したまま止めない。fallback した呼び出しごとに `log('MCP_FALLBACK: <tool> <reason>')` を 1 行出してから続行する。
 
-vault 規約と命名規約: workflow script (`~/.claude/workflows/harvest-pipeline.js`) の `VAULT_RULES` と `NAMING_FOR_INSIGHT` を遵守する (現在時刻 <NOW>・当日 <TODAY> の埋め込み)。
+vault 規約と命名規約: `~/.claude/skills/drain/references/vault-rules.md` を Read し「vault 規約」「命名規約 (kind 共通の核)」「洞察の命名」節に厳守で従う (Read は 1 回だけでよい)。規約文中の山括弧プレースホルダ VAULT・NOW・TODAY には、本 prompt で渡された vault パス・現在時刻・当日日付を当てる。
 
 返信 API 仕様: 最終メッセージに上記 shape の JSON のみを返す (地の文・全文再掲を混ぜない)。
 ```

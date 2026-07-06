@@ -296,44 +296,13 @@ const DONE_SCHEMA = {
   },
 }
 
-// ---- 共有プロンプト断片 (判断方針の規約。機械検証可能なものは下の JS 関数が担う) ----
-const VAULT_RULES = `
-vault 規約 (ノート生成時に厳守):
-- 置き場は ${VAULT}/notes/ 直下。専用フォルダを作らない。
-- frontmatter: createdAt / updatedAt とも ${NOW} (ISO-T)。status: active。tags は 3 つ程度・日本語優先・既存タグ再利用。
-- 気づきは tags に 気づき。洞察は tags に 洞察＋frontmatter source: で繋いだ元ノートを '  - "[[ノート名]]"' で列挙。タスクは tags に タスク＋progress: backlog。事実・作業レポートはトピックタグのみ。
-- 層: 事実/仕様 → 気づき (主観的学び) → 原理・方針 → 洞察 (繋いで見える第三知見)。主語の高度で判別する。
-- 本文: H1 禁止 (H2 から)。冒頭に > [!NOTE] AI Context callout で主題を 1〜2 文。本文 wikilink を張る。末尾に ## 更新履歴 と「- [[${TODAY}]] — <理由>」(journal 日付 wikilink はここに集約)。
-- タスク本文: ## やること を「- 」箇条書き (チェックボックス禁止)。③ 由来は ## 元ノート(なぜ重要) 必須。ラベル文字 ①②③ は label field のみ。
-- 突き合わせ: 明白に同一物だけ fold_into。迷ったら分けて作りリンクする。
-- 捏造補完しない: 素材に無い感覚・詳細を想像で埋めない。
-- imports/kindle/ imports/wallabag/ はリンク先のみ (編集対象にしない)。`
-
-// 命名規約は kind 共通の核と kind 固有の作法（気づき=観察を名指す／洞察=判断軸を名指す）に分割する。
-// 各 prompt には共通＋当該 kind だけを注入する（無関係 kind の作法でプロンプトを膨らませない）。
-const NAMING_COMMON = `
-命名規約 (kind 共通の核):
-- 1 タイトル＝1 要点。動詞主体で短い言い切り。
-- 複文にしない (「〜すると〜」「〜して〜」「Xは Y で Z する」は 2 主張の混在)。
-- モノを主語に人間動詞を当てない (false agency 禁止)。
-- 解の指示形「〜する」(行動はタスクへ) と空虚な徳の称揚を避ける。
-- 比喩・メタファー・造語・狭い実装語・偏愛語を撒かない。日常語で名指す。
-- scope は固有名詞で狭めず hedge で合わせる (「場合がある」等)。ただしツール固有のクセは固有名詞を残す。
-
-タスクの命名 (別軸): 動詞主体の短句 (「〜する」「〜化する」「〜を確認する」) で何の行動かを言い切る。複文化しないのは共通。
-
-参考実例 (1 つだけ): 「機械検証できるものを prompt に書いたまま規約文書が肥大化する」✗ → 「コードにできる規約は文書を太らせる」○`
-
-const NAMING_KIZUKI = `
-気づきの命名: 観察 (事実・機序・関係) を据える。失敗形でも中立な事実形でもよい (失敗形は必須でない)。避けるのは解の指示形 (「〜する」= 行動はタスクへ) と中身のない徳の称揚 (観察でないから外す)。`
-
-const NAMING_INSIGHT = `
-洞察の命名: 失敗の再記述でなく判断軸・規則を名指す (「次にどう振る舞うか／何で判断するか」)。失敗形は不可。判断軸は (a) source 気づきの単純合算・症状の相関でない第三の軸、(b) 成果物に対して観測できる規則 (レビュー観点・設計制約に使える) を満たす。
-
-参考実例: 「構造を文字列で探すと黙って間違える」✗ (失敗形) → 「文字列検索は構造のないデータにだけ使う」○ (判断軸)`
-
-const NAMING_FOR_KIZUKI = NAMING_COMMON + NAMING_KIZUKI
-const NAMING_FOR_INSIGHT = NAMING_COMMON + NAMING_INSIGHT
+// ---- 共有規約への参照 (規約 prose の正本は外部ファイル) ----
+// 正本: ~/.claude/skills/drain/references/vault-rules.md (旧 VAULT_RULES / NAMING_* 定数から移設)。
+// script sandbox は fs を読めないが spawn される agent は Read を持つ——prose は agent に直接 Read させ、
+// script には構造と業務指示だけを残す。NOW/TODAY/VAULT の値は静的ファイルに書けないため参照指示の行で渡す。
+const RULES_FILE = '~/.claude/skills/drain/references/vault-rules.md'
+const rulesRef = (...sections) =>
+  `vault 規約と命名規約: ${RULES_FILE} を Read し「${sections.join('」「')}」節に厳守で従う (Read は 1 回だけでよい)。規約文中の <VAULT> は ${VAULT}、<NOW> は ${NOW} (ISO-T)、<TODAY> は ${TODAY} を指す。`
 
 // ---- 命名ゲート (3 層: 機械 regex → 別 context 点検 agent → 再命名ループ) ----
 const FUKUBUN = /、|すると|したら|つつ|（|\(/g
@@ -376,13 +345,19 @@ verdict: 違反あり=該当 / 違反なし=非該当 / 元記述が薄く判定
 }
 
 function renamePrompt(kind, title, excerpt, issues) {
-  return `あなたはタイトルの再命名担当。以下の指摘を解消する新しいタイトルを 1 つだけ返せ。ツールは使わない。
+  const namingSections =
+    kind === '洞察'
+      ? ['命名規約 (kind 共通の核)', '洞察の命名']
+      : kind === 'タスク'
+        ? ['命名規約 (kind 共通の核)']
+        : ['命名規約 (kind 共通の核)', '気づきの命名']
+  return `あなたはタイトルの再命名担当。以下の指摘を解消する新しいタイトルを 1 つだけ返せ。ツールは下記規約ファイルの Read 1 回のみ使ってよい (他のツールは使わない)。
 
 種別: ${kind}
 現タイトル: ${title}
 元記述: ${excerpt || '(なし)'}
 指摘: ${issues}
-${kind === '洞察' ? NAMING_FOR_INSIGHT : kind === 'タスク' ? NAMING_COMMON : NAMING_FOR_KIZUKI}
+${rulesRef(...namingSections)}
 機械ゲート (正規表現 、|すると|したら|つつ|（|\\( ) にもかからないこと。`
 }
 
@@ -602,8 +577,7 @@ ${bodySection}
 捏造補完しない: 素材に無い感覚・詳細を想像で埋めない。
 
 MCP 不達時の fallback: MCP tool 呼び出しで exception が出た場合 (network error / server down / timeout / unreachable 等) は Grep (\`rg '<query>' ${VAULT}/notes\` 等) に retreat し処理を継続する。失敗したまま止めない。fallback した呼び出しごとに \`log('MCP_FALLBACK: <tool> <reason>')\` を 1 行出してから続行する (script 側でカウンタを持たないので grep で頻度を後から数える)。
-${VAULT_RULES}
-${NAMING_COMMON}`
+${rulesRef('vault 規約', '命名規約 (kind 共通の核)')}`
 }
 
 // Phase 3: taskDoneExtract agent (タスク done パート) のプロンプト。元の 4 系統併合抽出 prompt から タスク抽出 + done 検出責務を
@@ -654,8 +628,7 @@ ${openTasksSection}
 捏造補完しない: 素材に無い感覚・詳細を想像で埋めない。
 
 MCP 不達時の fallback: MCP tool 呼び出しで exception が出た場合 (network error / server down / timeout / unreachable 等) は Grep (\`rg '<query>' ${VAULT}/notes\` 等) に retreat し処理を継続する。失敗したまま止めない。fallback した呼び出しごとに \`log('MCP_FALLBACK: <tool> <reason>')\` を 1 行出してから続行する (script 側でカウンタを持たないので grep で頻度を後から数える)。
-${VAULT_RULES}
-${NAMING_COMMON}`
+${rulesRef('vault 規約', '命名規約 (kind 共通の核)')}`
 }
 
 function backfillPrompt() {
@@ -670,8 +643,7 @@ vault: ${VAULT}
 3. タスク抽出は ① 明示 TODO のみ (ノート本文に TODO/未実施/やる 等が plain にある未着手記述)。②③ は抽出しない (過去日の感覚を想像で埋める捏造リスク。schema 上も ① しか表現できない)。
 
 気づき(A) の新規ノード化はこのモードでは行わない (会話文脈が無く捏造になる)。過去 journal を埋めることもしない。done 判定はこの agent では行わない (後段の専用 done agent が period_pages の body を素材に証拠ベースで判定する)。
-${VAULT_RULES}
-${NAMING_COMMON}`
+${rulesRef('vault 規約', '命名規約 (kind 共通の核)')}`
 }
 
 function insightPrompt(newNotesList, extraMaterial) {
@@ -719,8 +691,7 @@ ${backfillFocus}
 繋がりが弱ければ 0 件が正当な出力 (「A 止まりですらない」もありうる)。無理に B をでっち上げない。
 
 MCP 不達時の fallback: MCP tool 呼び出しで exception が出た場合は Grep に retreat し処理を継続する (Obsidian 起動時は \`obsidian tag name=気づき / name=洞察\` で実タグ索引、未起動なら frontmatter 形式に当てる multiline rg: \`rg -l --multiline -U '(?s)^---\\n(.*?\\n)*?tags:\\n(\\s*-\\s+[^\\n]*\\n)*\\s*-\\s+気づき' ${VAULT}/notes\` — inline #気づき タグだけを当てる \`rg -l '#気づき'\` は frontmatter 形式を取り逃すので使わない)。失敗したまま止めない。fallback した呼び出しごとに \`log('MCP_FALLBACK: <tool> <reason>')\` を 1 行出してから続行する。
-${VAULT_RULES}
-${NAMING_FOR_INSIGHT}`
+${rulesRef('vault 規約', '命名規約 (kind 共通の核)', '洞察の命名')}`
 }
 
 function donePrompt(corpus) {

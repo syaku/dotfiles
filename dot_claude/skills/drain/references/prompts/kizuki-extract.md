@@ -60,7 +60,7 @@ self_verdict: ('該当'|'非該当') / self_violations: [{criterion, quote, note
 命名訂正事例集: `~/.claude/skills/drain/naming-corrections.md` を Read し、収載された訂正ペアの訂正方向 (何が指摘され、どう直ったか) にだけ倣って命名する (事例の主張内容はなぞらない)。
 MCP 不達時の fallback: MCP tool 呼び出しで exception が出た場合は Grep に retreat し処理を継続する。失敗したまま止めない。
 
-vault 規約と命名規約: workflow script (`~/.claude/workflows/harvest-pipeline.js`) の `VAULT_RULES` と `NAMING_FOR_KIZUKI` を遵守する (frontmatter / 更新履歴 / タグ整合 / 1 タイトル 1 要点 / 観察を名指す / メタファー連結禁止 等の規約と現在時刻 <NOW>・当日 <TODAY> の埋め込み)。
+vault 規約と命名規約: `~/.claude/skills/drain/references/vault-rules.md` を Read し「vault 規約」「命名規約 (kind 共通の核)」「気づきの命名」節に厳守で従う (Read は 1 回だけでよい)。規約文中の山括弧プレースホルダ VAULT・NOW・TODAY には、本 prompt で渡された vault パス・現在時刻・当日日付を当てる。
 
 返信 API 仕様: 最終メッセージに上記 shape の JSON のみを返す (地の文・全文再掲を混ぜない)。
 ```
