@@ -2,9 +2,9 @@
 
 `insight-detect` agent（モデル opus）を spawn する時、以下を prompt として渡す。`<VAULT>` `<newNotesList>` `<extraMaterial>` `<NOW>` `<TODAY>` は spawn 時に埋める。本文は workflow `harvest-pipeline.js` `insightPrompt` の逐語転記で、drain mode 用に backfillFocus 節は省略する。
 
-本ファイル内の「self-check の判断基準 (洞察)」7 項目は旧 insight-checker.md から移設したもので、workflow `insightCriteria`（backfill mode の洞察検出が workflow 内 nameGate を通るため稼働継続）との **keep-in-sync 対象**。
+「self-check の判断基準 (洞察)」7 項目の正本は **`references/vault-rules.md`「洞察の命名 self-check 判断基準」節**（2026-07-06 の backfill 同型化で移設・旧 workflow `insightCriteria` は廃止）。本ファイルの追加指示ブロックと workflow `insightPrompt` の双方が同節を Read 参照するため、判断基準の逐語 keep-in-sync は不要になった（self-check 手順の段落は両 prompt に残る keep-in-sync 対象——drain SKILL「workflow との interface」節参照）。
 
-**drain 固有の追加指示**（下記 prompt の末尾に足すブロック。workflow insightPrompt には無い drain 限定句）:
+**追加指示ブロック**（下記 prompt の末尾に足すブロック。2026-07-06 以降は workflow `insightPrompt` にも同型の段落が載る）:
 
 ```
 title は 1 案でなく title_candidates として 3〜4 案出す: 観点形・事実形を各 1 案以上含め (form 必須)、抽象度は中間・一般化をカバーする。主語や動詞の選び方を変え、互いに似せない。いずれも derivation.common_axis を土台に導く (順序: derivation→common_axis→命名 は不変)。(title フィールドの複製整合は不要——呼び出し元が先頭要素から title を導出する)
@@ -15,14 +15,7 @@ title_candidates: [{abstraction: ('具体寄り'|'中間'|'一般化'), form: ('
 
 **反証点検 (self-check・全候補で必須)**: 各洞察候補の title_candidates 全案それぞれについて、下の判断基準の全 7 項目で「この案を落とす理由」を探す。落とす理由が見つかった基準は verdict=fail とし、案タイトル中の該当表現を evidence に逐語で引用する。探しても落とせなかった基準だけ verdict=pass (evidence は空文字)。全案 × 全 7 基準を self_check に埋める——一括 pass・省略は不可。点検後、fail が最少の案を title_candidates の先頭 (推奨案) に置く (同数なら観点形を優先)。ここで書き直しはしない——選ぶだけ。先頭に fail が残るなら self_verdict='該当'、無ければ '非該当'。残った fail を self_violations に列挙 (無ければ空配列)。fail が残ったまま提出してよい——隠すな (トリアージで人が判断する)。
 
-self-check の判断基準 (洞察):
-① 判断軸を名指しているか: 「次にどう振る舞うか／何で判断するか」の規則・観点になっているか。失敗の再記述 (「〜と損する/間違える/死ぬ」等の失敗形) は気づき側の作法で、洞察では不可 (失敗形=該当)。
-② 平易な日常語で、メタファー連結になっていないか: jargon・英語混入・造語・狭い実装語が無いこと、および比喩/メタファー/personification の連結で抽象語が並んでいないか (vault で確立した技術術語は許容)。失敗例「ガードを指す番地は消える記憶では迷子になる」型——「ガード」「番地」「迷子」「消える記憶」のような抽象語/技術メタファーの連結で何が起きるかが直接読めない型は違反。偏愛語 (泥臭さ／手触り／解像度／本質／営み／文脈)・必殺技造語 (真理／虚飾／美学／境地)・横文字メタファー (思考の OS／ハック／インストール／リファクタリング) も違反。**semi-metaphor 動詞をタイトル動詞に据えるのも違反**——ルール/決定/情報など抽象主語に対して「飛ぶ・抜ける・刺さる・効く・回る・跳ねる・突く・突き刺さる・降りる・落ちる・外れる・浮く・沈む」等の semi-metaphor 動詞を主動詞に置く型は違反 (「ルールが黙って飛ぶ」「必須の問いが抜ける」「ガードが外れる」)。直接動詞 (使われない・省かれる・無視される・適用されない・守られない) か、明示的な受動/人間主語への書き換えを促す。日常語の「効く」(=役に立つ) など動詞本体が日常用法として成立するケースは違反にしない——判定は「抽象主語 + semi-metaphor 動詞 = 何が起きるかが直接読めない型」に限る。
-③ source の単純合算・症状の相関の言い切りでないか: 複数 source 気づきを足しただけ・症状を並べた相関 (「X も Y も決まる」等) は第三知見でない。source の上に立つ一段上の軸か。
-④ 観測できる規則・境界か: 成果物に対して確認できる規則 (レビュー観点・設計制約に使える) か。作者の内的手順 (「〜する前に確かめる」等・成果物に現れず自己申告に退化する) は不可 (内的手順=該当)。
-⑤ 型の空当てでないか: 「良い◯◯は…で決まる」等の形を中身なく当てただけで、対象と基準の関係が芯に無い、になっていないか。
-⑥ false agency になっていないか: モノを主語に人間動詞をさせる型 (「データが示す」「文化が醸成される」等) は違反——誰が何をしたかに書き換える対象。
-⑦ 主語の空虚な一般化になっていないか: 「人々は」「我々は」「現代社会において」型の空虚な一般化は違反 (具体事象から構造を抽出する一般化は OK——洞察の核がこちら)。
+self-check の判断基準 (洞察): 下記 Read する規約ファイル (vault-rules.md) の「洞察の命名 self-check 判断基準」節の全 7 項目に従う (同じ Read でよい・逐語の正本はそちら)。
 
 反証点検の突き合わせ先は derivation.common_axis の逐語 (空のときのみ claim)。機械ゲート (正規表現 、|すると|したら|つつ|（|\( ) にもかからないこと (かかった案は呼び出し元が注記付きで人ゲートに回す)。
 ```
@@ -80,7 +73,7 @@ vault: <VAULT 絶対パス>
 
 MCP 不達時の fallback: MCP tool 呼び出しで exception が出た場合は Grep に retreat し処理を継続する (Obsidian 起動時は `obsidian tag name=気づき / name=洞察` で実タグ索引、未起動なら frontmatter 形式に当てる multiline rg を使う)。失敗したまま止めない。fallback した呼び出しごとに `log('MCP_FALLBACK: <tool> <reason>')` を 1 行出してから続行する。
 
-vault 規約と命名規約: `~/.claude/skills/drain/references/vault-rules.md` を Read し「vault 規約」「命名規約 (kind 共通の核)」「洞察の命名」節に厳守で従う (Read は 1 回だけでよい)。規約文中の山括弧プレースホルダ VAULT・NOW・TODAY には、本 prompt で渡された vault パス・現在時刻・当日日付を当てる。
+vault 規約と命名規約: `~/.claude/skills/drain/references/vault-rules.md` を Read し「vault 規約」「命名規約 (kind 共通の核)」「洞察の命名」「洞察の命名 self-check 判断基準」節に厳守で従う (Read は 1 回だけでよい)。規約文中の山括弧プレースホルダ VAULT・NOW・TODAY には、本 prompt で渡された vault パス・現在時刻・当日日付を当てる。
 
 返信 API 仕様: 最終メッセージに上記 shape の JSON のみを返す (地の文・全文再掲を混ぜない)。
 ```

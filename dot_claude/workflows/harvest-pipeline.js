@@ -3,8 +3,8 @@ export const meta = {
   description: 'drain (即時 ingestion)・backfill (期間 reconciliation) の 2 層蒸留パイプライン: 素材整理 (既存突き合わせ・候補生成・命名ゲート inline)→洞察検出 (backfill のみ)→タスク・done 検出。件数・ゲート判定・モード封鎖・規約検証は script がコードで実行し、自己申告に依存しない。drain の気づき抽出・洞察検出は Phase 4 で skill 本体側に移管した (命名は抽出 prompt 内 self-check + skill 本体の shape コード検査。再命名の agent 往復は 2026-07-05 に廃止)',
   whenToUse: 'drain / harvest スキル本体 (SKILL.md) から scriptPath 指定で起動される。単体起動は想定しない',
   phases: [
-    { title: '素材整理', detail: 'inbox 昇格候補 (drain=sonnet・taskDoneExtract / reportExtract の 2 並列抽出。気づき抽出は Phase 4 で skill 本体側に移管・workflow からは呼ばない) / 期間素材 (backfill=opus) の構造化と既存ノード突き合わせ。命名ゲート (機械 regex → 別 context 点検 agent → 再命名 → 再点検・最大 2 ラウンド) も素材整理 phase 内インラインで走る (drain では LLM Wiki=light gate・タスクのみ full gate)' },
-    { title: '洞察検出', detail: 'ノード間の繋がりから第三の知見を検出 (opus・0 件は正当・backfill 専用)。drain の洞察検出は Phase 4 で skill 本体側に移管 (self-check 命名ゲート経由)・workflow では実行しない' },
+    { title: '素材整理', detail: 'inbox 昇格候補 (drain=sonnet・taskDoneExtract / reportExtract の 2 並列抽出。気づき抽出は Phase 4 で skill 本体側に移管・workflow からは呼ばない) / 期間素材 (backfill=opus) の構造化と既存ノード突き合わせ。命名ゲートも素材整理 phase 内インラインで走る (タスク=full gate: 機械 regex → 別 context 点検 agent → 再命名 → 再点検・最大 2 ラウンド / LLM Wiki=light gate。洞察は洞察検出 phase の self-check 方式で本ゲートを通らない)' },
+    { title: '洞察検出', detail: 'ノード間の繋がりから第三の知見を検出 (opus・0 件は正当・backfill 専用)。命名は drain と同型の self-check 方式 (生成 prompt 内の反証点検で title_candidates 複数案 + script の shape コード検査・機械 regex。checker/renamer の agent 往復は 2026-07-06 の backfill 同型化で廃止)。drain の洞察検出は Phase 4 で skill 本体側に移管・workflow では実行しない' },
     { title: 'タスク・完了検出', detail: '既存タスクの done 候補検出。drain では素材整理段で taskDoneExtract subagent が並列実行済み (donePrompt 呼び出しは廃止・引用は集約段で script が包含照合)。backfill は期間内作業レポート本文を corpus に donePrompt を走らせる' },
     { title: '集計', detail: 'ノート規約の機械検証 (frontmatter/更新履歴/ラベル残存/タグ整合) と totals 計算 + 整形パートの per_part_metrics 算出 (Phase 4 で 整形パート物理配置は workflow script 段に確定)。DUPLICATE_DETECTED (done と task_promotions の inbox_origin 衝突) と INSIGHT_ZERO のログも出す' },
   ],
@@ -260,7 +260,7 @@ const INSIGHT_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        required: ['claim', 'connected_notes', 'title', 'content', 'why_important', 'backlink_edits', 'derivation'],
+        required: ['claim', 'connected_notes', 'title_candidates', 'content', 'why_important', 'backlink_edits', 'derivation', 'self_check', 'self_verdict', 'self_violations'],
         properties: {
           derivation: {
             type: 'object',
@@ -274,8 +274,55 @@ const INSIGHT_SCHEMA = {
           },
           claim: { type: 'string', description: '見えた洞察の一文の言い切り (複文可。タイトルの元記述になる)' },
           connected_notes: { type: 'array', items: { type: 'string' }, description: '繋いだ実在ノートの path' },
-          title: { type: 'string', description: 'claim から述語を 1 つ選び条件節を捨てて圧縮したタイトル' },
-          content: { type: 'string', description: 'templates/insight.md 構造の frontmatter＋本文完成形' },
+          // 2026-07-06 backfill 同型化: title 単一 field は廃止し、drain と同じ title_candidates 複数案 + self-check 系に置換。
+          // 確定 title は script が title_candidates 先頭 (推奨案) から導出する (agent に複製整合を要求しない・drain SKILL 4.1 と同じ導出規則)。
+          title_candidates: {
+            type: 'array',
+            description: 'derivation.common_axis を土台に導いたタイトル案 3〜4 件。先頭要素が推奨案 (self-check の反証点検で fail 最少の案・同数なら観点形優先)',
+            items: {
+              type: 'object',
+              required: ['abstraction', 'form', 'title'],
+              properties: {
+                abstraction: { enum: ['具体寄り', '中間', '一般化'] },
+                form: { enum: ['事実形', '観点形'] },
+                title: { type: 'string' },
+              },
+            },
+          },
+          self_check: {
+            type: 'array',
+            description: '反証点検の点検表 (全案 × 全 7 基準・一括 pass や省略は script の shape 検査で drop される)',
+            items: {
+              type: 'object',
+              required: ['candidate', 'results'],
+              properties: {
+                candidate: { type: 'number', description: 'title_candidates の index (1..N・除外前の並び基準)' },
+                results: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    required: ['criterion', 'verdict', 'evidence'],
+                    properties: {
+                      criterion: { enum: ['①', '②', '③', '④', '⑤', '⑥', '⑦'] },
+                      verdict: { enum: ['pass', 'fail'] },
+                      evidence: { type: 'string', description: 'fail のとき案タイトル中の該当表現の逐語引用 (pass は空文字)' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          self_verdict: { enum: ['該当', '非該当'], description: '推奨案 (先頭) に fail が残るか' },
+          self_violations: {
+            type: 'array',
+            description: '推奨案に残った fail (無ければ空配列)。隠さず提出する——トリアージで人が判断する',
+            items: {
+              type: 'object',
+              required: ['criterion', 'quote', 'note'],
+              properties: { criterion: { type: 'string' }, quote: { type: 'string' }, note: { type: 'string' } },
+            },
+          },
+          content: { type: 'string', description: 'templates/insight.md 構造の frontmatter＋本文完成形 (自己参照・source: 列挙は先頭案タイトルで書く)' },
           why_important: { type: 'string' },
           backlink_edits: { type: 'array', items: BACKLINK_EDIT },
         },
@@ -334,6 +381,8 @@ const rulesRef = (...sections) =>
   `vault 規約と命名規約: ${RULES_FILE} を Read し「${sections.join('」「')}」節に厳守で従う (Read は 1 回だけでよい)。規約文中の <VAULT> は ${VAULT}、<NOW> は ${NOW} (ISO-T)、<TODAY> は ${TODAY} を指す。`
 
 // ---- 命名ゲート (3 層: 機械 regex → 別 context 点検 agent → 再命名ループ) ----
+// 対象はタスク (full gate) と 作業レポート・事実 (light gate) のみ。気づきは skill 本体側 self-check・
+// 洞察は洞察検出段の insightSelfCheckGate (2026-07-06 backfill 同型化) で、いずれも本ゲートを通らない。
 const FUKUBUN = /、|すると|したら|つつ|（|\(/g
 function regexHits(title) {
   return title.match(FUKUBUN) || []
@@ -352,14 +401,9 @@ function checkerPrompt(kind, title, excerpt) {
   // Phase 4 + R2-12: 気づき命名基準 (旧 noteCriteria) は skill 本体側へ移管した。
   // workflow に kind='気づき' の候補は流入しない (REPORT/TASK_DONE/BACKFILL/INSIGHT_SCHEMA のいずれも気づきを enum しない)。
   // drain references/prompts/kizuki-extract.md の self-check 節が稼働中の正本——本 workflow から noteCriteria 定義を撤去し、非対称ドリフトの温床を断つ。
-  // 洞察は気づきと作法が違う: 判断軸を名指す (失敗形は不可)。気づきは観察 (失敗形/中立どちらも可) なので noteCriteria① とは別基準にする (失敗接地: 2026-06-14 洞察タイトルを失敗形/相関/型空当てで 4 回外した)
-  const insightCriteria = `① 判断軸を名指しているか: 「次にどう振る舞うか／何で判断するか」の規則・観点になっているか。失敗の再記述 (「〜と損する/間違える/死ぬ」等の失敗形) は気づき側の作法で、洞察では不可 (失敗形=該当)。
-② 平易な日常語で、メタファー連結になっていないか: jargon・英語混入・造語・狭い実装語が無いこと、および比喩/メタファー/personification の連結で抽象語が並んでいないか (vault で確立した技術術語は許容)。失敗例「ガードを指す番地は消える記憶では迷子になる」型——「ガード」「番地」「迷子」「消える記憶」のような抽象語/技術メタファーの連結で何が起きるかが直接読めない型は違反。偏愛語 (泥臭さ／手触り／解像度／本質／営み／文脈)・必殺技造語 (真理／虚飾／美学／境地)・横文字メタファー (思考の OS／ハック／インストール／リファクタリング) も違反。**semi-metaphor 動詞をタイトル動詞に据えるのも違反**——ルール/決定/情報など抽象主語に対して「飛ぶ・抜ける・刺さる・効く・回る・跳ねる・突く・突き刺さる・降りる・落ちる・外れる・浮く・沈む」等の semi-metaphor 動詞を主動詞に置く型は違反 (「ルールが黙って飛ぶ」「必須の問いが抜ける」「ガードが外れる」)。直接動詞 (使われない・省かれる・無視される・適用されない・守られない) か、明示的な受動/人間主語への書き換えを促す。日常語の「効く」(=役に立つ) など動詞本体が日常用法として成立するケースは違反にしない——判定は「抽象主語 + semi-metaphor 動詞 = 何が起きるかが直接読めない型」に限る。
-③ source の単純合算・症状の相関の言い切りでないか: 複数 source 気づきを足しただけ・症状を並べた相関 (「X も Y も決まる」等) は第三知見でない。source の上に立つ一段上の軸か。
-④ 観測できる規則・境界か: 成果物に対して確認できる規則 (レビュー観点・設計制約に使える) か。作者の内的手順 (「〜する前に確かめる」等・成果物に現れず自己申告に退化する) は不可 (内的手順=該当)。
-⑤ 型の空当てでないか: 「良い◯◯は…で決まる」等の形を中身なく当てただけで、対象と基準の関係が芯に無い、になっていないか。
-⑥ false agency になっていないか: モノを主語に人間動詞をさせる型 (「データが示す」「文化が醸成される」等) は違反——誰が何をしたかに書き換える対象。
-⑦ 主語の空虚な一般化になっていないか: 「人々は」「我々は」「現代社会において」型の空虚な一般化は違反 (具体事象から構造を抽出する一般化は OK——洞察の核がこちら)。`
+  // 2026-07-06 backfill 同型化: 洞察命名基準 (旧 insightCriteria) も撤去した。backfill の洞察は drain と同型の self-check 方式
+  // (生成 prompt 内の反証点検 + script の shape 検査) に乗り、checker には流入しない。判断基準 7 項目の正本は
+  // vault-rules.md「洞察の命名 self-check 判断基準」節 (insight-detect prompt と insightPrompt の双方が Read 参照)。
   return `あなたはタイトル案の指摘者である。書き直さない・代替案を出さない・違反の指摘だけ返す。ツールは一切使わない (判断のみ)。生成時の確信は手元に無くてよい・無いまま per-item で独立に判断する。
 
 種別: ${kind}
@@ -368,18 +412,15 @@ function checkerPrompt(kind, title, excerpt) {
 ${excerpt || '(元記述なし)'}
 
 判断基準:
-${kind === 'タスク' ? taskCriteria : kind === '洞察' ? insightCriteria : kind === '作業レポート・事実' ? reportCriteria : (() => { throw new Error(`checkerPrompt: 想定外の kind=${kind} (気づき checker は skill 本体 step 4.2 に移管・workflow には流入しないはず)`) })()}
+${kind === 'タスク' ? taskCriteria : kind === '作業レポート・事実' ? reportCriteria : (() => { throw new Error(`checkerPrompt: 想定外の kind=${kind} (気づき checker は skill 本体 step 4.2 に移管・洞察 checker は 2026-07-06 の self-check 化で廃止——いずれも workflow の checker には流入しないはず)`) })()}
 
 verdict: 違反あり=該当 / 違反なし=非該当 / 元記述が薄く判定できない=判断不能 (note に理由を 1 行)。`
 }
 
 function renamePrompt(kind, title, excerpt, issues) {
-  const namingSections =
-    kind === '洞察'
-      ? ['命名規約 (kind 共通の核)', '洞察の命名']
-      : kind === 'タスク'
-        ? ['命名規約 (kind 共通の核)']
-        : ['命名規約 (kind 共通の核)', '気づきの命名']
+  // renamer に到達する kind はタスクのみ (作業レポートは light gate で renamer を呼ばない・
+  // 気づきは Phase 4 で skill 本体へ・洞察は 2026-07-06 の self-check 化で renamer 廃止)。
+  const namingSections = ['命名規約 (kind 共通の核)']
   return `あなたはタイトルの再命名担当。以下の指摘を解消する新しいタイトルを 1 つだけ返せ。ツールは下記規約ファイルの Read 1 回のみ使ってよい (他のツールは使わない)。
 
 種別: ${kind}
@@ -494,10 +535,61 @@ async function nameGate(c, renameModel) {
 function needsGate(c) {
   // Phase 2: 作業レポート・事実 も軽量ゲート (regex+checker のみ) の対象に含める。fold は対象外。
   // Phase 4: 気づき gate は skill 本体側 step 4.2 (self-check 命名ゲート) に移管 (workflow 経路の `kind === '気づき'` は到達不能・R2-9)。
-  return !c.fold_into && (c.kind === 'タスク' || c.kind === '洞察' || c.kind === '作業レポート・事実')
+  // 2026-07-06 backfill 同型化: 洞察 gate も self-check 方式 (洞察検出段の insightSelfCheckGate) に移管——checker/renamer の nameGate は通らない。
+  return !c.fold_into && (c.kind === 'タスク' || c.kind === '作業レポート・事実')
 }
 async function runGate(c) {
-  c.gate = await nameGate(c, c.kind === '洞察' ? M_INSIGHT : M_EXTRACT)
+  c.gate = await nameGate(c, M_EXTRACT)
+}
+
+// ---- 洞察の命名ゲート (self-check 版・drain SKILL 4.2/4.4 と同型の決定論手続き) ----
+// 一次保証は生成 agent の self-check (生成と同一 prompt 内の反証点検・全案 × 全 7 基準)。script は shape の機械確認と
+// 機械 regex だけを行い、再命名の agent 往復はしない (2026-07-05 β3 実測で checker/renamer ラウンドを置換した drain と同型)。
+const SELF_CHECK_CRITERIA = ['①', '②', '③', '④', '⑤', '⑥', '⑦']
+
+// self-check の実施検査 (drain SKILL 4.1「self_check の shape (正本)」の機械確認をコード化)。違反理由の文字列を返す (無違反は '')。
+// schema が型・enum を強制済みなので、ここでは schema で表現できない横断制約 (全件カバー・7 項目網羅・fail の evidence) を見る。
+function selfCheckViolation(i) {
+  if (!Array.isArray(i.title_candidates) || !i.title_candidates.length) return 'title_candidates が空'
+  if (i.title_candidates.some((tc) => !(tc && tc.title && tc.title.trim()))) return 'title_candidates に title の無い要素がある'
+  if (!Array.isArray(i.self_check) || i.self_check.length !== i.title_candidates.length) return 'self_check が title_candidates 全件をカバーしていない'
+  const seen = new Set()
+  for (const sc of i.self_check) {
+    if (!Number.isInteger(sc.candidate) || sc.candidate < 1 || sc.candidate > i.title_candidates.length || seen.has(sc.candidate)) {
+      return `self_check.candidate が不正 (${sc.candidate})`
+    }
+    seen.add(sc.candidate)
+    const crits = (sc.results || []).map((r) => r.criterion)
+    if (SELF_CHECK_CRITERIA.some((c) => !crits.includes(c))) return `候補 ${sc.candidate} の results が基準 7 項目を網羅していない`
+    for (const r of sc.results) {
+      if (r.verdict === 'fail' && !(r.evidence && r.evidence.trim())) return `候補 ${sc.candidate} の fail に逐語 evidence が無い`
+    }
+  }
+  return ''
+}
+
+// 機械 regex ゲート (drain SKILL 4.2 step 2 と同型): 非先頭案の hit は提示から除外して log に元 index を残し、
+// 先頭 (推奨案) の hit は除外・繰り上げをせず machine_hits に注記して人ゲートに回す。gate 構造も drain と同一。
+function insightSelfCheckGate(i) {
+  const g = { title_candidates: [], machine_hits: '', self_verdict: i.self_verdict, self_violations: i.self_violations || [], selected_title: '', log: [] }
+  i.title_candidates.forEach((tc, idx) => {
+    const hits = regexHits(tc.title || '')
+    if (idx === 0) {
+      g.title_candidates.push(tc)
+      if (hits.length) {
+        g.machine_hits = [...new Set(hits)].join(' ')
+        g.log.push(`推奨案に機械ゲート hit: ${g.machine_hits} (除外せずトリアージに注記)`)
+      }
+    } else if (hits.length) {
+      g.log.push(`機械ゲート hit で除外 (元 index ${idx + 1}): ${tc.title}`)
+    } else {
+      g.title_candidates.push(tc)
+    }
+  })
+  if (i.title_candidates.length < 3 || i.title_candidates.length > 4) {
+    g.log.push(`案数が仕様 (3〜4) と異なる: ${i.title_candidates.length} 案 (構造違反にはしない・drain 4.1 と同じ扱い)`)
+  }
+  return g
 }
 
 // ---- ノート規約の機械検証 (prompt の厳守事項をコード化) ----
@@ -710,17 +802,21 @@ ${backfillFocus}
 5. 【洞察生成の核・最重要】失敗事例を「二度と失敗しないための判断軸」に変換する。これが洞察の本質であり、失敗の再記述・原因論の一般化・1 つの軸への言い換えで終えてはならない。やり方:
    - (1) 束ねる複数の失敗気づきが、より上位の同一カテゴリの「異なる側面」として括れないか探す (例: 生成・参照・命名 という 3 つの索引失敗は「索引の外側の境界条件」の 3 側面)。この共通カテゴリを名指すのが第三知見であって、条件の並置 (チェックリスト) でも 1 軸への collapse (言い換え) でもない。
    - (2) 括れた共通カテゴリを「次に何を確認するか／どこに投資するか」の行動可能な判断軸に変換する (例: 索引が効かないとき索引エンジンでなく 3 境界のどれが律速かを切り分ける)。claim は失敗の説明でなく次の行動を指す一文にする。
-   - (3) 【毎回必須・全候補で実施し derivation に記録する。行き詰まり時だけでない】導出チェックリスト: ①各 source 気づきの失敗の回避法を 1 つずつ書く (source と同数・2 件以上＝derivation.source_avoidances) → ②回避法の共通点を書く (derivation.common_point) → ③共通点から共通の対処/確認 (1 つの事前判断 or 1 つのレビュー観点＝derivation.common_axis) を書く。③が出れば洞察・出ず合算止まりなら洞察にしない。title は derivation.common_axis を判断軸の形で言い切ったものにする (命名規約は別途注入。失敗接地: 2026-06-14 速度/精度 2 気づきを症状の相関で言い換えて空回り→この分解で「答えが構造にある問いに走査を当てた一機序の二症状」と判明)。
+   - (3) 【毎回必須・全候補で実施し derivation に記録する。行き詰まり時だけでない】導出チェックリスト: ①各 source 気づきの失敗の回避法を 1 つずつ書く (source と同数・2 件以上＝derivation.source_avoidances) → ②回避法の共通点を書く (derivation.common_point) → ③共通点から共通の対処/確認 (1 つの事前判断 or 1 つのレビュー観点＝derivation.common_axis) を書く。③が出れば洞察・出ず合算止まりなら洞察にしない。title は derivation.common_axis を判断軸の形で言い切ったものにする (命名規約は別途注入。失敗接地: 2026-06-14 速度/精度 2 気づきを症状の相関で言い換えて空回り→この分解で「答えが構造にある問いに走査を当てた一機序の二症状」と判明)。**common_axis 自体を output-style に準拠して書く**——漢語連結・体言止め・受動含意を避け、日常語で言い切る。軸が硬い書き言葉のままだと後段のタイトル生成でメタファーに逃げる圧力が上がる。
    - 直近の具体例 (vault に実在・余裕があれば Read して倣う): [[良い索引かは生成、参照、命名で決まる]] (生成/参照/命名 の 3 失敗を「索引の外側の境界条件」に括り、投資先の判断軸に変換)。[[同じ意味のものは同じ内容でなければならない]] (drift/残留/分割/並走 の 4 失敗を「同じ意味を担う実体は他に無いか・内容は一致しているか」というレビュー観点に変換)。
    - 【手本の使い方】この具体例・insight.md・既存洞察ノートから倣うのは畳み方/トーン/体裁であって主張内容ではない。手本の主張をなぞって似た洞察を作るな——内容は上記 source 規律 (4) に従い目の前の素材から立てる。
 6. なぜ重要・応用にはソフトウェア開発に転用できる接地を最低 1 つ入れる (読み手は SWE)。
 
 命名訂正事例集: \`~/.claude/skills/drain/naming-corrections.md\` を Read し、収載された訂正ペアの訂正方向 (何が指摘され、どう直ったか) にだけ倣って命名する (事例の主張内容はなぞらない)。命名の確定前に「別の cycle で観察したらどう書くか」を自問し、今回の素材に固有の語彙へ張り付いた命名を避ける。
 
+title は 1 案でなく title_candidates として 3〜4 案出す: 観点形・事実形を各 1 案以上含め (form 必須)、抽象度は中間・一般化をカバーする。主語や動詞の選び方を変え、互いに似せない。いずれも derivation.common_axis を土台に導く (順序: derivation→common_axis→命名 は不変)。content・source: 列挙・connected_notes の自己参照は先頭 (推奨案) のタイトルで書く (確定タイトル＝先頭案。人が別案を選んだ場合の張り替えは呼び出し元が行う)。
+
+**反証点検 (self-check・全候補で必須)**: 各洞察候補の title_candidates 全案それぞれについて、下記 Read する規約ファイルの「洞察の命名 self-check 判断基準」節 (同じ Read でよい) の全 7 項目で「この案を落とす理由」を探す。落とす理由が見つかった基準は verdict=fail とし、案タイトル中の該当表現を evidence に逐語で引用する。探しても落とせなかった基準だけ verdict=pass (evidence は空文字)。全案 × 全 7 基準を self_check に埋める——一括 pass・省略は不可。点検後、fail が最少の案を title_candidates の先頭 (推奨案) に置く (同数なら観点形を優先)。ここで書き直しはしない——選ぶだけ。先頭に fail が残るなら self_verdict='該当'、無ければ '非該当'。残った fail を self_violations に列挙 (無ければ空配列)。fail が残ったまま提出してよい——隠すな (トリアージで人が判断する)。反証点検の突き合わせ先は derivation.common_axis の逐語 (空のときのみ claim)。機械ゲート (正規表現 、|すると|したら|つつ|（|\\( ) にもかからないこと (かかった案は script が非先頭なら提示から除外し、推奨案なら注記付きで人ゲートに回す)。
+
 繋がりが弱ければ 0 件が正当な出力 (「A 止まりですらない」もありうる)。無理に B をでっち上げない。
 
 MCP 不達時の fallback: MCP tool 呼び出しで exception が出た場合は Grep に retreat し処理を継続する (Obsidian 起動時は \`obsidian tag name=気づき / name=洞察\` で実タグ索引、未起動なら frontmatter 形式に当てる multiline rg: \`rg -l --multiline -U '(?s)^---\\n(.*?\\n)*?tags:\\n(\\s*-\\s+[^\\n]*\\n)*\\s*-\\s+気づき' ${VAULT}/notes\` — inline #気づき タグだけを当てる \`rg -l '#気づき'\` は frontmatter 形式を取り逃すので使わない)。失敗したまま止めない。fallback した呼び出しごとに \`log('MCP_FALLBACK: <tool> <reason>')\` を 1 行出してから続行する。
-${rulesRef('vault 規約', '命名規約 (kind 共通の核)', '洞察の命名')}`
+${rulesRef('vault 規約', '命名規約 (kind 共通の核)', '洞察の命名', '洞察の命名 self-check 判断基準')}`
 }
 
 function donePrompt(corpus) {
@@ -884,27 +980,39 @@ if (MODE === 'drain') {
     flags.insight_failed = true
   } else {
     const insights = ir.insights
-    for (const i of insights) {
-      i.kind = '洞察'
-      i.label = 'none'
-      i.fold_into = ''
-      // 命名は common_axis から導く (title=判断軸)。命名点検 (nameGate) の元記述に claim でなく common_axis を渡す
-      // ——claim 起点だと失敗形/内的手順に流れ命名ゲートを通らない (失敗接地 2026-06-15: ID8 を claim/手元の像で
-      // 命名し④内的手順・存在論言い直しで 2R 未解決→common_axis 起点で 2R 通過)。common_axis 欠落時のみ claim に退避。
-      i.source_excerpt = i.derivation && i.derivation.common_axis && i.derivation.common_axis.trim() ? i.derivation.common_axis : i.claim
-      // 導出チェックリストが毎回実施されたかを機械チェック (自己申告でなく出力の充足で検証)。
-      // source_avoidances は 2 件以上 (洞察は 2+ source)・common_point/common_axis 非空。未充足は triage で明示する。
-      const d = i.derivation || {}
-      i.derivation_ok =
-        Array.isArray(d.source_avoidances) &&
-        d.source_avoidances.filter((s) => s && s.trim()).length >= 2 &&
-        !!(d.common_point && d.common_point.trim()) &&
-        !!(d.common_axis && d.common_axis.trim())
+    // self-check の実施検査 (drain の insight_detect_failed 規則と同型): 1 件でも shape 違反があれば spawn 全体を
+    // 信頼しない (partial recovery しない・洞察は「未実施」扱いで triage に明示する)。schema が型を強制済みなので、
+    // ここで見るのは横断制約 (全件カバー・7 項目網羅・fail の逐語 evidence) のみ。
+    const violation = insights.map((i) => selfCheckViolation(i)).find(Boolean)
+    if (violation) {
+      flags.insight_failed = true
+      log(`INSIGHT_SELF_CHECK_MALFORMED: ${violation} (spawn 全体を drop・洞察検出は未実施扱い)`)
+    } else {
+      for (const i of insights) {
+        i.kind = '洞察'
+        i.label = 'none'
+        i.fold_into = ''
+        // 確定 title は title_candidates 先頭 (推奨案) から script が導出する (drain SKILL 4.1 と同じ導出規則。
+        // 命名は common_axis 起点——claim 起点だと失敗形/内的手順に流れる (失敗接地 2026-06-15: ID8 を claim/手元の像で
+        // 命名し④内的手順・存在論言い直しで 2R 未解決→common_axis 起点で通過)。順序 derivation→common_axis→命名 は prompt が強制)。
+        i.title = i.title_candidates[0].title
+        // source_excerpt はトリアージ提示の元記述 (checker 廃止後も「何から名付けたか」の表示素材として残す)。
+        i.source_excerpt = i.derivation && i.derivation.common_axis && i.derivation.common_axis.trim() ? i.derivation.common_axis : i.claim
+        // 導出チェックリストが毎回実施されたかを機械チェック (自己申告でなく出力の充足で検証)。
+        // source_avoidances は 2 件以上 (洞察は 2+ source)・common_point/common_axis 非空。未充足は triage で明示する。
+        const d = i.derivation || {}
+        i.derivation_ok =
+          Array.isArray(d.source_avoidances) &&
+          d.source_avoidances.filter((s) => s && s.trim()).length >= 2 &&
+          !!(d.common_point && d.common_point.trim()) &&
+          !!(d.common_axis && d.common_axis.trim())
+        // 命名ゲート (self-check 版): 機械 regex と self-check 転記だけの決定論手続き。agent 往復は無い。
+        i.gate = insightSelfCheckGate(i)
+      }
+      candidates.push(...insights)
     }
-    await parallel(insights.map((i) => () => runGate(i)))
-    candidates.push(...insights)
   }
-  log(`洞察検出: ${ir ? ir.insights.length : '失敗'} 件`)
+  log(`洞察検出: ${!ir || flags.insight_failed ? '失敗 (未実施扱い)' : `${ir.insights.length} 件 (self_verdict=該当 ${ir.insights.filter((i) => i.self_verdict === '該当').length} / 推奨案に機械 hit ${ir.insights.filter((i) => i.gate && i.gate.machine_hits).length})`}`)
 }
 
 // ============================================================
@@ -1104,6 +1212,23 @@ const formatOutputMetrics = {
   task_done_extraction_failed: flags.task_done_extraction_failed.length,
 }
 
+// 気づき・洞察パートの per_part metric。drain mode では気づき抽出 / 洞察検出が workflow に流れないため空 dict を返し、
+// skill 本体側が算出して運用ログ記録時に埋める (drain SKILL.md step 7)。backfill mode では洞察検出が workflow 内で
+// self-check 方式 (2026-07-06 同型化) で走るため、検出側の値を workflow が埋める。トリアージ側の値
+// (title_choice_non_primary / title_human_edits / axis_human_edits) は承認ゲート後にしか確定しないので、
+// 両 mode とも main が運用ログ書き出し時に埋める (workflow はトリアージを見ない)。
+const insightItems = candidates.filter((c) => c.kind === '洞察')
+const kizukiInsightMetrics =
+  MODE === 'backfill'
+    ? {
+        insight_count: insightItems.length,
+        insight_derivation_ok: insightItems.filter((c) => c.derivation_ok).length,
+        insight_detect_failed: flags.insight_failed,
+        self_flagged: insightItems.filter((c) => c.gate && c.gate.self_verdict === '該当').length,
+        machine_hits_items: insightItems.filter((c) => c.gate && c.gate.machine_hits).length,
+      }
+    : {}
+
 return {
   mode: MODE,
   candidates,
@@ -1113,8 +1238,7 @@ return {
   totals,
   flags,
   // 4 パート (LLM Wiki / タスク done / 気づき・洞察 / 整形・出力) の metric。Phase 4 で全パートが実値を持つ。
-  // kizuki_insight は skill 本体側で計算され、運用ログ記録時に書き出される (workflow からは空 dict を返す——気づき抽出 / 洞察検出が
-  // workflow に流れないため、件数集計が skill 側でしか観測できないため)。drain SKILL.md step 7 (完了報告と運用ログ) で
-  // 気づき件数・洞察件数・derivation_ok 率・self-check 指標 (self_flagged / title_human_edits 等) を skill 本体が埋めて 運用ログに書き出す。
-  per_part_metrics: { llm_wiki: llmWikiMetrics, task_done: taskDoneMetrics, kizuki_insight: {}, format_output: formatOutputMetrics },
+  // kizuki_insight: drain mode は空 dict (気づき抽出 / 洞察検出が workflow に流れず skill 本体側でしか観測できない——
+  // drain SKILL.md step 7 で skill 本体が埋める)・backfill mode は workflow が検出側の値を埋める (上の kizukiInsightMetrics 参照)。
+  per_part_metrics: { llm_wiki: llmWikiMetrics, task_done: taskDoneMetrics, kizuki_insight: kizukiInsightMetrics, format_output: formatOutputMetrics },
 }
