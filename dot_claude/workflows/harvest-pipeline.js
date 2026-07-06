@@ -11,39 +11,68 @@ export const meta = {
 }
 
 // 純関数 scoreRelatedness は Workflow tool の制約 (static import は meta より前不可・後に書くと dynamic import call と誤解析・dynamic `import()` 自体も unsupported) で
-// harvest-pipeline-pure.js から本体に直接コピーする。harvest-pipeline-pure.js は単体テスト用 (harvest-pipeline-pure.test.js) と API/閾値仕様の正本として残し、
+// harvest-pipeline-pure.js から本体に直接コピーする。harvest-pipeline-pure.js は単体テスト用 (harvest-pipeline-pure.test.js) と API/定数仕様の正本として残し、
 // 本ファイル内の関数本体は手作業で keep-in-sync する (workflow との interface 節と同型の関係)。
-const RELATED_KNN_MIN = 0.70
-const FOLD_KNN_MIN = 0.85
-const FOLD_REQUIRES_BM25_HIT = true
+// v2 (2026-07-06): 絶対値 cosine 閾値を廃止しチャネル evidence 判定へ再設計。設計根拠の詳細は pure 側ヘッダコメント参照
+// (score_knn=0.0 は kNN 窓外の欠測マーカー・e5-base の cosine 分布は正例/負例が重なり絶対値閾値が成立しない・裏取り 2026-07-06)。
+const BM25_REL_FLOOR = 0.15
+const FOLD_BM25_REL = 0.5
+const RELATED_MAX = 6
+const FOLD_MAX = 2
 
 function scoreRelatedness(hits, opts = {}) {
-  const relatedKnnMin = opts.relatedKnnMin ?? RELATED_KNN_MIN
-  const foldKnnMin = opts.foldKnnMin ?? FOLD_KNN_MIN
-  const foldRequiresBm25Hit = opts.foldRequiresBm25Hit ?? FOLD_REQUIRES_BM25_HIT
+  const bm25RelFloor = opts.bm25RelFloor ?? BM25_REL_FLOOR
+  const foldBm25Rel = opts.foldBm25Rel ?? FOLD_BM25_REL
+  const relatedMax = opts.relatedMax ?? RELATED_MAX
+  const foldMax = opts.foldMax ?? FOLD_MAX
 
-  if (foldKnnMin < relatedKnnMin) {
-    throw new Error(`scoreRelatedness: foldKnnMin (${foldKnnMin}) must be >= relatedKnnMin (${relatedKnnMin})`)
+  if (foldBm25Rel < bm25RelFloor) {
+    throw new Error(`scoreRelatedness: foldBm25Rel (${foldBm25Rel}) must be >= bm25RelFloor (${bm25RelFloor})`)
   }
 
   if (!Array.isArray(hits) || hits.length === 0) {
     return { related: [], fold_candidates: [] }
   }
 
-  const ranked = hits.slice().sort((a, b) => (b.score_knn || 0) - (a.score_knn || 0))
-
-  const related = []
-  const fold_candidates = []
-  for (const h of ranked) {
-    const knn = h.score_knn || 0
-    const bm25 = h.score_bm25 || 0
-    if (knn >= relatedKnnMin) {
-      related.push(h.path)
-      if (knn >= foldKnnMin && (!foldRequiresBm25Hit || bm25 > 0)) {
-        fold_candidates.push(h.path)
-      }
+  // note (path) 単位に集約 (index は section 粒度で 1 note が複数 hit を占める)
+  const byPath = new Map()
+  for (const h of hits) {
+    if (!h || !h.path) continue
+    let e = byPath.get(h.path)
+    if (!e) {
+      e = { path: h.path, knnMax: 0, bm25Max: 0, order: byPath.size }
+      byPath.set(h.path, e)
     }
+    e.knnMax = Math.max(e.knnMax, h.score_knn || 0)
+    e.bm25Max = Math.max(e.bm25Max, h.score_bm25 || 0)
   }
+  const notes = [...byPath.values()]
+  const bm25Top = notes.reduce((m, n) => Math.max(m, n.bm25Max), 0)
+
+  for (const n of notes) {
+    n.inKnn = n.knnMax > 0 // kNN 窓に入った (0.0 は欠測なので「窓外」とだけ読む)
+    n.bm25Rel = bm25Top > 0 ? n.bm25Max / bm25Top : 0
+    n.inBm25 = bm25Top > 0 && n.bm25Rel >= bm25RelFloor
+  }
+
+  // ランキング: 両チャネル共起 > kNN 単独 > BM25 単独。同値は入力順 (stable)
+  const group = (n) => (n.inKnn && n.inBm25 ? 0 : n.inKnn ? 1 : 2)
+  const cands = notes.filter((n) => n.inKnn || n.inBm25)
+  cands.sort((a, b) => {
+    const ga = group(a)
+    const gb = group(b)
+    if (ga !== gb) return ga - gb
+    const ka = ga === 1 ? a.knnMax : a.bm25Rel
+    const kb = ga === 1 ? b.knnMax : b.bm25Rel
+    return kb - ka || a.order - b.order
+  })
+
+  const related = cands.slice(0, relatedMax).map((n) => n.path)
+  const fold_candidates = cands
+    .filter((n) => n.inKnn && n.bm25Rel >= foldBm25Rel)
+    .slice(0, foldMax)
+    .map((n) => n.path)
+    .filter((p) => related.includes(p)) // fold ⊆ related (relatedMax cap で切れた path の保護)
 
   return { related, fold_candidates }
 }
@@ -560,12 +589,12 @@ ${bodySection}
 
 手順:
 1. この inbox の内容を「名付けられる粒度」で **作業レポート・事実** の昇格候補に分ける (1 inbox から複数可)。作業レポート・調査記録はそれ自体を 1:1・具体タイトルのまま kind=作業レポート・事実 として昇格する。検証で確定した客観事実・仕様・スペックも 作業レポート・事実 として扱う。**気づきはここで切り出さない** (skill 本体側の気づき抽出担当の責務)。
-2. 各候補について vault 既存ノードを突き合わせる。一次索引は MCP tool 経由で動的に引く (常時ロードのカタログは持たない・subagent には届かない)。**関連既存ノートの認定 (どの hit を逆リンク候補・fold 候補にするか) は判断しない**——script 側の純関数 (scoreRelatedness) が hits の score_knn / score_bm25 で 2 段階閾値判定する。あなたの責務は hits を構造化して並べて返すだけ。
-   - タイトル一致・意味近傍: \`mcp__vault-catalog__search_hybrid(query=候補タイトル, limit=5)\` を呼ぶ。返った hits の各要素から \`path\` / \`score_bm25\` / \`score_knn\` を取り、候補の \`related_hits\` field にそのまま並べる (script が後段で閾値判定する)。**hits の path/title/tags/body_snippet を見て当たりを付けることはしない**——その判断は純関数が score で行う。
+2. 各候補について vault 既存ノードを突き合わせる。一次索引は MCP tool 経由で動的に引く (常時ロードのカタログは持たない・subagent には届かない)。**関連既存ノートの認定 (どの hit を逆リンク候補・fold 候補にするか) は判断しない**——script 側の純関数 (scoreRelatedness) が hits の 2 チャネル evidence (kNN 窓・BM25 相対値) で判定する。あなたの責務は hits を構造化して並べて返すだけ。
+   - タイトル一致・意味近傍: **2 本のクエリを呼んで hits を合算する**——\`mcp__vault-catalog__search_hybrid(query=候補タイトル, limit=12)\` と \`mcp__vault-catalog__search_hybrid(query=<素材の中心語: source_excerpt 中の固有名詞・具体語をスペース区切りで 3〜6 語>, limit=12)\`(一般化した候補タイトルは具体語彙が剥がれて検索 anchor が弱いため、素材側の語彙で 2 本目を引く)。合算した hits の各要素から \`path\` / \`score_bm25\` / \`score_knn\` を取り、候補の \`related_hits\` field にそのまま並べる (重複 path はそのまま並べてよい・script が note 単位に dedup して evidence 判定する)。**hits の path/title/tags/body_snippet を見て当たりを付けることはしない**——その判断は純関数が score で行う。
    - タグ共有での当たり付け: inbox 本文中に既存の #タグ 表記や明示的なタグキーワードが読み取れる場合に限り、それらを引数に \`mcp__vault-catalog__search_by_tag(tags=[<読み取ったタグ列>], limit=10)\` を呼ぶ (近傍候補の追加収集として使う・search_hybrid の戻りに含まれる hit と path が重複したら 1 件に集約する。それ以外の hit は related_hits に並べる)。inbox 本文にタグの手掛かりが無ければこの step を飛ばす。
    - fold 判定が要るもの (script が後段で fold_candidates 認定する path) はあなたではなく集約段で本文 Read 確認に回る。あなたは **MCP 戻りを並べる**だけで本文 Read はしない (全 notes の Grep fan-out もしない)。
    - MCP 該当が 0 件なら related_hits を空配列で返す。新規候補として扱う。
-3. 新規候補は content に frontmatter＋本文の完成形を書く。**関連既存ノード側からの逆リンクは frontmatter \`related:\` への追記として backlink_edits に列挙する** (本文 \`## 関連\` セクションへの追記は廃止・新方式)。backlink_edits は **related_hits に並べた hit 1 件につき 1 件** を機械的に生成する (どの hit が「関連」「fold 候補」かは集約段の純関数 scoreRelatedness が score_knn 閾値で判定するので、あなたは選別判断をしない・列挙だけする)。テンプレートは以下:
+3. 新規候補は content に frontmatter＋本文の完成形を書く。**関連既存ノード側からの逆リンクは frontmatter \`related:\` への追記として backlink_edits に列挙する** (本文 \`## 関連\` セクションへの追記は廃止・新方式)。backlink_edits は **related_hits に並べた distinct path 1 件につき 1 件** を機械的に生成する (同じ path の section 重複には 1 件でよい。どの path が「関連」「fold 候補」かは集約段の純関数 scoreRelatedness が 2 チャネル evidence で判定するので、あなたは選別判断をしない・列挙だけする)。テンプレートは以下:
    - \`where_hint\` = \`'frontmatter related:'\` (固定文字列)
    - \`add_line\` = \`'  - "[[<新規ノートのタイトル>]]"'\` (frontmatter block list の 1 要素・行頭 2 スペースインデント + \`- \` + ダブルクオート囲み wikilink。SKILL.md 4.7 step 2.1 がこの形のまま list に差し込む)
    - \`path\` = hit の path (例: \`notes/既存ノート.md\`)
@@ -617,7 +646,7 @@ ${openTasksSection}
 1. **done 検出を最初に行う** (上記順序強制)。既存タスクノート一覧から完了示唆のあるものを done_candidates として返す。
 2. 残りの記述から、未着手の行動を kind=タスク で抽出する。ラベルは ① 明示 TODO (「TODO」「未実施」「やる」等が plain にある) / ② 次タスク候補 (「次は〜」等の先送り表明) / ③ ノート分析で出た課題 (論理ギャップ・矛盾・未解決。why_important 必須)。
 3. 各タスク候補について vault 既存ノードを突き合わせ、関連ノート・既出を洗う。一次索引は MCP tool 経由で動的に引く (常時ロードのカタログは持たない・subagent には届かない)。
-   - タイトル一致・意味近傍: \`mcp__vault-catalog__search_hybrid(query=候補タイトル, limit=5)\` を呼ぶ。返る hits の path/title/tags/body_snippet を見て当たりを付ける。
+   - タイトル一致・意味近傍: \`mcp__vault-catalog__search_hybrid(query=候補タイトル, limit=12)\` を呼ぶ。返る hits の path/title/tags/body_snippet を見て当たりを付ける (index は section 粒度で同一ノートが複数 hit を占めるため、limit は distinct ノート数より多めに取る)。
    - 既存タスクとの突き合わせ: 上記 open_tasks 一覧も近傍判定の入口にする。同一物の確認は Read して本文を見る。
    - fold 判定や本文確認が要るものだけ Read する (全 notes の Grep fan-out はしない)。
    - **MCP 結果は近傍候補であって fold 判定の根拠ではない**。fold を判断するなら必ず本文を Read して同一物であることを確認する (MCP の曖昧 hit を fold 根拠に取り違えない)。
@@ -665,7 +694,7 @@ ${backfillFocus}
 
 手順:
 1. 繋がりを探す対象は (a) 今回の新規ノード同士 (上記「今回の新規/更新ノード」の #気づき/#洞察 を束ねる)、(b) 新規ノードと既存ノート (notes/ の #気づき #洞察・概念ノート) の両方。同じバッチで立った新規 #気づき も source 候補に含めてよい——特に drain は 1 inbox から複数の気づきが同時に立つので、それらを束ねた洞察がこのフェーズの主な取り分になる (新規気づきはまだファイル化されていないが、承認後に notes/ に作られる前提で source 候補にしてよい)。入口は MCP tool 経由で動的に引く (常時ロードのカタログは持たない・subagent には届かない)。
-   - 新規ノードの claim・タイトルを query にして \`mcp__vault-catalog__search_hybrid(query=claim, limit=5)\` を呼び、関連既存ノードを取得する。
+   - 新規ノードの claim・タイトルを query にして \`mcp__vault-catalog__search_hybrid(query=claim, limit=12)\` を呼び、関連既存ノードを取得する (index は section 粒度で同一ノートが複数 hit を占めるため、limit は distinct ノート数より多めに取る)。
    - タグ近傍で気づき/洞察ノードを洗うときは \`mcp__vault-catalog__search_by_tag(tags=["気づき"], limit=20)\` / \`mcp__vault-catalog__search_by_tag(tags=["洞察"], limit=20)\` を呼ぶ。
    - MCP で近傍を絞ってから、繋がりの確証に要るノートだけ Read する (全 notes の Grep fan-out はしない)。**MCP 結果は近傍候補であって洞察の根拠ではない**——claim の元になる繋がりは Read した本文で確証する。
    - MOC/洞察.md (Dataview 集約) は MCP に乗らないため、束ね起点として要るときは Read で入口に使う。
@@ -781,7 +810,7 @@ if (MODE === 'drain') {
           const sr = scoreRelatedness(c.related_hits || [])
           c.related = sr.related
           c.fold_candidates = sr.fold_candidates
-          // finding 1 fix: agent は全 related_hits (最大 5 件) に backlink_edits を機械生成するため、
+          // finding 1 fix: agent は related_hits の全 distinct path に backlink_edits を機械生成するため、
           // c.related (純関数で閾値判定済みの path 集合) でフィルタしないと、閾値未満で関連認定されなかった hit にも
           // frontmatter `related:` への追記が走る。plan.md Acceptance「機械判定された関連リストを受け取り backlink_edits を生成する」
           // と直接矛盾するため、ここで閾値未満の hit を機械的に drop する。

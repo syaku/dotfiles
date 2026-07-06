@@ -54,7 +54,7 @@ vault: <VAULT 絶対パス>
 
 手順:
 1. 繋がりを探す対象は (a) 今回の新規ノード同士 (上記「今回の新規/更新ノード」の #気づき/#洞察 を束ねる)、(b) 新規ノードと既存ノート (notes/ の #気づき #洞察・概念ノート) の両方。同じバッチで立った新規 #気づき も source 候補に含めてよい——特に drain は 1 inbox から複数の気づきが同時に立つので、それらを束ねた洞察がこのフェーズの主な取り分になる (新規気づきはまだファイル化されていないが、承認後に notes/ に作られる前提で source 候補にしてよい)。入口は MCP tool 経由で動的に引く (常時ロードのカタログは持たない・subagent には届かない)。
-   - 新規ノードの claim・タイトルを query にして `mcp__vault-catalog__search_hybrid(query=claim, limit=5)` を呼び、関連既存ノードを取得する。
+   - 新規ノードの claim・タイトルを query にして `mcp__vault-catalog__search_hybrid(query=claim, limit=12)` を呼び、関連既存ノードを取得する (index は section 粒度で同一ノートが複数 hit を占めるため、limit は distinct ノート数より多めに取る)。
    - タグ近傍で気づき/洞察ノードを洗うときは `mcp__vault-catalog__search_by_tag(tags=["気づき"], limit=20)` / `mcp__vault-catalog__search_by_tag(tags=["洞察"], limit=20)` を呼ぶ。
    - MCP で近傍を絞ってから、繋がりの確証に要るノートだけ Read する (全 notes の Grep fan-out はしない)。**MCP 結果は近傍候補であって洞察の根拠ではない**——claim の元になる繋がりは Read した本文で確証する。
    - MOC/洞察.md (Dataview 集約) は MCP に乗らないため、束ね起点として要るときは Read で入口に使う。
