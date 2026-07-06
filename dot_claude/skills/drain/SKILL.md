@@ -103,7 +103,7 @@ workflow は `{candidates, link_rewrites, done_candidates, duplicate_detected, t
 
 #### 4.1 気づき抽出 agent の並列 spawn
 
-inbox 件数分だけ `Agent` tool を **同一 turn 内で並列**に spawn する。各 agent の `subagent_type="drain-extractor"`。name は不要（SendMessage の宛先として使う後段が無い）。
+inbox 件数分だけ `Agent` tool を **同一 turn 内で並列**に spawn する。各 agent の `subagent_type="drain-extractor"`・**モデル sonnet（spawn 時に `model: "sonnet"` を明示する**——agent 定義 frontmatter も sonnet だが、パート表の「気づき抽出 = sonnet」を spawn 側でも固定する二重防御。inherit に頼ると main のモデルで走ってコストが跳ねた実測がある: 2026-07-06）。name は不要（SendMessage の宛先として使う後段が無い）。
 
 各 kizuki-extract-N agent への prompt template は **`~/.claude/skills/drain/references/prompts/kizuki-extract.md` を Read** して取得する（逐語転記の管理点）。prompt には agent の責務限定・derivation の 4 サブフィールド要件（`source_observations` / `pattern_generalization` / `lesson_axis` / `generalization_check`）・title_candidates の shape 指示（3 案・先頭が推奨案）・**self-check 手順（判断基準 7 項目の逐語・反証点検・fail 最少を先頭に）**・MCP 経路の使い方・命名訂正事例集の参照が含まれる。
 
