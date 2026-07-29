@@ -5,13 +5,13 @@ description: 新しく得た規範・知識・ユーザの人物像/好み・運
 
 # knowledge-placement: ナレッジの所在を決める
 
-規範・知識は、それが効くべき範囲に置く。auto memory に行動規範を溜めない（recalled memory は context 扱いで強制力が弱く、常時ロードの rules の方が強いため）。
+規範・知識は、それが効くべき範囲に置く。強制力を要する行動規範は auto memory でなく rules に置く（recalled memory は context 扱いで強制力が弱いため）。memory に残すのは事実・人物像・タスク状態と、観察記述として書いた feedback で、規範体では書かない。
 
 ## どの器に置くか
 
 | 対象 | 置き場 |
 |---|---|
-| この環境固有の事実・ユーザの人物像/好み | auto memory（`~/.claude/projects/.../memory/`） |
+| この環境固有の事実・ユーザの人物像/好み | auto memory（格納先は `autoMemoryDirectory` 設定に従う。この環境では workspace の `settings.local.json` で vault の `claude-memory/` を指定） |
 | 全環境で常に守る行動規範 | `~/.claude/rules/*.md`（paths なし） |
 | この環境だけで効かせたい規範・運用知識（機密含む） | `~/.claude/rules/local-*.md`（`local-` prefix・chezmoi 非同期） |
 | 特定プロジェクト全体の規約 | プロジェクト `./CLAUDE.md` |
@@ -73,7 +73,7 @@ Claude Code にユーザーレベルの「.local」相当は無い（`CLAUDE.loc
 
 - 機密を含む規範を rules 化するときは、ファイル名に `local-` prefix を付けて `~/.claude/rules/local-*.md` に置く。`.chezmoiignore` の `.claude/rules/local-*.md` 指定で source に取り込まれず、そのマシンに閉じる（編集は target を直接行う。source 編集は不要・不可）。
 - 機密を含む内容を、同期される非 local ファイル（`~/.claude/CLAUDE.md`（および @import される `~/.claude/knowledge-location.md`）/ paths なし rules / この skill 自身 など）には書かない。書けばそれ自体が正本への浸食になる。
-- auto memory にも機密を書かない（私用端末では Obsidian Sync 経由でクラウド同期されうるため）。業務機密は memory ではなく `local-*.md` へ。行動規範はそもそも memory に溜めない（冒頭の方針どおり）。memory は事実・人物像・タスク状態のみ残す。
+- auto memory にも機密を書かない（私用端末では Obsidian Sync 経由でクラウド同期されうるため）。業務機密は memory ではなく `local-*.md` へ。強制力を要する行動規範もそもそも memory に置かない（冒頭の方針どおり）。memory に残すのは事実・人物像・タスク状態と、観察記述として書いた feedback。
 - 確認: `chezmoi managed | grep local-` に出ないこと、`chezmoi add --dry-run <file>` で `warning: ignoring …` が出ることで chezmoi 非管理を検証できる。
 
 ## local-*.md（マシンローカル）を優先する
