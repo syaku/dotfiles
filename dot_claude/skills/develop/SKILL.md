@@ -1,11 +1,13 @@
 ---
 name: develop
-description: 計画→実装→レビュー→修正→レポートを回す開発オーケストレータ。各フェーズは既存スキル（plan・implement・code-review／skill-review 等）に委譲する。「全部おまかせで開発して」「フルプロセスで」などの依頼で起動する。
+description: 計画→実装→レビュー収束→draft PR→レポートを回す開発オーケストレータ。**plan 承認以降は人の介入なしで draft PR まで走り切る**（ready 化・merge・デプロイはやらない）。フェーズは既存スキル（sear-me・plan・implement・skill-review）と review-pipeline workflow に委譲する。「全部おまかせで開発して」「フルプロセスで」「計画から PR まで通して」などの依頼で起動する。
 ---
 
 # develop: 開発オーケストレータ
 
-計画から実装、レビュー、修正、レポートまでを回す「**ファイルベースの実行台帳を持つ薄いステートマシン**」。各フェーズは既存スキルに委譲し、develop 本体は順序・引き継ぎ・ゲートの管理に徹する。フェーズ間の引き継ぎは main context の記憶でなく実行台帳 `develop-log.md` を正本とする（compaction・セッション中断をまたいで resume できる）。
+計画から実装、レビュー収束、draft PR、レポートまでを回す「**ファイルベースの実行台帳を持つ薄いステートマシン**」。各フェーズは既存スキルと workflow に委譲し、develop 本体は順序・引き継ぎ・ゲートの管理に徹する。フェーズ間の引き継ぎは main context の記憶でなく実行台帳 `develop-log.md` を正本とする（compaction・セッション中断をまたいで resume できる）。
+
+**plan 承認が唯一の人ゲート。** そこを通ったら draft PR まで人の介入なしで走り切る。この設計は前段に負荷をかける——実装中に判明する類の情報の欠落は承認後には誰も止められず、確定していない仕様で実装された PR として出てくる。だから sear-me で「後続が自力で埋められない情報」を出し切ることが前提条件になる。draft で作るのは、外向きの最後の一歩（ready 化）を人の手に残すため。
 
 ## 実行台帳 develop-log.md
 
@@ -16,17 +18,17 @@ description: 計画→実装→レビュー→修正→レポートを回す開�
 - エントリ形式: `## [N] <フェーズ名> — <ISO 時刻>`。フェーズごとの必須フィールド:
   - `plan`: plan.md パス・承認結果
   - `implement`: 作業ツリー cwd・変更ファイル一覧・テストコマンド・検証結果
-  - `review`: 計器（code-review / skill-review static）・ラウンド番号・指摘件数と指摘リスト
-  - `fix`: 対応概要・自己確認結果・変更ファイル一覧（implement エントリから増減があった場合）
+  - `review`: review-pipeline の戻り（ラウンド数と各ラウンドの内訳・件数の内訳（総数 / 解消 / 偽陽性 / 重複 / 既存 / nit / 未対応）・未対応の指摘リスト・報告に回した指摘・`stopped_by`・`flags`）・客観確認の結果・変更ファイル突合の差分。**収束ループ全体で 1 エントリ**
+  - `pr`: ブランチ名・コミット一覧（sha と subject）・draft PR の URL
   - `report`: 出力パス
-- **ラウンド計数＝台帳の review エントリ数**（初回レビューが Round 1。`--fix` 統合経路も「review(+fix)」エントリ 1 件で 1 ラウンド）。記憶で数えない。
+- **ラウンド計数は review-pipeline の戻り（`rounds`）が正**。台帳の review エントリ数で数える旧規約は、収束ループが script 内に移ったため廃止した。記憶で数えない。
 - エントリ schema の厳密度（自由記述をどこまで構造化するか）は **v1 で運用を観測してから決める**（初版は必須フィールド＋自由記述。resume・レポートが読み損ねる観測が出てから構造化度を上げる）。
 
 ## ゲート（3 つだけ。フェーズ間確認は持たない）
 
 - **(a) plan 承認** — plan スキル内蔵（develop は所有しない）。develop 側に残るのは順序ガードのみ: **plan 承認が台帳に記録される前に実装系 Agent・レビュー収束 skill を起動しない**。**ただし step 0.5 の pre-plan skill-review はこの順序ガードの対象外**——これは「plan への入力生成」であって実装系でも収束ループのレビュー計器でもない（read-only 評価。plan の前に走るのが本来の位置）。この分類は本ガードと「やってはいけないこと」節の同文禁止の双方に効く。
-- **(b) 副作用前承認** — develop 所有。**chezmoi apply・commit・push・外部公開を伴う書き込みの前に承認を取る**（Obsidian 等の私的ノート出力は対象外）。skill トラックのレビュー・収束で発生する chezmoi apply は、**最初の apply の前（step 3 Round 1 のレビュー前 apply を含む）**に「以降のレビュー・収束ループ中の apply」を包括承認として 1 回取る（承認範囲は Round 1 から収束までの全 apply。ラウンドごとに確認を挟まない）。**包括承認の取得結果と承認範囲（対象ファイル・期間）は台帳に記録する**（main context の記憶だけに置くと、compaction・resume 後に未承認のまま apply が走るゲート破りの経路になる）。承認範囲の境界は**タスクの改修対象 skill 単位**（期間は Round 1 から収束まで）: fix で編集対象が同一 skill 内で増えた場合は範囲内として台帳の承認記録に追記し、**改修対象 skill の外のファイルへ apply が及ぶ場合のみ再承認を取る**（境界を編集ファイルの増減の解釈に委ねない）。resume 時は台帳の承認記録を確認し、記録が無ければ取り直す。
-- **(c) 非収束時の報告** — develop 所有。次のいずれか早い方で発火する: **(c-1) 上限到達**——台帳の review エントリが 5 件に達してなお指摘が残る。**(c-2) 前進なし**——Round 2 以降で、そのラウンドの残指摘件数が前ラウンドから厳密に減っていない（修正の空転か plan 側の誤りのシグナルなので、上限を待たずに報告する）。件数比較は台帳の review エントリに記録した指摘件数で行う（記憶で数えない）。いずれの場合も黙って打ち切らず残指摘をユーザに報告してから次へ進む（旧上限 3 からの変更 2026-07-03: 計器の code-review 化・cleanup 段・TDD メイン化でラウンドの単価と信頼性が変わり、台帳 19 件中 4 件が旧上限で非収束だった。前進なし検出の追加で、空転タスクは旧上限より早くユーザに戻る）。skill トラックの報告には**「非収束の変更が target に apply 済みのまま稼働している」事実と、source revert＋再 apply で巻き戻せること**を必ず含める（未収束の skill が現役で動き続けることをユーザから見える形にする）。この経路で step 5 へ進むときは台帳の `status` を `non-converged` にする（`converged` と区別する）。
+- **(b) draft PR より外側の承認** — develop 所有。**収束後の commit・push・draft PR 作成までは自動で進む**（plan 承認以降は人が介入しない設計の一部）。承認が要るのはその外側で、**draft の ready 化・merge・デプロイ・PR 以外への外部公開はこのスキルでは行わない**。各フェーズの subagent には副作用禁止句を伝搬させ続ける（commit は本体が step 4 でまとめて行い、実装 / 修正 subagent には commit させない）。**chezmoi apply は skill トラックの客観確認に必要なため下記の包括承認で回す**（Obsidian 等の私的ノート出力は対象外）。skill トラックのレビュー・収束で発生する chezmoi apply は、**最初の apply の前（step 3 Round 1 のレビュー前 apply を含む）**に「以降のレビュー・収束ループ中の apply」を包括承認として 1 回取る（承認範囲は Round 1 から収束までの全 apply。ラウンドごとに確認を挟まない）。**包括承認の取得結果と承認範囲（対象ファイル・期間）は台帳に記録する**（main context の記憶だけに置くと、compaction・resume 後に未承認のまま apply が走るゲート破りの経路になる）。承認範囲の境界は**タスクの改修対象 skill 単位**（期間は Round 1 から収束まで）: fix で編集対象が同一 skill 内で増えた場合は範囲内として台帳の承認記録に追記し、**改修対象 skill の外のファイルへ apply が及ぶ場合のみ再承認を取る**（境界を編集ファイルの増減の解釈に委ねない）。resume 時は台帳の承認記録を確認し、記録が無ければ取り直す。
+- **(c) 非収束時の報告** — develop 所有。**review-pipeline が `converged: false` を返したら発火する**（内訳は script の `stopped_by`: `round-limit`（上限 5 到達）/ `no-progress`（修正対象が前ラウンドから厳密に減っていない）/ `review-failed` / `fix-failed`）。**ラウンド計数と前進判定は script がコードで行う**ため、本体で数え直さない（旧規約の「台帳の review エントリ数で数える」は収束ループが script 内に入ったため廃止。上限 5 の根拠は 2026-07-03 の観測——台帳 19 件中 4 件が旧上限 3 で非収束だった）。客観確認 fail もここに合流する。いずれの場合も黙って打ち切らず、未対応の指摘をユーザに報告する。**PR は作らない**（step 4 をスキップ。レビュー待ちの列に未完成のものを並べない）。skill トラックの報告には**「非収束の変更が target に apply 済みのまま稼働している」事実と、source revert＋再 apply で巻き戻せること**を必ず含める（未収束の skill が現役で動き続けることをユーザから見える形にする）。台帳の `status` は `non-converged` にする（`converged` と区別する）。
 
 委任後は確認なしで進み、事後報告とする。
 
@@ -36,13 +38,16 @@ description: 計画→実装→レビュー→修正→レポートを回す開�
 
 | | code トラック | skill トラック |
 |---|---|---|
-| 判定 | 下記以外のコード開発 | 改修対象が `~/.claude/skills/` 配下の SKILL.md・プロンプト文書（chezmoi source 側 `dot_claude/skills/` を含む）、および skill を構成する workflow js・補助 script。**SKILL.md と js の混在変更も skill トラックとし、計器は code-review 一本**（SKILL.md/js 両対象。skill 固有の全体評価は step 3 でなく pre-plan の skill-review が担う——下記「skill トラックの review 配置」） |
-| レビュー計器（step 3） | `Skill: code-review`（effort は依頼の重要度に応じる。既定 medium） | `Skill: code-review`（SKILL.md＋js を一本でレビュー。effort 既定 medium）＋**名前参照追跡**（指摘が言及するガード／収束条件／台帳記録の定義箇所を diff 外でも develop 本体の Read で確認し非局所結合の崩れを検出）。**skill-review は step 3 では使わない**（noisy 計器の収束ゲート利用を撤去。skill 全体評価は pre-plan へ前倒し） |
-| 修正後の客観確認（step 4） | 台帳の implement エントリのテストコマンドを **develop 本体の Bash で同一作業ツリーで再実行** | `chezmoi apply` → `chezmoi diff` が空であることを確認 → **code-review 指摘ゼロ＋名前参照追跡 pass** |
+| 判定 | 下記以外のコード開発 | 改修対象が `~/.claude/skills/` 配下の SKILL.md・プロンプト文書（chezmoi source 側 `dot_claude/skills/` を含む）、および skill を構成する workflow js・補助 script。**SKILL.md と js の混在変更も skill トラックとする**（skill 固有の全体評価は step 3 でなく pre-plan の skill-review が担う——下記「skill トラックの review 配置」） |
+| レビュー計器（step 3） | **review-pipeline workflow**（`~/.claude/workflows/review-pipeline.js`）。観点別の並列レビュー → 反証点検 → 修正 → 再レビューを収束まで回す | 同じ review-pipeline（SKILL.md＋js を対象）＋**名前参照追跡**（指摘が言及するガード／収束条件／台帳記録の定義箇所を diff 外でも develop 本体の Read で確認し非局所結合の崩れを検出）。**skill-review は step 3 では使わない**（noisy 計器の収束ゲート利用を撤去。skill 全体評価は pre-plan へ前倒し） |
+| 収束後の客観確認 | 台帳の implement エントリのテストコマンドを **develop 本体の Bash で同一作業ツリーで再実行** | `chezmoi apply` → `chezmoi diff` が空であることを確認 → **名前参照追跡 pass** |
+| workflow へ渡す `source_note` | 空文字 | 「編集対象は chezmoi source（`~/.local/share/chezmoi/dot_claude/` 配下）。target（`~/.claude/`）を直接編集しない。指摘中の target パスは source パスに読み替える」（target 直編集は直後の `chezmoi apply` が stale source で上書きして修正がロストし、同じ指摘が再発してラウンドを浪費する） |
 
-- **skill トラックの review 配置**: skill 全体の評価（skill-review full）は **plan の前段で 1 回**回し plan の参照入力にする（step 0.5）。post-implement の step 3/4 は **code-review（diff ベース）＋名前参照追跡**で回す——skill-review を毎ラウンドの収束ゲートに使うと per-run の detection turnover で収束しない構造だったため、収束ゲートから外した（撃ち直し記録は「撃ち直した残差の記録」節）。
-- skill トラックの注意: step 3/4 の code-review は apply 後の作業ツリー（target 反映済み）に対する diff を見るため、各ラウンドのレビュー前に source の編集を apply する（ゲート (b) の包括承認 1 回で回す）。pre-plan の skill-review full は read-only 評価で apply を伴わない。
-- code トラックの非コード成果物（diff に出ない設定・ドキュメント）は code-review に明示パスで読ませる（diff が無いと空振りする）。skill トラックでも SKILL.md/js が diff に出ない場合は同様に明示パスを渡す。
+**`Skill: code-review` は使えない。** bundled の `/code-review` は `disable-model-invocation: true` で、モデルからの Skill tool 呼び出しがブロックされる（実測: `Skill code-review cannot be used with Skill tool due to disable-model-invocation`。subagent への preload も公式ドキュメントで不可と明記）。収束ゲートの計器は自前の review-pipeline が持つ。検出力は `/code-review` に及ばないため、**完走後にユーザへ `/code-review` の実行を促す**（step 5）。
+
+- **skill トラックの review 配置**: skill 全体の評価（skill-review full）は **plan の前段で 1 回**回し plan の参照入力にする（step 0.5）。post-implement の step 3 は **review-pipeline（diff ベース）＋名前参照追跡**で回す——skill-review を毎ラウンドの収束ゲートに使うと per-run の detection turnover で収束しない構造だったため、収束ゲートから外した（撃ち直し記録は「撃ち直した残差の記録」節）。
+- skill トラックの注意: review-pipeline は apply 後の作業ツリー（target 反映済み）に対する diff を見るため、**workflow 起動の前に source の編集を apply する**（ゲート (b) の包括承認 1 回で回す）。workflow 内の修正 agent は source を編集するので、workflow 完了後にもう一度 apply して `chezmoi diff` が空であることを確認する。pre-plan の skill-review full は read-only 評価で apply を伴わない。
+- code トラックの非コード成果物（diff に出ない設定・ドキュメント）は workflow の `changed_files` に明示パスで渡す（diff が無いと空振りする）。skill トラックでも SKILL.md/js が diff に出ない場合は同様に渡す。
 
 ## フロー
 
@@ -84,35 +89,53 @@ resume（経路 2）以外の経路では、トラック（code / skill）を判
 - 戻り `{変更概要, 変更ファイル一覧, 検証結果（実行したテストコマンドを含む）, 作業ツリー cwd}` を台帳に追記する。
 - `Skill` tool は main で動くため、implement 本体は main で動く。実装・検証・self-review・修正の各工程は implement が起動する implement-pipeline workflow 側の agent 群に隔離され、implement 本体に残るのは入力確定・本体 Bash の最終客観確認・承認/結果返却のみ（詳細は implement 側「実行モデル」節）。
 
-### 3. review
+### 3. review 収束
 
-- 台帳を Read し、トラック表で計器を選んで起動する。**起動前に、main の cwd が台帳 implement エントリの作業ツリーと一致することを確認する**（不一致のままだとレビュー対象の diff がずれる。計器に明示パスを渡せる場合は併せて渡す）。
-- **skill トラックの名前参照追跡**: code-review 実行後、その指摘が言及する**ガード／収束条件／台帳記録**（「ゲート (b)」「収束条件」等の名前参照）の定義箇所を、diff に出ていなくても develop 本体の Read で読み、局所編集が遠隔の定義を無効化していないか（非局所結合の崩れ）を確認する。崩れを検出したら指摘として review エントリに追加する。これは skill-review-pipeline に委譲せず本体の Read で行う独立ステップだが、**ラウンド計数上は同一ラウンドの code-review に属する**（step 4 の連鎖単位を参照）。
-- 指摘リストを台帳の review エントリに記録する（ラウンド番号＝台帳の review エントリ数）。
-- step 2 の implement 内 self-review とは観点で住み分ける（self-review＝plan 突合専任——green 判定は implement の workflow script が検証結果から計算する、ここ＝correctness/quality の adversarial レビュー。典拠は各 description）。同じバグ探しを二重にしない。
-- `code-review --fix` を使う場合の後続は step 4 の記述に従う（**--fix 規則の正本は step 4**）。
+レビュー・修正・再レビューの収束ループは **review-pipeline workflow**（`~/.claude/workflows/review-pipeline.js`）に委譲する。ラウンド計数・前進判定・修正対象の絞り込み・件数集計は script がコードで計算するため、自己申告に依存しない。本体の責務は起動・戻り解釈・客観確認・台帳記録。
 
-### 4. fix 収束
+- 台帳を Read する。**起動前に、main の cwd が台帳 implement エントリの作業ツリーと一致することを確認する**（不一致のままだとレビュー対象の diff がずれる）。skill トラックでは**先に source を apply する**（workflow は target 反映済みの diff を見る）。
+- `Workflow` tool を `scriptPath: ~/.claude/workflows/review-pipeline.js` で起動する。args:
+  - `request`（元の依頼文）/ `worktree_cwd`（台帳の implement エントリの値。**これ以外を使わない**）/ `side_effect_ban`（「commit / push / chezmoi apply / 外部公開を行わない。修正は作業ツリー内のファイル編集に限る」）/ `plan_path` / `changed_files`（台帳の implement エントリ）/ `source_note`（トラック表で引く）/ `max_rounds`（既定 5）
+- **修正対象の絞り込みは script が持つ。** 対象は「この差分が持ち込んだ」かつ「high か medium」かつ「偽陽性でも重複でもない」指摘だけ。`severity: low`（規約違反を含む）と `pre_existing: true` は修正せず報告に回る。**本体で対象を足したり減らしたりしない。**
+- step 2 の implement 内 self-review とは観点で住み分ける（self-review＝plan 突合専任、ここ＝correctness / quality の adversarial レビュー）。同じバグ探しを二重にしない。
+- **cleanup の専用段は置かない。** 品質クリーンアップは implement-pipeline の cleanup ステージが実装直後に当てており、review の修正で生じる diff は小さい。`Skill: simplify` の呼び出しも撤去した（bundled skill の Skill tool 呼び出しは `/code-review` と同様にブロックされうるため、依存させない）。
 
-- 収束条件は**「指摘ゼロ かつ 客観確認 pass」**（code: テスト green／skill: apply → diff 空 → **code-review 指摘ゼロ＋名前参照追跡 pass**）。**客観確認の実行が 0 件の場合は pass と数えない**。0 件の判定はトラック別: **code トラック＝台帳の implement エントリにテストコマンド＝検証結果の実行記録が無い**（implement 側で `no_tests_run`=true のとき実行記録は 0 件＝台帳のテストコマンド欄が空になるため等価）、**skill トラック＝apply → diff 空 → code-review（＋名前参照追跡）の実行記録が台帳の review エントリに無い**（skill トラックはテストコマンド欄が空なのが正常形なので、その空を vacuous 判定に使わない。code-review 実行記録の有無で判定する）。判定はどちらも compaction 後も参照できる台帳に一本化する——客観確認 fail と同様に扱い、検証手段の不在自体を指摘として同じループで扱う（検証コマンドの確立を修正対象にする）か、確立できなければゲート (c) と同様にユーザへ報告する（vacuous converged＝実行ゼロ件のままの converged を成立させない）。満たしたら台帳の `status` を `converged` にして step 5 へ。レビュー指摘がゼロでも客観確認が fail なら収束とせず、失敗内容を指摘として同じループで修正する（その修正→再確認も通常どおりラウンド計数に乗る）。
-- 修正担当 subagent（`subagent_type`: `general-purpose`）の prompt 必須項目: **指摘リスト・plan.md パス・develop-log.md パス・作業ツリー cwd（台帳の implement エントリから）・変更ファイル一覧（台帳の implement エントリと以降の fix エントリの union——Round 1 以降の修正で増えたファイルを後続ラウンドに漏らさない）・副作用禁止の明示**（「commit / push / chezmoi apply / 外部公開を行わない。修正は作業ツリー内のファイル編集に限る」——ゲート (b) は develop 本体所有なので、その境界を起こす subagent に伝搬させる）・自己確認指示（「修正後、修正したファイルを読み直し、(a) 各指摘に対応できているか (b) 他を壊していないか（regression）を自己確認し、対応概要に加えて自己確認結果も返してください」。修正の自己申告だけを信じず、客観確認は下の再実行で担保する）。**skill トラックでは加えて「編集対象は chezmoi source（`dot_claude/skills/` 配下）。target `~/.claude/` を直接編集しない。指摘中の target パスは source パスに読み替える」を必須項目に含める**（target 直編集は直後の `chezmoi apply` が stale source で上書きして修正がロストし、同じ指摘が再発してラウンドを浪費する）。
-- **修正後の cleanup（simplify 1 段）**: 修正担当 subagent の編集完了後、続けて `Skill: simplify` を 1 回呼び、reuse / simplification / efficiency / altitude の品質クリーンアップを当てる（バグ探し・plan 突合は混ぜない——`/simplify` 本来の責務に従う。修正の代替ではなく、修正で生じた diff を後段の客観確認・再 review に持ち込む前に整える段＝implement-pipeline の cleanup ステージと同型）。simplify 起動の args にも上記の修正 subagent と同じ必須項目（副作用禁止の明示・skill トラックでは source 編集規約）を伝搬させる。**この修正 + cleanup の 2 段で 1 fix 単位**——下の変更ファイル突合・客観確認は cleanup 後の作業ツリーに対して行う。`simplify` が結果を返さなかった場合は cleanup の不在を fix エントリに明記し、修正適用後の状態のまま客観確認へ進む（cleanup の失敗で fix ラウンドを止めない＝implement-pipeline の `simplify_failed` 戦略と同型）。
-- **fix の変更ファイル突合（code トラック）**: fix 完了ごとに develop 本体の Bash で `git status --porcelain` を台帳の implement エントリと同一の作業ツリーで実行し、修正 subagent の申告（変更ファイル一覧）と突合して差分を fix エントリに並記する（申告は書き換えない。implement step 3 の changed_files 突合と同型——自己申告だけを根拠にしない）。skill トラックでは apply 前の `chezmoi diff` 確認が同じ役割を担う。
-- 修正後の客観確認はトラック表で引く（code: 台帳のテストコマンドを同一作業ツリーで再実行／skill: apply → diff 空 → code-review＋名前参照追跡）。**skill トラックの code-review 再実行は、下の収束ループの計器再実行と同一実行**（別に走らせない）。**1 ラウンドの連鎖単位を一意にする**: `apply → diff 空 → code-review → 名前参照追跡` の 1 連鎖が **1 ラウンド＝review エントリ 1 件**（名前参照追跡は本体 Read の独立ステップだが **code-review と同一ラウンドに含め、別ラウンドとして二重計数しない**。収束判定は「code-review 指摘ゼロ AND 名前参照追跡 pass」を 1 ラウンドの結果として台帳に記録し、上限（c-1）と前進判定（c-2）の計数起点を一意にする）。
-- **--fix 規則（正本）**: step 3 で `code-review --fix` により修正を統合した場合、本ステップの修正適用はスキップする。ただし **--fix で修正済みでも解消確認のため最低 1 回は再レビューし、指摘が残れば通常経路と同じ収束ループ（上限 5・前進なし早期報告）**で回す。
-- **再レビュー収束ループ**: 修正 → step 3 の計器を再実行 → 残指摘の修正、を**指摘ゼロ・前進なし検出（ゲート c-2）・台帳の review エントリ 5 件到達（ゲート c-1）の最も早いものまで**回す。各ラウンドの fix / review を台帳に追記し、Round 2 以降は毎ラウンド、指摘件数を前ラウンドと比較する（厳密減少していなければ c-2 発火）。ゲート (c) 発火時は残指摘を報告してから次へ進む（未検証のまま step 5 へ流さない）。
+戻りを受けたら:
+
+- `flags` の true な軸を「未実施」として明示する（`review_failed` はレビュー未実施、`triage_failed` は反証点検が未実施で偽陽性が混じりうる、`fix_failed` は修正未適用）。**`lenses_missing` が 1 以上ならその数の観点が未実施＝カバレッジが欠けている**ことを明示する（全部揃ったかのように提示しない）。
+- **報告に回った指摘を提示する。** `totals.pre_existing` と `totals.nits` は修正されていない。件数と内容を提示し、別チケットにするか今回直すかをユーザに判断させる。
+- **skill トラックの名前参照追跡**: workflow の指摘が言及する**ガード／収束条件／台帳記録**（「ゲート (b)」「収束条件」等の名前参照）の定義箇所を、diff に出ていなくても develop 本体の Read で読み、局所編集が遠隔の定義を無効化していないか（非局所結合の崩れ）を確認する。崩れを検出したら指摘として review エントリに追加する。
+- **客観確認**（トラック表で引く）: code は台帳のテストコマンドを同一作業ツリーで本体 Bash で再実行。skill は `chezmoi apply` → `chezmoi diff` が空 → 名前参照追跡 pass。**実行が 0 件の場合は pass と数えない**（code トラック＝台帳のテストコマンド欄が空。skill トラック＝apply / diff の実行記録が無い）。検証手段の不在自体を未対応として扱い、確立できなければゲート (c) と同様に報告する（vacuous converged を成立させない）。
+- **変更ファイル突合**: 本体 Bash の `git status --porcelain` と workflow の `changed_files` を突合し、差分を review エントリに並記する（申告は書き換えない）。skill トラックでは apply 前の `chezmoi diff` 確認が同じ役割を担う。
+- ラウンド数・件数の内訳・未対応の修正対象・報告に回した指摘・`stopped_by` を台帳の review エントリに **1 件**追記する（**ラウンド計数は workflow の `rounds` が正**。台帳の review エントリ数で数える旧規約は廃止＝収束ループが script 内に入ったため）。
+- **収束条件は「修正対象ゼロ かつ 客観確認 pass」。** 満たせば台帳の `status` を `converged` にして step 4 へ。満たさなければゲート (c) で未対応の指摘を報告し、`non-converged` にして **step 4 をスキップし step 5 へ**（PR は作らない）。レビュー指摘がゼロでも客観確認が fail なら収束とせず、失敗内容を未対応として扱う。**報告に回った pre_existing と nit は収束判定に入れない。**
+
+### 4. commit と draft PR（収束したときだけ）
+
+台帳の `status` が `converged` のときだけ実行する。`non-converged` ならスキップして step 5 へ。
+
+- **ブランチ**: 作業ツリーが既に feature ブランチならそれを使う。ベースブランチ上なら `feature/<Issue ID>` を切る（Issue ID は台帳 frontmatter / 作業スペースの命名から取る）。**ベースブランチへ直接 commit しない。**
+- **commit**: 意味のある単位に分割する（1 コミット 1 意図。plan の Phase 分割が単位の手がかり）。メッセージは対象リポジトリの既存慣習に合わせる（`git log --format=%s -20` で確認し、絵文字・チケット ID の付け方を踏襲する。独自形式を持ち込まない）。
+- **pre-commit フックを飛ばさない。** `--no-verify` は使わない。フックが落ちたら原因を解消してから通す（環境起因でも解消する）。解消できなければ commit を止めて報告する。
+- **push**: `git push -u origin <ブランチ>`。
+- **draft PR**: `gh pr create --draft --base <ベース> --head <ブランチ> --title "<subject>" --body-file <ファイル>`。**body は必ずファイル経由で渡す**（バッククォートを含む本文を `--body` に直書きするとコマンド置換事故になる）。
+  - 対象リポジトリに `.github/PULL_REQUEST_TEMPLATE.md` があれば **必ず Read してその構成で body を書く**（独自フォーマットで書かない）。
+  - **作成者が確認する種類のチェックボックスは空 `[ ]` のまま残す**（「自身の修正として品質を保証できる」等。本体がチェックを入れない）。
+  - body に**このスキルが走った事実**を書く: レビュー収束のラウンド数と指摘の内訳、報告に回した pre-existing と nit、**`/code-review` が未実施であること**（自前計器で収束させたことを隠して渡さない）。
+- ブランチ名・コミットの sha と subject・draft PR の URL を台帳の pr エントリに追記する。
 
 ### 5. report
 
 - レポート担当 subagent（`subagent_type`: `general-purpose`）に **develop-log.md と plan.md のパスを渡して直接読ませる**（サマリの手渡しをしない）。prompt 必須項目に副作用禁止を含める: 「書き込みは出力先ディレクトリ配下のレポートファイルに限る。commit / push / chezmoi apply を行わない」（ゲート (b) の境界の伝搬。修正 subagent と同旨）。内部で `obsidian:obsidian-cli` 等の既存スキルを活用してよい。
 - 出力先は **Obsidian の `~/workspace/notes/obsidian/Life/inbox/`**（呼び出し時に明示パスがあれば優先）。
 - 出力パスを台帳に追記し、レポートのパスをユーザに報告する。
-- **変更の引き渡し**: 最終報告に未コミット変更の所在（作業ツリー cwd・変更ファイル一覧）を必ず含める（ゲート (b) の commit/push 承認への到達経路はここ——所在の提示を受けてユーザが判断する）。commit はユーザがそのターンで明示依頼したときのみ実行する（push 許可スコープ規範と整合。完走しても develop が自発的に commit / push しない）。
-- オプション: code トラックでは step 5 の前に `verify` スキル（コード変更の動作確認用。Obsidian ノート検証の同名 `verify` とは別物）で動作確認を挟むと、レポートに「動作確認済み」と書ける（依頼の性質に応じて選択）。
+- **収束した場合**: draft PR の URL とブランチ名を最終報告に含める。**ready 化はユーザの判断**であることを添える。
+- **非収束の場合**: PR を作っていないので、未コミット変更の所在（作業ツリー cwd・変更ファイル一覧）と未対応の指摘・赤の内容を最終報告に必ず含める。ここから先（直して再開するか、そのまま commit するか）はユーザの判断。
+- **`/code-review` の実行を促す。** review-pipeline の計器は自前のもので、bundled の `/code-review` はモデルから起動できない（ユーザが叩く経路のみ）。検出力が違うので、「ready 化の前に `/code-review` を回すことを推奨」と作業ツリーのパスを添えて提示する。変更がユーザ向け挙動・実行可能物に触れるなら `/verify` も併せて促す（どちらも `disable-model-invocation` でモデルからは起動できないため、促すことしかできない）。
 
 ## ガード
 
-- **メタタスク（改修対象が SKILL／プロンプト文書）でも、step 4 の再レビュー収束ループは本来の規約（上限 5・前進なし早期報告）どおり回す。** 対象の失敗パターンが develop 側で再生産される懸念があっても予防的に打ち止めない（予防的な打ち止めは上流 skill 改善の不信任と等価）。実発生したらユーザと合意の上で下流 skill（plan / code-review / skill-review）の改修タスクを起票する。**失敗接地**: 2026-06-10、plan SKILL で観点インフレ observed。**検証実績**: 2026-06-11、蒸留スキル（現 /harvest）改修で本来のループが正常収束（Round 2 で指摘ゼロ）。
+- **メタタスク（改修対象が SKILL／プロンプト文書）でも、step 3 のレビュー収束ループは本来の規約（上限 5・前進なし早期報告）どおり回す。** 対象の失敗パターンが develop 側で再生産される懸念があっても予防的に打ち止めない（予防的な打ち止めは上流 skill 改善の不信任と等価）。実発生したらユーザと合意の上で下流（plan / review-pipeline / skill-review）の改修タスクを起票する。**失敗接地**: 2026-06-10、plan SKILL で観点インフレ observed。**検証実績**: 2026-06-11、蒸留スキル（現 /harvest）改修で本来のループが正常収束（Round 2 で指摘ゼロ）。
 
 ## 撃ち直した残差の記録（2026-06-12 台帳化で前提条件が消えた防御）
 
@@ -121,14 +144,24 @@ resume（経路 2）以外の経路では、トラック（code / skill）を判
 - **「各フェーズの結果を main context に残し、次フェーズの prompt に組み込む」**→ 台帳のパス渡しに置換（compaction でロストする引き継ぎを構造で解消）。
 - **「フェーズ間のユーザ確認は既定 ON。小タスクのみ通し」**→ 3 ゲート＋台帳に置換。「通し / 確認 ON」のモード概念ごと廃止（implement 内蔵ゲートとの未定義な重複も同時に解消。implement 側は args の明示句で承認分岐する）。
 - **「self-review をスキップさせたら step3 は必須」**→ スキップさせる経路自体が消滅（implement は develop 経由でも plan 突合を必ず残す）。到達経路の無いガードのため撤去。
-- **「skill トラックの step 3/4 計器は skill-review static」**→ **撤去**。skill-review を毎ラウンドの収束ゲートに使うと per-run 40〜50% の detection turnover で「指摘ゼロ」収束に到達しない構造だった（実測・2026-06 判別実験）。skill 全体評価は pre-plan の skill-review full に前倒しし（plan の参照入力）、step 3/4 は code-review（diff ベース・低 turnover）＋名前参照追跡に置換。**錨**: 「noisy 計器を per-round の収束ゲートに使う」構造が再発したら（例: 別の全文評価計器を step 3 に戻す）、この非収束が戻る。pre-plan 配置＋diff 計器の分離を保つこと。
+- **「skill トラックの step 3/4 計器は skill-review static」**→ **撤去**。skill-review を毎ラウンドの収束ゲートに使うと per-run 40〜50% の detection turnover で「指摘ゼロ」収束に到達しない構造だった（実測・2026-06 判別実験）。skill 全体評価は pre-plan の skill-review full に前倒しし（plan の参照入力）、step 3 は diff ベースの計器＋名前参照追跡に置換。**錨**: 「noisy 計器を per-round の収束ゲートに使う」構造が再発したら（例: 別の全文評価計器を step 3 に戻す）、この非収束が戻る。pre-plan 配置＋diff 計器の分離を保つこと。
+- **「レビュー計器は `Skill: code-review`」**→ **撤去して自前の review-pipeline に置換**（2026-07-29）。bundled の `/code-review` は `disable-model-invocation: true` で、モデルからの Skill tool 呼び出しがブロックされる（実測: `Skill code-review cannot be used with Skill tool due to disable-model-invocation`。公式ドキュメントは subagent への preload も不可と明記）。Claude Code v2.1.215 以降の仕様変更で、それ以前はモデルからも起動できた。**錨**: 計器を自前で持つ以上、検出力は `/code-review` に及ばない。step 5 でユーザに `/code-review` の実行を促す経路を消さないこと。
+- **「ラウンド計数＝台帳の review エントリ数」「修正 subagent と `Skill: simplify` を本体が回す」**→ 収束ループを review-pipeline workflow に移したため、計数・前進判定・修正対象の絞り込みは script のコードが持つ（自己申告に依存しない）。cleanup の専用段は置かない（implement-pipeline の cleanup が実装直後に当てており、review の修正 diff は小さい。bundled skill への依存も避ける）。**錨**: 本体側で指摘を要約・取捨してから提示すると、script が確定した件数と提示の件数が乖離する。生の戻りをそのまま出すこと。
+- **「完走しても develop が自発的に commit / push しない」**→ **終点を draft PR に変更**（2026-07-29）。plan 承認以降は人が介入しない前提に揃え、収束後の commit・push・draft PR 作成を自動化した。ゲート (b) の守る範囲は draft PR の外側（ready 化・merge・デプロイ）へ移動。**錨**: draft で作ることと、非収束時に PR を作らないことが、外向きの誤爆を止める 2 点。どちらも外さないこと。
 
 ## やってはいけないこと
 
-- plan 承認が台帳に記録される前に実装系 Agent・レビュー収束 skill を起動する（**例外: step 0.5 の pre-plan skill-review は「plan への入力生成」で順序ガード対象外**。ゲート (a) の分類と整合。レビュー収束 skill＝step 3/4 の code-review とは別物）。
+- plan 承認が台帳に記録される前に実装系 Agent・レビュー収束の workflow を起動する（**例外: step 0.5 の pre-plan skill-review は「plan への入力生成」で順序ガード対象外**。ゲート (a) の分類と整合）。
 - 台帳を読まずにフェーズを開始する／既存エントリを書き換える（append-only。frontmatter の `status` / `current_phase` は除く）。
 - implement へ長文の決定事項サマリを渡す（plan.md＋台帳のパスが一次ソース）。
-- ラウンド数を記憶で数える（台帳の review エントリ数が正）。
-- 非収束（上限 5 到達・前進なし）を黙って打ち切る（ゲート (c) で報告する）。前進なし（c-2）を「もう 1 ラウンド様子を見る」で先送りしない。
-- 副作用（chezmoi apply・commit・push・外部公開）を承認なしに実行する（ゲート (b)）。
+- ラウンド数を記憶で数える（review-pipeline の戻り `rounds` が正）。
+- **review-pipeline の戻りの指摘・件数・flags を本体で要約・取捨してから提示する**（script が確定した件数と提示が乖離する。未実施の軸は未実施と、報告に回した pre-existing / nit は修正していないと明示する）。
+- **修正対象の絞り込みを本体で足し引きする**（script の判定。low と pre_existing を修正対象に戻さない）。
+- 非収束（`converged: false`）を黙って打ち切る（ゲート (c) で報告する）。前進なしを「もう 1 ラウンド様子を見る」で先送りしない。
+- **非収束のまま PR を作る**（step 4 は `converged` のときだけ）。
+- **draft を ready にする・merge する・デプロイする・PR 以外へ外部公開する**（ゲート (b)。走り切る範囲は draft PR の作成まで）。
+- **実装 / 修正 subagent に commit させる**（commit は本体が step 4 でまとめて行う。各 subagent には副作用禁止句を伝搬させ続ける）。
+- **pre-commit フックを `--no-verify` で飛ばす**（落ちたら原因を解消する。解消できなければ commit を止めて報告する）。
+- **PR 本文の作成者確認欄にチェックを入れる**（人が確認する項目）。
+- **`Skill: code-review` / `Skill: verify` / `Skill: simplify` を呼ぼうとする**（bundled skill は `disable-model-invocation` でモデルから起動できない。促すことしかできない）。
 - implement の self-review と step 3 を同じバグ探しの二重レビューにする（住み分けは step 3 参照）。
