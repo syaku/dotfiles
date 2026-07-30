@@ -38,11 +38,12 @@ const COMPLEXITY = (input.complexity === 'light' || input.complexity === 'heavy'
 // ---- schema (enum に null を使わず 'none' を番兵にする) ----
 const EXPLORE_SCHEMA = {
   type: 'object',
-  required: ['relevant_files', 'reusable_utilities', 'current_behavior', 'notes'],
+  required: ['relevant_files', 'reusable_utilities', 'current_behavior', 'operational_facts', 'notes'],
   properties: {
     relevant_files: { type: 'array', items: { type: 'object', required: ['path', 'why'], properties: { path: { type: 'string' }, why: { type: 'string' } } } },
     reusable_utilities: { type: 'array', items: { type: 'object', required: ['path', 'symbol', 'on_integration_branch', 'branch_note'], properties: { path: { type: 'string' }, symbol: { type: 'string' }, on_integration_branch: { type: 'boolean' }, branch_note: { type: 'string' } } } },
     current_behavior: { type: 'array', items: { type: 'string' } },
+    operational_facts: { type: 'array', items: { type: 'object', required: ['claim', 'source', 'verified'], properties: { claim: { type: 'string' }, source: { type: 'string', description: '確認した出典 (path:line / 実測手段)。未確認なら空文字' }, verified: { type: 'boolean' } } } },
     notes: { type: 'array', items: { type: 'string' } },
   },
 }
@@ -137,6 +138,7 @@ const REVIEW_POLICY = `
 - 暗黙の設計判断 (常時評価): 選択肢が複数ありうる設計分岐を、plan が分岐の記録なしに片方へ暗黙に倒している箇所を指摘する。指摘の summary には分岐の選択肢を簡潔な a/b/c の形 (各選択肢の trade-off を 1 句ずつ) で含め、ユーザが承認ゲートで判断できる形にする。Design 節の設計判断レコードに記録済みの分岐は指摘しない (記録があれば plan の判断として尊重し、記録の妥当性は設計妥当性の観点で見る)。
 - 検証十分性 (常時評価): Verification 節が Approach / Design / Phase の各成果を覆えているか。Phase 節があれば Phase 別に検証可能か。逆方向も同じ観点で評価する——検証装置が成果物より大きい・Acceptance の観測に不要な検証基盤の新設は過大として指摘する (検証の比例性)。変更がテスト可能なロジックを含むのに Verification が TDD 適用/不適用のどちらも宣言していない、または不適用の理由が立っていない場合も指摘する。
 - 内部整合 (常時評価): Context・Approach・Design・Phase・Verification の前提が噛み合っているか。
+- 前提の出典 (常時評価): Approach・Design・Phase の決定が依存する運用前提 (配備・リリースの順序・migration の実行系・DB 設定・外部システムの挙動) に、plan 内の出典 (path:line / 実測) が併記されているか。出典の無い運用前提の上に決定が載っていれば指摘する (一般常識からの推測は出典にならない)。plan 自身が Risks で「未検証前提」と明示しているものは指摘しない (明示があること自体が対応)。
 
 severity の基準:
 - high: 目的を達成しない設計 / 致命的な手戻り構造 (Phase 順序が不可逆性を壊す等) / Verification が不可能になる / plan の前提を覆す事実誤認 / スコープ外の再計画が必要。
@@ -193,8 +195,11 @@ ${SKILL_REVIEW_REPORT ? `skill-review レポート: ${SKILL_REVIEW_REPORT} を R
 この依頼の計画立案に必要な現状調査を行い、構造化して返せ:
 - relevant_files: 変更・参照対象になりそうなファイル (path と理由)
 - reusable_utilities: 再利用できる既存実装。各項目について統合ブランチ (既定 origin/main) 上に実在するかを確認し on_integration_branch に boolean で返す。作業ツリーや未マージの feature ブランチ・並走 worktree を根拠に「実在」と断定しない (確認手段は git -C <repo> grep -n <symbol> origin/main 等、裁量でよい)。branch_note に所在ブランチ・未マージなら「先行マージ待ちか自前新設か」の所見を書く。
-- current_behavior: 依頼に関係する現状挙動の要点
-- notes: 計画立案者に伝えるべき注意点・未決事項
+- current_behavior: 依頼に関係する現状挙動の要点。変更対象のデータ (テーブル・エンティティ・永続化された構造) があるなら、書き込み経路 (どの入口が同じ書き込みに集約されるか) と履歴・版管理の性質 (追記型で更新のたび新しい行が増える・現行版を指すポインタ表の有無) を必ず含める
+- operational_facts: 計画の決定に効きうる運用事実 (migration の実行系と流し方・配備とリリースの順序・DB の設定/モード・デプロイ単位など)。repo 内の出典で確認できたものだけ verified=true とし、source に path:line を書く。確認できなかった事実は verified=false・source 空文字で返す (「一般的にこうなっているはず」という推測を verified にしない)
+- notes: 計画立案者に伝えるべき注意点・未決事項。設計資料から得た設計イディオム (履歴・版管理の流儀、同名で別系統の実装、命名の罠など) はここに含めて計画立案者へ届ける
+
+コードを grep する前にリポジトリ内の設計資料 (docs/・README・CLAUDE.md・ADR 等) を当たること。DB スキーマがあるなら migration / DDL を一次ソースとする。
 
 調査のみ行う。コード変更・計画の提案はしない。`,
   { agentType: 'Explore', schema: EXPLORE_SCHEMA, label: 'explore', phase: '調査' },
@@ -232,9 +237,11 @@ plan.md の構成 (設計と計画の両面を含める。設計の場が要ら�
 [条件付き節] (該当しないなら節を立てない。立てるなら中身を埋める。「該当なし」「単一 Phase」と書いて空節を残さない):
 - Design: 構造判断の場。データモデル・インターフェース契約・責務境界・依存方向・拡張点・既存抽象の変更。
   立てる条件 (どれか満たす): 新規データ構造が要る / 複数モジュールを跨ぐ / 非自明な責務分割が必要 / 既存抽象を変更する / 競合する設計選択肢がある。
-  Design 節には**設計判断レコード**を含める: 検討した設計分岐ごとに {分岐・選んだ選択肢・捨てた選択肢と捨てた理由} を 1 行ずつ記録する。分岐を暗黙に片方へ倒さない——起草中に「どちらでもありうる」と感じた選択 (事前条件の強制か fail-soft か・同時反映かバージョン分岐か等) は全てレコードに乗せ、ユーザが承認ゲートで分岐を見て判断できる状態にする。
+  Design 節には**設計判断レコード**を含める: 検討した設計分岐ごとに {分岐・選んだ選択肢・捨てた選択肢と捨てた理由・判断が依存する事実と出典 (依存が無ければ「事実依存なし」)} を 1 行ずつ記録する。分岐を暗黙に片方へ倒さない——起草中に「どちらでもありうる」と感じた選択 (事前条件の強制か fail-soft か・同時反映かバージョン分岐か等) は全てレコードに乗せ、ユーザが承認ゲートで分岐を見て判断できる状態にする。
+  **決定の単一表明**: 一つの決定 (データ定義・置き場・リリース単位・例外の扱い等) は設計判断レコードの 1 行を正本とし、他節では結論を再記述せず参照で済ませる (本文に書くのはその節の遂行に必要な帰結だけ)。同じ決定を複数節に再記述すると、後の訂正・改稿が片方だけ直して plan 内部の矛盾になる。
 - Phase 分割: 段取りの場。各 Phase に {目的, 変更スコープ, 受入条件, 可逆性, 次 Phase との接続} を書く。
   立てる条件 (どれか満たす): 1 コミット／1 PR で完結しない / 段階的に可逆性を担保したい / 部分デプロイで観測してから次に進みたい / 移行ステップが本質的に複数段。
+- 既定採用: 創作的確定 (命名・画面文言・データ定義の流儀・メッセージの言い回し等) がある場合に立てる。各項目を {項目, 既定値, 根拠 (既存流儀の出典 path)} で列挙する。既存流儀・実測から一意に導けるものはここで確定させ、ユーザへの分岐 (設計判断レコード) に送らない。導けない・業務判断を要するものだけレコード側の分岐に乗せる。
 
 complexity hint: ${COMPLEXITY}
 - 'light': Design / Phase は立てない (軽量タスク確定。判定スキップ)。
@@ -242,6 +249,8 @@ complexity hint: ${COMPLEXITY}
 - 'auto':  上記の判定条件に従って起草時に判断する (デフォルト)。
 
 plan に書くコードは**設計判断を運ぶ範囲**に限る——シグネチャ・データ構造・schema・不変条件・事前事後条件・インターフェース契約・非自明なアルゴリズムの骨子 (擬似コード可)。関数本体の全文・import の整理・ログ文言・エラー処理の書き下しは implement の領分で plan には書かない。判定基準: そのコードを消すと設計判断が失われるなら残す、実装の手間が省けるだけなら書かない (plan のコードは実行されないまま実装の正本の権威を帯びるため、全文を書くと未検証コードがバグごと「plan 通り」として通る)。
+
+調査結果の operational_facts で verified=false の事実 (未検証の運用事実) の上に Approach / Design / Phase の決定を載せない。決定がどうしても依存する場合は、Risks に「未検証前提」として何が未検証で、覆えたら plan のどこが変わるかを明示する (未検証の前提に構造を積むと、事実が判明した時点で定義・Phase 構成ごと覆り、同じ論点の再判断が発生する)。
 
 調査結果に無い事実主張を足す場合は自分で Read/Glob/Grep で確認してから書く。learning loop 設計で v1 観測前提の未決を故意に残す論点は「観測してから決める」と明文化する。`,
   { schema: DRAFT_SCHEMA, label: 'draft', phase: '起草' },
@@ -308,7 +317,7 @@ let correctionsApplied = []
 
 async function revise(label, instruction) {
   const r = await agent(
-    `あなたは plan の改稿担当。以下の指示の範囲だけ plan を書き直し、全文を plan_md として返せ。指示に無い変更 (自己判断の改善・レビュー観点の先回り反映・既存文の文体調整) を混ぜない。変更点を change_notes に列挙すること。新たに書き足す地の文は ~/.claude/output-style.md を Read してその規約に従わせる (即席の合成名詞で概念を圧縮しない等。既存文には手を付けない)。
+    `あなたは plan の改稿担当。以下の指示の範囲だけ plan を書き直し、全文を plan_md として返せ。指示に無い変更 (自己判断の改善・レビュー観点の先回り反映・既存文の文体調整) を混ぜない。ただし、指示された訂正・指摘の対象が plan 内の複数箇所に再記述されている場合は、その全箇所に同じ訂正を当てる (片方だけ直して plan 内部の矛盾を残さない。これは指示の範囲内)。変更点を change_notes に列挙すること。新たに書き足す地の文は ~/.claude/output-style.md を Read してその規約に従わせる (即席の合成名詞で概念を圧縮しない等。既存文には手を付けない)。
 
 ${instruction}
 
