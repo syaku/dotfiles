@@ -329,13 +329,21 @@ const [deepResultsRaw, sumResultRaw] = await parallel([
 // 深掘りの機械デグレード: fetch 失敗・agent 死亡は要約層へ落とす (捏造防止はコードで)
 // 突き合わせは id で行う。parallel() 境界で結果がシリアライズされオブジェクト同一性
 // (=== 比較) が壊れる (失敗接地: 2026-06-12 実走で fetch_ok=true の 2 件まで全件デグレード)
+// MIN_DEEP_DETAIL_LEN: fetch_ok=true でも detail_md が極端に短い (プレースホルダー) 場合を弾く下限
+// (失敗接地: 2026-07-11 実走で StructuredOutput の schema 検証再試行 (detail_md 値への tool-call
+// タグ混入) が数回連続失敗した末、agent が "テスト" 等の最小値で schema を満たして切り上げるケースを
+// 2 回連続観測。fetch_ok/非空チェックのみでは通過してしまう)
+const MIN_DEEP_DETAIL_LEN = 50
 const deepDone = []
 const degraded = []
+const degradedPlaceholderIds = []
 for (let i = 0; i < deepPicks.length; i++) {
   const got = (deepResultsRaw || []).filter(Boolean).find((d) => d.p && d.p.id === deepPicks[i].id)
-  if (got && got.r && got.r.fetch_ok && got.r.detail_md.trim()) {
+  const detail = got && got.r ? got.r.detail_md.trim() : ''
+  if (got && got.r && got.r.fetch_ok && detail.length >= MIN_DEEP_DETAIL_LEN) {
     deepDone.push(got)
   } else {
+    if (got && got.r && got.r.fetch_ok && detail) degradedPlaceholderIds.push(deepPicks[i].id)
     degraded.push({ p: deepPicks[i], summary_ja: got && got.r ? got.r.summary_ja : '', title_ja: got && got.r ? got.r.title_ja : '' })
   }
 }
@@ -397,7 +405,7 @@ const ctxParts = [
   failedSources.length ? `**取得失敗: ${failedSources.join(' / ')}**（取れたソースのみで構成）。` : '**4 ソースすべて取得成功**。',
   POOL.excluded_as_seen ? `直近ダイジェスト掲載済みの ${POOL.excluded_as_seen} 件は候補から機械除外済み。` : '',
   oneline(pick.context_note),
-  degraded.length ? `深掘り予定 ${degraded.length} 件は本文取得に失敗し要約層へデグレードした。` : '',
+  degraded.length ? `深掘り予定 ${degraded.length} 件は本文取得失敗${degradedPlaceholderIds.length ? `・内容不備 ${degradedPlaceholderIds.length} 件` : ''}のため要約層へデグレードした。` : '',
   pickErrors.length ? `ピックアップ制約の未解消違反あり（${pickErrors.join(' / ')}）。件数より誠実さを優先しこのまま掲載。` : '',
 ].filter(Boolean)
 
@@ -477,6 +485,7 @@ return {
     pick_violations: pickErrors,
     axis_unavailable: pick.axis_unavailable || [],
     degraded_ids: degraded.map((d) => d.p.id),
+    degraded_placeholder_ids: degradedPlaceholderIds,
     summary_missing_ids: summaryMissing,
     note_errors: noteErrors,
   },
