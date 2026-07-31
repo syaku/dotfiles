@@ -1,3 +1,5 @@
+退役試行中（2026-08-01〜）。target 直編集の失敗は `PreToolUse` の `chezmoi-source-guard.sh` が Edit/Write/MultiEdit で止めるため、常時ロードでの先撃ちは限界価値が薄いと判断した。hook が塞いでいないのは Bash 経由（`sed -i`・リダイレクト・`tee`）と NotebookEdit、および `jq`/`chezmoi` 不在時の fail-open。この経路で target 直編集が再発したら拡張子を `.md` に戻して復活させる。前提の 1 文は `dotfiles-chezmoi.md` に移した。
+
 # dotfiles
 
 ユーザは Mac/Windows 両環境の dotfile を chezmoi で単一ソース一元管理している（環境差は `.tmpl` の `{{ .chezmoi.os }}` 等で吸収）。
