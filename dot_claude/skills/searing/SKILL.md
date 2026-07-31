@@ -21,7 +21,7 @@ plan との分担:
 
 - searing が確定: **Purpose（目的・Why）** と **Acceptance（受入条件・Done）**。plan はこの 2 軸を再定義せず参照する。
 - plan が担う: **設計（Design）・計画（Phase 分割）・Scope: In**。searing は踏み込まない。
-- 調査・対話で設計材料が判明してしまったら、捨てずに premise の「plan への申し送り」節へ隔離する。禁止だけを置くと行き場の無い情報が他の節に滲む（失敗接地: 実走で Assumptions に tool シグネチャ・Dockerfile 構成まで書き下ろした premise が生成された）。
+- 調査・対話で設計材料が判明してしまったら、**premise.md には書かない**。plan の起草は premise を作った本体が同一文脈で行うため、判明した設計材料は文脈がそのまま運ぶ——ファイルへの直列化は不要で、直列化すると事実と仮説の区別が潰れて解の提案が正本の顔をする（失敗接地: 実走で、旧「plan への申し送り」節に書いた「〜もセッションに渡す必要がある」という解形の一文が plan の設計の枠になり、前提自体の分岐が立たなかった）。premise 単体で終えるセッション（plan に進まない）では、終了報告の本文に設計メモとして添える——premise.md に入れないのは同じ。行き場が無いからと Assumptions 等の他の節に滲ませない（失敗接地: 実走で Assumptions に tool シグネチャ・Dockerfile 構成まで書き下ろした premise が生成された）。
 
 ## 実行モデル
 
@@ -53,6 +53,7 @@ final を名乗れる条件。**すべて満たすまでゲートに進まない
 
 - Purpose が手段の名前を使わず 1〜3 行で書けている。
 - Acceptance の各項が観測可能で、**無条件**に書けている——「〜が判明したら差し戻し」のような条件分岐を含まない。条件分岐が残るのは、確認できる事実が未確認（原則 2 に戻って調べる）か、分岐がユーザ未決（step 2 に戻って聞く）かのどちらか。
+- **Acceptance が観測可能な振る舞いの語彙だけで書けている**——実装の語彙（原因の特定・内部構造・特定の実装方式）を混ぜない。実装語彙が要る記述は plan の領分である信号で、premise に入れるとその解釈が正本の顔で後続に渡る（失敗接地: 実走で、ある挙動を「不具合」と位置づけて Acceptance 側に固定したが、plan 段の裏取りで仕様どおりの挙動と判明し、premise の訂正が要った）。
 - **後続（plan / implement）が自力で埋められない情報が残っていない（主基準）。** 判定は「plan と implement がこの premise だけを持って設計と実装を進められるか。進めるとしたら、どこで手が止まるか」を問う。**手が止まる箇所を Open questions に書いて先送りすることを禁止する。** step 2 に戻ってその場で質問し、確定させる。/develop で通しで回すと plan 承認以降は人が介入しないため、Open questions に書いた未確定は誰にも解かれないまま実装される——**書くことは解決ではない。**
 - **Open questions に残していいのは「plan が設計判断として解けるもの」だけ。** ユーザに聞けば決まること・第三者の合意待ち・自分では実測できない値（DB 接続や環境準備が要るもの）は対象ではない。次のどちらかにする:
   1. ユーザが今決められるなら **step 2 で質問して確定させる**（Decisions に記録）。実測が要るなら、その場で準備を依頼して実測する。
@@ -86,19 +87,18 @@ frontmatter は `status: draft | final` のみ。open_questions 件数フィー�
 - **Assumptions**: 明示確認せず自己充足した仮定の列挙。0 問で final にする場合の事後 veto 面。**自分で決めたものだけを置く**——他者の回答や実測を待っている状態は Assumptions ではなく step 2 の質問対象（待っている手段を書いても、待っていること自体は表現できない）。
 - **Open questions / Risks**: Open questions は **plan が設計判断として解く未決だけ**を置く（聞けば決まること・合意待ち・未実測の値は置かない。step 3 参照）。Risks は確定した前提が後で覆るリスク。
 - **Decisions**: 質問→回答→含意のトレース（質問した場合は必須）。XY レンズの判定結果（発火したか・上流確定済みで省いたかと根拠）もここに 1 行。
-- **plan への申し送り**: 調査・対話で判明した設計材料・Scope 寄りの情報の行き先。plan は Approach / Design の参照入力として読む（Purpose / Acceptance と違い正本ではない——plan が別の設計を選んでよい）。
 - **Constraints / Known context**: 技術・互換・時間の制約と、質問・仮定の前提になった調査範囲（パス付き）。
 
-**深さの天井**: 決定軸（分岐そのもの・選択の理由）は記録するが、関数シグネチャ・設定ファイルの中身・実装手順は書かない。書きたくなったら「plan への申し送り」に 1 行で。
+**深さの天井**: 決定軸（分岐そのもの・選択の理由）は記録するが、関数シグネチャ・設定ファイルの中身・実装手順は書かない。書きたくなったら、それは plan の領分に踏み込んだ信号——premise には入れず、同一文脈の plan 起草で扱う（「plan への申し送り」節は廃止した。分担の節を参照）。
 
 ## plan との契約
 
 - 引き渡しの主経路は **premise.md のフルパスの明示渡し**（step 3 の報告に含め、plan 起動時に `premise_path` として渡る）。同一セッションの連続実行では plan が同ディレクトリの premise.md を自動検出する（フォールバック）。
+- **plan の起草は premise を作った本体が同一文脈で行う**（plan 側 step 2）。premise.md が運ぶのは Purpose / Acceptance の正本だけで、調査知識・設計材料は文脈がそのまま運ぶ——premise.md に plan 向けの器を作らない。
 - **Purpose / Acceptance は premise.md が正本**。plan は再定義しない（plan-pipeline の目的整合レビューが premise と plan の対応を見る。plan-pipeline.js に encode 済み）。
-- **差し戻しルート**: plan の per-item ゲートで Purpose / Acceptance と矛盾する採否が出たら、plan は反映せず sear-me の再実行を提案する（plan 側 step 5 の経路 1）。差し戻しを受けた searing セッションは既存 premise.md の Decisions / Assumptions を引き継ぎ、矛盾した論点を最初の分岐として step 1 から回して premise を更新する（final は再びユーザ確認ゲートを通る）。
+- **差し戻しルート**: plan の per-item ゲートで Purpose / Acceptance と矛盾する採否が出たら、plan は反映せず searing の再実行を提案する（plan 側 step 6 の経路 1）。差し戻しを受けた searing セッションは既存 premise.md の Decisions / Assumptions を引き継ぎ、矛盾した論点を最初の分岐として step 1 から回して premise を更新する（final は再びユーザ確認ゲートを通る）。
 - `status: final` 以外は未確定扱い。plan は draft の premise を足場にせず、続行可否（draft のまま進める／searing セッションをやり直す）をユーザに確認する。
 - Open questions は plan 側で解消を試み、解消できなかったものだけ plan.md の Risks に繰り越す（未決論点の二重所有を避ける。plan 側規約）。
-- 「plan への申し送り」は plan の参照入力であって正本ではない。
 
 ## やってはいけないこと
 
@@ -112,5 +112,5 @@ frontmatter は `status: draft | final` のみ。open_questions 件数フィー�
 - **他者待ち・未実測を Assumptions に流す**（Assumptions は自分で決めたものの置き場。待っている状態を置くと未確定が後続から見えない）。
 - **実測できない値を「plan / implement で実測する」として残す**（DB 接続や環境準備が要る値は後続も自力では取れない。その場で準備を依頼して実測するか、できないなら draft で止める）。
 - 設問ノルマ・Non-goals ノルマを満たすための埋め草を作る（ゼロは正当な出力）。
-- 設計・実装に踏み込む（データ構造・責務分割・実装手順・Scope: In の線引きは plan/implement の領分。判明済みの設計材料は「plan への申し送り」へ隔離する）。
+- 設計・実装に踏み込む（データ構造・責務分割・実装手順・Scope: In の線引きは plan/implement の領分。判明済みの設計材料は premise.md に書かず、同一文脈の plan 起草で使う——分担の節を参照）。
 - skill フロントマターに `disallowed-tools` を置く（main 巻き添えの構造。失敗接地: 2026-06-11）。

@@ -1,17 +1,16 @@
 export const meta = {
   name: 'plan-pipeline',
-  description: 'plan スキルの設計・計画作成パイプライン: 調査→起草 (設計と Phase 分割を条件付き節で含む)→検証/レビュー(並列)→出典付き訂正→リトライ収束。件数・状態の集計は script がコードで計算し、自己申告に依存しない',
+  description: 'plan スキルの検証・レビューパイプライン: 本体が起草した plan を検証/レビュー(並列)→出典付き訂正→リトライ収束に掛ける。件数・状態の集計は script がコードで計算し、自己申告に依存しない。起草は本体 (main) の直営で、この workflow は plan を作らない',
   whenToUse: 'plan スキル本体 (SKILL.md) から scriptPath 指定で起動される。単体起動は想定しない',
   phases: [
-    { title: '調査', detail: '対象リポジトリの関連ファイル・再利用候補・現状挙動を構造化' },
-    { title: '起草', detail: 'plan.md 全文の起草 (設計判断と Phase 分割を必要時に含む)' },
     { title: '検証・レビュー', detail: '事実 grounding と計画妥当性 (目的整合・設計・Phase・検証) の独立並列評価' },
     { title: '取り込み・収束', detail: '出典付き訂正の適用とリトライ収束ループ' },
   ],
 }
 
 // ---- 入力 ----
-// args: { plan_path, repo_path, request, premise_path?, skill_review_report_path?, complexity? }
+// args: { plan_md, repo_path, request, premise_path? }
+// plan_md は本体が起草した plan.md の全文 (workflow script は filesystem を読めないため、パスでなく本文を渡す)
 // 呼び出し側が JSON 文字列で渡してしまった場合の fallback (本来は実 JSON object で渡す)
 let input = args
 if (typeof input === 'string') {
@@ -21,39 +20,14 @@ if (typeof input === 'string') {
     throw new Error('args が JSON として解釈できない文字列で渡された: ' + e.message)
   }
 }
-if (!input || !input.plan_path || !input.repo_path || !input.request) {
-  throw new Error('args に plan_path / repo_path / request が必要 (premise_path は任意)')
+if (!input || !input.plan_md || !input.repo_path || !input.request) {
+  throw new Error('args に plan_md / repo_path / request が必要 (premise_path は任意)')
 }
-const PLAN_PATH = input.plan_path
 const REPO = input.repo_path
 const REQUEST = input.request
 const PREMISE = input.premise_path || null
-const SKILL_REVIEW_REPORT = input.skill_review_report_path || null // 既存 skill 改修の pre-plan 評価レポート (任意の参照入力。premise と並ぶ別チャネル)
-// 重量ヒント: 起草時に Design / Phase 節を立てるかを呼び出し元から指定可能。
-// 'light' = Design / Phase は立てない (軽量タスク確定)
-// 'heavy' = Design と Phase を必ず立てる (重い実装確定)
-// 'auto'  = 起草 agent が判定 (デフォルト)
-const COMPLEXITY = (input.complexity === 'light' || input.complexity === 'heavy') ? input.complexity : 'auto'
 
 // ---- schema (enum に null を使わず 'none' を番兵にする) ----
-const EXPLORE_SCHEMA = {
-  type: 'object',
-  required: ['relevant_files', 'reusable_utilities', 'current_behavior', 'operational_facts', 'notes'],
-  properties: {
-    relevant_files: { type: 'array', items: { type: 'object', required: ['path', 'why'], properties: { path: { type: 'string' }, why: { type: 'string' } } } },
-    reusable_utilities: { type: 'array', items: { type: 'object', required: ['path', 'symbol', 'on_integration_branch', 'branch_note'], properties: { path: { type: 'string' }, symbol: { type: 'string' }, on_integration_branch: { type: 'boolean' }, branch_note: { type: 'string' } } } },
-    current_behavior: { type: 'array', items: { type: 'string' } },
-    operational_facts: { type: 'array', items: { type: 'object', required: ['claim', 'source', 'verified'], properties: { claim: { type: 'string' }, source: { type: 'string', description: '確認した出典 (path:line / 実測手段)。未確認なら空文字' }, verified: { type: 'boolean' } } } },
-    notes: { type: 'array', items: { type: 'string' } },
-  },
-}
-
-const DRAFT_SCHEMA = {
-  type: 'object',
-  required: ['plan_md'],
-  properties: { plan_md: { type: 'string' } },
-}
-
 const VERIFY_SCHEMA = {
   type: 'object',
   required: ['mismatches'],
@@ -135,7 +109,7 @@ const REVIEW_POLICY = `
 - 目的整合 (premise.md がある場合のみ評価): premise.md の Purpose (目的) / Acceptance (受入条件) と plan の Context / Verification / Approach / Design / Phase が対応しているか。premise.md の Purpose / Acceptance を plan の本体側で再定義していないか (sear-me が正本)。
 - 設計妥当性 (Design 節があるときのみ評価): 責務境界の妥当性・依存方向・抽象の粒度・再利用判断 (Reusable utilities との整合)・YAGNI 違反・複雑度。
 - Phase 妥当性 (Phase 節があるときのみ評価): 粒度・順序・依存関係・各 Phase の独立検証可能性・可逆性・落としどころ。
-- 暗黙の設計判断 (常時評価): 選択肢が複数ありうる設計分岐を、plan が分岐の記録なしに片方へ暗黙に倒している箇所を指摘する。指摘の summary には分岐の選択肢を簡潔な a/b/c の形 (各選択肢の trade-off を 1 句ずつ) で含め、ユーザが承認ゲートで判断できる形にする。Design 節の設計判断レコードに記録済みの分岐は指摘しない (記録があれば plan の判断として尊重し、記録の妥当性は設計妥当性の観点で見る)。
+- 暗黙の設計判断 (常時評価): 選択肢が複数ありうる設計分岐を、plan が分岐の記録なしに片方へ暗黙に倒している箇所を指摘する。設計判断レコードに並ぶ分岐が全て同じ前提 (既存構造の温存・特定の格納方式など) を共有している場合、その前提自体が暗黙の選択でないかも見る。指摘の summary には分岐の選択肢を簡潔な a/b/c の形 (各選択肢の trade-off を 1 句ずつ) で含め、ユーザが承認ゲートで判断できる形にする。Design 節の設計判断レコードに記録済みの分岐は指摘しない (記録があれば plan の判断として尊重し、記録の妥当性は設計妥当性の観点で見る)。
 - 検証十分性 (常時評価): Verification 節が Approach / Design / Phase の各成果を覆えているか。Phase 節があれば Phase 別に検証可能か。逆方向も同じ観点で評価する——検証装置が成果物より大きい・Acceptance の観測に不要な検証基盤の新設は過大として指摘する (検証の比例性)。変更がテスト可能なロジックを含むのに Verification が TDD 適用/不適用のどちらも宣言していない、または不適用の理由が立っていない場合も指摘する。
 - 内部整合 (常時評価): Context・Approach・Design・Phase・Verification の前提が噛み合っているか。
 - 前提の出典 (常時評価): Approach・Design・Phase の決定が依存する運用前提 (配備・リリースの順序・migration の実行系・DB 設定・外部システムの挙動) に、plan 内の出典 (path:line / 実測) が併記されているか。出典の無い運用前提の上に決定が載っていれば指摘する (一般常識からの推測は出典にならない)。plan 自身が Risks で「未検証前提」と明示しているものは指摘しない (明示があること自体が対応)。
@@ -184,79 +158,7 @@ function openTotals() {
   return { high: open.filter((f) => f.severity === 'high').length, total: open.length }
 }
 
-// ============================================================
-phase('調査')
-const explore = await agent(
-  `対象リポジトリ: ${REPO}
-依頼: ${REQUEST}
-${PREMISE ? `前提整理 (premise.md): ${PREMISE} を Read し、Purpose (目的) / Acceptance (受入条件) / Non-goals (Purpose 由来の除外) / Open questions を踏まえること。Purpose / Acceptance は premise が正本——調査結果と矛盾しても premise を優先する。やる側の具体スコープ (Scope: In) は premise には書かれないので、調査・起草の plan 側で Approach / Phase 別スコープ / Critical files として扱うこと。` : ''}
-${SKILL_REVIEW_REPORT ? `skill-review レポート: ${SKILL_REVIEW_REPORT} を Read し、既存 skill の改善点 (逐語引用付き findings) を改善対象として踏まえること。機械照合は skill-review 側で済んでいるので再照合は不要、散文として読めばよい。` : ''}
-
-この依頼の計画立案に必要な現状調査を行い、構造化して返せ:
-- relevant_files: 変更・参照対象になりそうなファイル (path と理由)
-- reusable_utilities: 再利用できる既存実装。各項目について統合ブランチ (既定 origin/main) 上に実在するかを確認し on_integration_branch に boolean で返す。作業ツリーや未マージの feature ブランチ・並走 worktree を根拠に「実在」と断定しない (確認手段は git -C <repo> grep -n <symbol> origin/main 等、裁量でよい)。branch_note に所在ブランチ・未マージなら「先行マージ待ちか自前新設か」の所見を書く。
-- current_behavior: 依頼に関係する現状挙動の要点。変更対象のデータ (テーブル・エンティティ・永続化された構造) があるなら、書き込み経路 (どの入口が同じ書き込みに集約されるか) と履歴・版管理の性質 (追記型で更新のたび新しい行が増える・現行版を指すポインタ表の有無) を必ず含める
-- operational_facts: 計画の決定に効きうる運用事実 (migration の実行系と流し方・配備とリリースの順序・DB の設定/モード・デプロイ単位など)。repo 内の出典で確認できたものだけ verified=true とし、source に path:line を書く。確認できなかった事実は verified=false・source 空文字で返す (「一般的にこうなっているはず」という推測を verified にしない)
-- notes: 計画立案者に伝えるべき注意点・未決事項。設計資料から得た設計イディオム (履歴・版管理の流儀、同名で別系統の実装、命名の罠など) はここに含めて計画立案者へ届ける
-
-コードを grep する前にリポジトリ内の設計資料 (docs/・README・CLAUDE.md・ADR 等) を当たること。DB スキーマがあるなら migration / DDL を一次ソースとする。
-
-調査のみ行う。コード変更・計画の提案はしない。`,
-  { agentType: 'Explore', schema: EXPLORE_SCHEMA, label: 'explore', phase: '調査' },
-)
-if (!explore) throw new Error('調査エージェントが結果を返さなかった')
-log(`調査完了: 関連 ${explore.relevant_files.length} files / 再利用候補 ${explore.reusable_utilities.length} 件`)
-
-// ============================================================
-phase('起草')
-const draft = await agent(
-  `あなたは計画起草担当。以下の入力から plan.md 全文 (markdown) を起草して plan_md として返せ。ファイルへの書き込みはしない (Write は呼び出し元の責務)。
-
-起草の前に ~/.claude/output-style.md を Read し、plan の地の文 (説明・理由・リスク記述) をその規約に従わせること (workflow agent には main の常時ロード規範が届かないため、この Read が文体契約の経路。特に、漢語やカタカナ英語を連ねた即席の合成名詞で概念を圧縮せず既存の語と文で書き下すこと)。
-
-依頼: ${REQUEST}
-対象リポジトリ: ${REPO}
-${PREMISE ? `前提整理 (premise.md): ${PREMISE} を Read して踏まえること。premise の Open questions は調査・起草で解消し、解消できなかったものだけ plan の Risks に繰り越す。premise に「plan への申し送り」節があれば Approach / Design の参照入力として扱う (Purpose / Acceptance と違い正本ではない——調査結果に照らして別の設計を選んでよい)。` : ''}
-${SKILL_REVIEW_REPORT ? `skill-review レポート: ${SKILL_REVIEW_REPORT} を Read し、既存 skill の改善点を計画の改善対象として踏まえること (散文として読む。再照合不要)。` : ''}
-出力先 (参考情報): ${PLAN_PATH}
-
-調査結果 (構造化済み):
-${JSON.stringify(explore, null, 2)}
-
-plan.md の構成 (設計と計画の両面を含める。設計の場が要らない軽量タスクでは Design / Phase 節は立てない):
-
-[必須節]
-- Context: 背景と目的 (なぜこの変更が必要か)。premise.md があれば Purpose (目的) / Acceptance (受入条件) を踏まえる (premise が正本——ここで再定義しない・改稿しない・抜き書きで足りる)。
-- Approach: 推奨案のみを本文にする。代替案は並記しない (競合する選択肢があった事実と選択理由は Design 節の設計判断レコードに記録する——本文から分岐を消しても、分岐があったこと自体は消さない)。
-- Critical files: 変更対象のファイル (パターンが繰り返されるなら 1 回説明＋代表パス数件)。
-- Reusable utilities: 再利用する既存実装 (パス付き)。on_integration_branch=false のものは「先行マージ待ち」か「自前新設」かを Approach に明記する。
-- Verification: 実行・テスト方法。Phase 節を立てた場合は Phase 別に検証可能であることを示す。既存の検証手段 (既存テスト・既存コマンド・手動確認) を優先し、新たな検証装置 (テストハーネス・fixture 基盤・スクリプト群) の新設を提案するのは、その構築コストが対象の変更より明らかに小さいときだけ。Acceptance が観測できる最小の手段を選ぶ (検証のために成果物より大きい仕組みを作らない)。
-  **TDD 適用宣言**: 変更がテスト可能なロジックを含み、Acceptance (または plan の受入条件) が自動テストで観測できるなら、節の冒頭に「TDD 適用」と宣言し、Acceptance から導いたテストリスト (1 テスト = 1 振る舞いの箇条書き) を書く——implement はこの宣言を読んでテスト先行 (Red-Green-Refactor) で実装する。該当しない場合 (散文・設定変更・一回限りのスクリプト・テストするロジックの無い glue 等) は「TDD 不適用」と理由を 1 行書く。
-- Risks: 未解消の Open questions・前提リスク。
-
-[条件付き節] (該当しないなら節を立てない。立てるなら中身を埋める。「該当なし」「単一 Phase」と書いて空節を残さない):
-- Design: 構造判断の場。データモデル・インターフェース契約・責務境界・依存方向・拡張点・既存抽象の変更。
-  立てる条件 (どれか満たす): 新規データ構造が要る / 複数モジュールを跨ぐ / 非自明な責務分割が必要 / 既存抽象を変更する / 競合する設計選択肢がある。
-  Design 節には**設計判断レコード**を含める: 検討した設計分岐ごとに {分岐・選んだ選択肢・捨てた選択肢と捨てた理由・判断が依存する事実と出典 (依存が無ければ「事実依存なし」)} を 1 行ずつ記録する。分岐を暗黙に片方へ倒さない——起草中に「どちらでもありうる」と感じた選択 (事前条件の強制か fail-soft か・同時反映かバージョン分岐か等) は全てレコードに乗せ、ユーザが承認ゲートで分岐を見て判断できる状態にする。
-  **決定の単一表明**: 一つの決定 (データ定義・置き場・リリース単位・例外の扱い等) は設計判断レコードの 1 行を正本とし、他節では結論を再記述せず参照で済ませる (本文に書くのはその節の遂行に必要な帰結だけ)。同じ決定を複数節に再記述すると、後の訂正・改稿が片方だけ直して plan 内部の矛盾になる。
-- Phase 分割: 段取りの場。各 Phase に {目的, 変更スコープ, 受入条件, 可逆性, 次 Phase との接続} を書く。
-  立てる条件 (どれか満たす): 1 コミット／1 PR で完結しない / 段階的に可逆性を担保したい / 部分デプロイで観測してから次に進みたい / 移行ステップが本質的に複数段。
-- 既定採用: 創作的確定 (命名・画面文言・データ定義の流儀・メッセージの言い回し等) がある場合に立てる。各項目を {項目, 既定値, 根拠 (既存流儀の出典 path)} で列挙する。既存流儀・実測から一意に導けるものはここで確定させ、ユーザへの分岐 (設計判断レコード) に送らない。導けない・業務判断を要するものだけレコード側の分岐に乗せる。
-
-complexity hint: ${COMPLEXITY}
-- 'light': Design / Phase は立てない (軽量タスク確定。判定スキップ)。
-- 'heavy': Design と Phase を必ず立てる (重い実装確定。判定スキップ)。
-- 'auto':  上記の判定条件に従って起草時に判断する (デフォルト)。
-
-plan に書くコードは**設計判断を運ぶ範囲**に限る——シグネチャ・データ構造・schema・不変条件・事前事後条件・インターフェース契約・非自明なアルゴリズムの骨子 (擬似コード可)。関数本体の全文・import の整理・ログ文言・エラー処理の書き下しは implement の領分で plan には書かない。判定基準: そのコードを消すと設計判断が失われるなら残す、実装の手間が省けるだけなら書かない (plan のコードは実行されないまま実装の正本の権威を帯びるため、全文を書くと未検証コードがバグごと「plan 通り」として通る)。
-
-調査結果の operational_facts で verified=false の事実 (未検証の運用事実) の上に Approach / Design / Phase の決定を載せない。決定がどうしても依存する場合は、Risks に「未検証前提」として何が未検証で、覆えたら plan のどこが変わるかを明示する (未検証の前提に構造を積むと、事実が判明した時点で定義・Phase 構成ごと覆り、同じ論点の再判断が発生する)。
-
-調査結果に無い事実主張を足す場合は自分で Read/Glob/Grep で確認してから書く。learning loop 設計で v1 観測前提の未決を故意に残す論点は「観測してから決める」と明文化する。`,
-  { schema: DRAFT_SCHEMA, label: 'draft', phase: '起草' },
-)
-if (!draft) throw new Error('起草エージェントが結果を返さなかった')
-let plan = draft.plan_md
+let plan = input.plan_md
 
 // ============================================================
 phase('検証・レビュー')
@@ -269,6 +171,7 @@ const [verify, review1] = await parallel([
 
 照合規約:
 - 照合対象は「現状こうなっている」という現状認識の主張 (Critical files のパス実在・Reusable utilities の所在/シグネチャ・現状挙動の前提) に限る。Approach / 編集案の「変更後こうする」という文は未施行の提案であり、現状ファイルに無くて当然＝不一致ではない (事実誤りに数えない)。
+- 設計判断レコードの選択理由・却下理由・既定採用の根拠に埋まった事実主張 (ライブラリやフレームワークの挙動・呼び出し関係・既存流儀の実在) も照合対象とする。理由の中の事実が誤っていると、決定そのものが空の根拠に載る。
 - アプローチの良し悪しは判断しない。
 - 「実在」「再利用可」の確認は統合ブランチ (既定 origin/main) を基準にする。作業ツリーや並走 worktree の grep で「実在」と断定しない。
 - 訂正に出典を出せる場合のみ has_source=true とし、source に origin/main 上の path:line / sha、corrected_text に訂正文を書く。出典を出せなければ has_source=false (source / corrected_text は空文字) とする。それらしい推測で訂正文を作らない。
@@ -292,9 +195,6 @@ ${REVIEW_POLICY}
 
 元の依頼: ${REQUEST}
 ${PREMISE ? `前提整理 (premise.md): ${PREMISE} を Read し、目的整合の評価軸とせよ (premise の Purpose / Acceptance と plan の Context / Verification / Phase 別受入の対応を見る。Verification と Phase 別受入は Acceptance を辿れる粒度か、Context は Purpose を抜き書きで反映しているかを判定軸にする)。` : '前提整理 (premise.md) は存在しない。目的整合の観点はスキップする。'}
-
-調査結果 (構造化済み。起草 agent と同じ入力。plan の文面に書かれていない暗黙の選択・見送られた再利用候補を文脈から見えるようにするための参照情報であり、リポジトリを独自に調べない規約はこのまま維持する):
-${JSON.stringify(explore, null, 2)}
 
 --- plan ここから ---
 ${plan}
