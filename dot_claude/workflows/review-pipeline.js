@@ -1,9 +1,9 @@
 export const meta = {
   name: 'review-pipeline',
-  description: 'develop のレビュー収束パイプライン: bundled の code-review workflow を名指しで呼んで観点別レビューと独立検証を委譲し、本家に無い security 観点だけ自前で並走させ、修正→再レビューを対象ゼロ / 前進なし / ラウンド上限まで回す。規模判定・cap 到達検出・修正対象の絞り込み・前進判定・件数集計は script がコードで計算し、自己申告に依存しない',
+  description: 'develop のレビュー収束パイプライン: レビュー本体を bundled の code-review workflow か、その資産を移植した inhouse エンジンのどちらかに委譲し (切り替え可能)、本家に無い security 観点と呼び出し元の追加観点を並走させ、修正→再レビューを対象ゼロ / 前進なし / ラウンド上限まで回す。規模判定・cap 到達検出・修正対象の絞り込み・前進判定・件数集計は script がコードで計算し、自己申告に依存しない',
   whenToUse: 'develop スキル本体 (SKILL.md) から scriptPath 指定で起動される。単体起動は想定しない',
   phases: [
-    { title: 'レビュー', detail: 'bundled code-review を呼び、本家に無い security 観点と呼び出し元が渡した追加観点を並走させる。失敗時は自前の観点別 finder に落ちる' },
+    { title: 'レビュー', detail: 'レビュー本体 (bundled または inhouse) を呼び、security 観点と追加観点を並走させる。bundled が使えなければ inhouse に落ちる' },
     { title: '点検', detail: '本家の検証を通っていない候補だけを点検し、本家 findings との重複を統合する' },
     { title: '収束', detail: '修正対象の指摘だけを修正 → 再レビューを、対象ゼロ / 前進なし / ラウンド上限まで繰り返す' },
   ],
@@ -55,6 +55,22 @@ const EXTRA_LENSES = (Array.isArray(input.extra_lenses) ? input.extra_lenses : [
     context: typeof l.context === 'string' ? l.context : '',
     requires_rationale: l.requires_rationale === true,
   }))
+
+// ---- レビューエンジンの選択 ----
+//   'bundled' bundled の code-review workflow に委譲する。本家の改善に追従できるが内部の cap もモデルも外から動かせない
+//   'inhouse' 本家のプロンプト資産を移植した自前実装。コスト knob（per_angle / verify_model / verify_effort）が効く
+//   'auto'    bundled を試し、使えなければ inhouse に落ちる（既定）
+const REVIEW_ENGINE = ['bundled', 'inhouse', 'auto'].includes(input.review_engine) ? input.review_engine : 'auto'
+// コスト knob。inhouse のときだけ効く。
+// 実測（homelab 1 ファイル 38 行 / high）: verify が入力等価の 59%、find が 35%。verifier 1 個 ≈ 95k。
+// per_angle は候補数を通じて verifier 数に線形に効くので、単価より先に効く knob になる。
+const PER_ANGLE = Number.isInteger(input.per_angle) && input.per_angle > 0 ? input.per_angle : null
+// verifier のモデル。未指定なら親セッションを継承する。Opus→Sonnet の単価比は 1.67 倍。
+// finder は下げない方針（挙げなかった候補は下流の誰も再導出せず、取りこぼしが無音で恒久になるため）
+const VERIFY_MODEL = typeof input.verify_model === 'string' && input.verify_model ? input.verify_model : null
+const VERIFY_EFFORT = ['low', 'medium', 'high', 'xhigh', 'max'].includes(input.verify_effort) ? input.verify_effort : null
+// verifier 数の上限。超えたらロケーション単位からファイル単位のグループ化に落とす
+const MAX_VERIFIERS = Number.isInteger(input.max_verifiers) && input.max_verifiers > 0 ? input.max_verifiers : 20
 
 // ---- 規模判定 ----
 // 既定は xhigh。high に落とすのは「角度を絞っても取りこぼしが出ない」と言える規模だけに限る。
@@ -218,12 +234,55 @@ verdict の決め方:
 const SECURITY_FOCUS = `データ保護と認可。認可チェックの欠落・他人のデータが見える経路・ログや例外メッセージへの個人情報の混入・入力の検証漏れ・SQL や外部コマンドへの値の埋め込み。
 あわせて部分失敗の原子性も見る: 途中で失敗したときに中途半端な状態が残らないか、エラーを握り潰して成功として返す経路が無いか。`
 
-// フォールバック用の観点。本家が使えないときだけ走る (security は常に並走しているので除く)
-const FALLBACK_LENSES = [
-  { key: 'correctness', focus: 'ロジックの誤り。条件の反転・オフバイワン・取り違えた変数・誤った演算順序・状態遷移の抜け・非同期処理の競合。分岐を実際に辿って、意図した値が出るかを確かめる。' },
-  { key: 'boundary', focus: '境界とエラー経路。空・null・0 件・1 件・上限超過・型境界の扱い。例外が投げられたときに何が起きるか。' },
-  { key: 'regression', focus: '既存挙動の破壊。共有されている関数・DTO・SQL・設定を変えたことで、この差分が触っていない呼び出し元が壊れないか。差分の外にある利用箇所を grep で洗う。' },
+// ---- 本家 (bundled code-review) のプロンプト資産 ----
+// inhouse エンジンが使う。展開済みの workflow スクリプトから逐語で取った文字列で、
+// 観点の切り方（バグの種類ではなく探し方で割る）と判定ラダーはここが本体。
+// 訳したり要約したりしない — 意訳すると検出力が落ちる。搬送と結線だけを変える方針。
+const CORRECTNESS_ANGLES = [
+  {
+    label: 'angle-A',
+    // 探索は不要（hunk と囲む関数で閉じる）
+    needsExploration: false,
+    text: "### Angle A — line-by-line diff scan\n\nRead every hunk in the diff, line by line. Then Read the enclosing function for\neach hunk — bugs in unchanged lines of a touched function are in scope (the PR\nre-exposes or fails to fix them). For every line ask: what input, state, timing,\nor platform makes this line wrong? Look for inverted/wrong conditions,\noff-by-one, null/undefined deref, missing `await`, falsy-zero checks,\nwrong-variable copy-paste, error swallowed in catch, unescaped regex metachars.\nAlso check partial-failure atomicity: when a step fails midway, is a half-applied\nstate left behind, and is any error swallowed and returned as success?\n",
+  },
+  {
+    label: 'angle-B',
+    // 「別の場所を探す」ことが観点の定義そのもの。埋め込みで探索を止めさせない
+    needsExploration: true,
+    text: "### Angle B — removed-behavior auditor\n\nFor every line the diff DELETES or replaces, name the invariant or behavior it\nenforced, then search the new code for where that invariant is re-established.\nIf you can't find it, that's a candidate: a removed guard, a dropped error\npath, a narrowed validation, a deleted test that was covering a real case.\n",
+  },
+  {
+    label: 'angle-C',
+    needsExploration: true,
+    text: "### Angle C — cross-file tracer\n\nFor each function the diff changes, find its callers (Grep for the symbol) and\ncheck whether the change breaks any call site: a new precondition, a changed\nreturn shape, a new exception, a timing/ordering dependency. Also check callees:\ndoes a parallel change in the same PR make a call unsafe?\n",
+  },
+  {
+    label: 'angle-D',
+    needsExploration: false,
+    text: "### Angle D — language-pitfall specialist\n\nScan for the classic pitfalls of the diff's language/framework — for example:\nJS falsy-zero, `==` coercion, closure-captured loop var; Python mutable default\nargs, late-binding closures; Go nil-map write, range-var capture; SQL injection;\ntimezone/DST drift; float equality. Flag any instance the diff introduces.\n",
+  },
+  {
+    label: 'angle-E',
+    needsExploration: false,
+    text: "### Angle E — wrapper/proxy correctness\n\nWhen the PR adds or modifies a type that wraps another (cache, proxy, decorator,\nadapter): check that every method routes to the wrapped instance and not back\nthrough a registry/session/global — e.g. a caching provider holding a\n`delegate` field that resolves IDs via `session.get(...)` instead of\n`delegate.get(...)` will re-enter the cache or recurse. Also check that the\nwrapper forwards all the methods the callers actually use.\n",
+  },
 ]
+
+// cleanup 5 レンズ。Reuse は既存ヘルパを探す観点なので探索が要る
+const CLEANUP_TEXT =
+  "### Reuse\n\nFlag new code that re-implements something the codebase\nalready has — Grep shared/utility modules and files adjacent to the change,\nand name the existing helper to call instead.\n\n\n### Simplification\n\nFlag unnecessary complexity the diff adds: redundant or derivable state,\ncopy-paste with slight variation, deep nesting, dead code left behind. Name\nthe simpler form that does the same job.\n\n\n### Efficiency\n\nFlag wasted work the diff introduces: redundant computation or repeated I/O,\nindependent operations run sequentially, blocking work added to startup or\nhot paths. Also flag long-lived objects built from closures or captured\nenvironments — they keep the entire enclosing scope alive for the object's\nlifetime (a memory leak when that scope holds large values); prefer a\nclass/struct that copies only the fields it needs. Name the cheaper\nalternative.\n\n\n### Altitude\n\nCheck that each change is implemented at the right depth, not as a fragile\nbandaid. Special cases layered on shared infrastructure are a sign the fix\nisn't deep enough — prefer generalizing the underlying mechanism over adding\nspecial cases.\n\n\n### Conventions (CLAUDE.md)\n\nFind the CLAUDE.md files that govern the changed code: the user-level\n~/.claude/CLAUDE.md, the repo-root CLAUDE.md, plus any CLAUDE.md or\nCLAUDE.local.md in a directory that is an ancestor of a changed file (a\ndirectory's CLAUDE.md only applies to files at or below it). Read each one\nthat exists, then check the diff for clear violations of the rules they state.\n\nOnly flag a violation when you can quote the exact rule and the exact line\nthat breaks it — no style preferences, no vague \"spirit of the doc\"\ninferences. In the finding, name the CLAUDE.md path and quote the rule so the\nreport can cite it. If no CLAUDE.md applies, return nothing for this angle.\n"
+
+const UPSTREAM_VERDICT_LADDER =
+  "- **CONFIRMED** — can name the inputs/state that trigger it and the wrong\n  output or crash. Quote the line.\n- **PLAUSIBLE** — mechanism is real, trigger is uncertain (timing, env,\n  config). State what would confirm it.\n- **REFUTED** — factually wrong (code doesn't say that) or guarded elsewhere.\n  Quote the line that proves it."
+
+const UPSTREAM_VERDICT_LADDER_RECALL =
+  "**PLAUSIBLE by default** — do not refute a candidate for being \"speculative\" or\n\"depends on runtime state\" when the state is realistic: concurrency races,\nnil/undefined on a rare-but-reachable path (error handler, cold cache, missing\noptional field), falsy-zero treated as missing, off-by-one on a boundary the\ncode does not exclude, retry storms / partial failures, regex/allowlist that\nlost an anchor. These are PLAUSIBLE.\n\n**REFUTED** only when constructible from the code: factually wrong (quote the\nactual line); provably impossible (type/constant/invariant — show it); already\nhandled in this diff (cite the guard); or pure style with no observable effect."
+
+const CLEANUP_PRECEDENCE =
+  "Cleanup, altitude, and conventions candidates use the same\n`file`/`line`/`summary` shape; in `failure_scenario`, state the concrete\ncost (what is duplicated, wasted, harder to maintain, or which CLAUDE.md rule\nis broken) instead of a crash. Correctness bugs always outrank cleanup,\naltitude, and conventions findings when the output cap forces a cut.\n"
+
+const SWEEP_GAP_FOCUS =
+  "moved/extracted code that dropped a guard\nor anchor; second-tier footguns (dataclass default evaluated once, `hash()`\nnon-determinism, lock-scope shrink, predicate methods with side effects);\nsetup/teardown asymmetry in tests; config defaults flipped."
 
 function diffBlock() {
   return `対象の差分を自分で確認する。作業ツリー (cwd): ${WORKTREE}
@@ -330,6 +389,8 @@ function findingsTable(items) {
 }
 
 const flags = {
+  // 実際にレビュー本体を担ったエンジン ('bundled' | 'inhouse' | null)
+  engine_used: null,
   upstream_used: false,
   upstream_error: null,
   fallback_used: false,
@@ -339,7 +400,6 @@ const flags = {
   triage_failed: false,
   fix_failed: false,
   review_failed: false,
-  lenses_missing: 0,
   cap_reached: false,
   cap_hit_correctness: false,
   cap_shortfall: null,
@@ -432,6 +492,295 @@ phase('レビュー')
 const CR_ARGS = `${LEVEL} review the changes in the repository at ${WORKTREE}. Use \`${DIFF_COMMAND}\` as the review diff, and also include untracked files reported by \`git -C ${WORKTREE} status --porcelain\`. Do not review any other repository.`
 log(`レベル判定: ${LEVEL} (${LEVEL_DECISION.reason})`)
 
+// ---- inhouse レビューエンジン ----
+// bundled と同じ戻り値の形 { findings, refuted, stats } を返す。下流 (変換・cap 検出・点検・修正ループ) を
+// エンジンによらず共通にするための契約。merge 注記の書式も揃えるので cap 検出式がそのまま効く。
+//
+// bundled との差は搬送と結線だけ:
+//   - Scope が diff 本文と CLAUDE.md の要点まで取り、全 finder/verifier に配る (各自の再取得を止める)
+//   - SCOPE_BLOCK を prompt の先頭に置く (agent 間で prefix を共有する)
+//   - 探索が観点の定義そのものである角度 (B / C / Reuse) には「渡した文脈は出発点」と明記して探索を止めない
+//   - per_angle / verify_model / verify_effort / max_verifiers をコスト knob として外から動かせる
+const INHOUSE_SCOPE_SCHEMA = {
+  type: 'object',
+  required: ['diffCommand', 'files', 'summary', 'diffText', 'diffTruncated'],
+  properties: {
+    diffCommand: { type: 'string', description: 'レビュー担当が実行するのと同じ diff コマンド' },
+    files: { type: 'array', items: { type: 'string' }, description: '変更ファイルのパス' },
+    summary: { type: 'string', description: '何が変わったかを 1 段落で' },
+    conventions: { type: 'string', description: '適用される CLAUDE.md / rules から、レビュー担当が知っておくべき規約を逐語で引く。無ければ空文字' },
+    diffText: { type: 'string', description: 'diffCommand の出力を逐語で。これを配ることで各担当の再取得を省く' },
+    diffTruncated: { type: 'boolean', description: '差分が大きすぎて diffText を途中で切ったら true' },
+  },
+}
+
+const INHOUSE_CANDIDATES_SCHEMA = {
+  type: 'object',
+  required: ['candidates'],
+  properties: {
+    candidates: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['file', 'summary', 'failure_scenario'],
+        properties: {
+          file: { type: 'string', description: 'レビュー範囲に挙がっているパスと同じ表記で' },
+          line: { type: 'number' },
+          summary: { type: 'string' },
+          failure_scenario: { type: 'string' },
+        },
+      },
+    },
+  },
+}
+
+const INHOUSE_GROUP_VERDICT_SCHEMA = {
+  type: 'object',
+  required: ['verdicts'],
+  properties: {
+    verdicts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['index', 'verdict', 'evidence'],
+        properties: {
+          index: { type: 'number', description: '判定対象の候補に付いた [i] ラベル' },
+          verdict: { enum: ['CONFIRMED', 'PLAUSIBLE', 'REFUTED'] },
+          evidence: { type: 'string', description: '該当行の引用' },
+        },
+      },
+    },
+  },
+}
+
+const INHOUSE_REPORT_SCHEMA = {
+  type: 'object',
+  required: ['summary', 'decisions'],
+  properties: {
+    summary: { type: 'string' },
+    decisions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['index'],
+        properties: {
+          index: { type: 'number', description: '報告に残す指摘の [i] ラベル' },
+          merge: { type: 'array', items: { type: 'number' }, description: '同一の根本原因としてこれに畳む指摘の [i] ラベル' },
+        },
+      },
+    },
+  },
+}
+
+async function runInhouseReview(level) {
+  const P = level === 'high' ? { angles: 3, perAngle: 6, maxFindings: 10, sweep: false } : { angles: 5, perAngle: 8, maxFindings: 15, sweep: true }
+  const perAngle = PER_ANGLE || P.perAngle
+  const sweepMax = 8
+
+  // --- Scope: 差分の実体と規約をここで一度だけ取り、以降の担当に配る ---
+  const scope = await agent(
+    `Establish the scope of a code review, then hand the reviewers everything they need so they do not each re-fetch it.
+
+Working tree (cwd): ${WORKTREE}
+Diff command to use: ${DIFF_COMMAND}
+
+1. Run the diff command and confirm it produces a non-empty diff. Untracked files do not appear in a diff — pick them up with \`git -C ${WORKTREE} status --porcelain\` and include their contents in diffText under a clear header.
+2. List the changed files.
+3. Summarize what changed in one paragraph.
+4. Find the CLAUDE.md files that govern the changed code (the user-level ~/.claude/CLAUDE.md, the repo-root CLAUDE.md, and any CLAUDE.md or CLAUDE.local.md in a directory that is an ancestor of a changed file). Read each one that exists and **quote the rules a reviewer must know** into conventions — quote them, do not paraphrase, because the reviewers will not read these files themselves.
+5. Put the complete diff output into diffText, verbatim. If it exceeds roughly 1500 lines, include the first 1500 and set diffTruncated to true; otherwise set it to false.
+
+Structured output only.`,
+    { agentType: 'Explore', schema: INHOUSE_SCOPE_SCHEMA, label: 'inhouse:scope', phase: 'レビュー' },
+  )
+  if (!scope) return { error: 'inhouse scope agent returned no result' }
+  if (!Array.isArray(scope.files) || !scope.files.length) {
+    return { level, summary: 'No changes found to review.', findings: [], refuted: [], stats: { level, engine: 'inhouse', finders: 0, candidates: 0, verifierAgents: 0, verified: 0, refuted: 0 } }
+  }
+
+  // 全 agent の prompt 先頭に置く共通ブロック。prefix を揃えてキャッシュを共有させる
+  const SCOPE_BLOCK =
+    `## Review scope\nDiff command: ${scope.diffCommand}\nChanged files (${scope.files.length}):\n${scope.files.map((f) => '  - ' + f).join('\n')}\n\n` +
+    `## What changed\n${scope.summary}\n\n` +
+    `## Conventions\n${scope.conventions || '(none noted)'}\n\n` +
+    `## The diff${scope.diffTruncated ? ' (truncated — re-run the diff command yourself if you need the rest)' : ''}\n${scope.diffText}\n`
+
+  const explorationNote = (needsExploration) =>
+    needsExploration
+      ? 'The diff above is your starting point, not a substitute for exploration. This angle is defined by looking outside the diff — Grep and Read the surrounding code as the angle requires. Do not skip that because the diff is already in front of you.'
+      : 'The diff above is complete, so you do not need to run a command to obtain it. Read the enclosing functions and neighbouring code when the angle calls for it.'
+
+  const finders = CORRECTNESS_ANGLES.slice(0, P.angles)
+    .map((a) => ({ label: a.label, text: a.text, needsExploration: a.needsExploration, kind: 'correctness', cap: perAngle }))
+    .concat([{ label: 'cleanup', text: CLEANUP_TEXT, needsExploration: true, kind: 'cleanup', cap: 5 * perAngle }])
+
+  // --- Find ---
+  const finderOuts = await parallel(
+    finders.map((f) => () =>
+      agent(
+        `${SCOPE_BLOCK}
+## Code-review finder — ${f.label}
+
+Review the diff above ${f.kind === 'cleanup' ? 'through EACH of the following cleanup lenses' : 'ONLY through the lens of your assigned angle'}:
+
+${f.text}
+${f.kind === 'cleanup' ? CLEANUP_PRECEDENCE + '\n' : ''}
+${explorationNote(f.needsExploration)}
+
+Surface up to ${f.cap} candidate findings, each with file, line, a one-line summary, and a concrete failure_scenario — the user-visible consequence (error, wrong output, data loss), not an intermediate state (value stale, set grows). ${f.kind === 'cleanup' ? 'Cover whichever lenses apply — you do not need findings from every lens; prioritize the highest-cost issues across all of them. ' : ''}Pass every candidate with a nameable failure scenario through — do not silently drop half-believed candidates; an independent verifier judges them next. If nothing qualifies, return an empty list.
+
+Structured output only.`,
+        { agentType: 'Explore', schema: INHOUSE_CANDIDATES_SCHEMA, label: `inhouse:${f.label}`, phase: 'レビュー' },
+      ).then((r) => {
+        if (!r) return []
+        log(`inhouse ${f.label}: ${r.candidates.length} 候補`)
+        return r.candidates.slice(0, f.cap).map((c) => ({ ...c, file: relPath(c.file), kind: f.kind }))
+      }),
+    ),
+  )
+  let candidates = finderOuts.filter(Boolean).flat()
+  let candidatesSeen = candidates.length
+
+  // --- Verify: ロケーション単位。上限を超えたらファイル単位に落とす ---
+  let verifierAgents = 0
+  const locOf = (c) => c.file + (c.line != null ? ':' + c.line : '')
+  async function verifyGroups(list) {
+    if (!list.length) return []
+    const byLoc = new Map()
+    for (const c of list) {
+      const k = locOf(c)
+      if (!byLoc.has(k)) byLoc.set(k, [])
+      byLoc.get(k).push(c)
+    }
+    let groups = [...byLoc.values()]
+    if (groups.length > MAX_VERIFIERS) {
+      const byFile = new Map()
+      for (const c of list) {
+        if (!byFile.has(c.file)) byFile.set(c.file, [])
+        byFile.get(c.file).push(c)
+      }
+      groups = [...byFile.values()]
+      log(`verifier がロケーション単位で ${byLoc.size} 個になるため、ファイル単位 ${groups.length} 個に落とした (上限 ${MAX_VERIFIERS})`)
+    }
+    verifierAgents += groups.length
+    const opts = { agentType: 'Explore', schema: INHOUSE_GROUP_VERDICT_SCHEMA, phase: '点検' }
+    if (VERIFY_MODEL) opts.model = VERIFY_MODEL
+    if (VERIFY_EFFORT) opts.effort = VERIFY_EFFORT
+    const out = await parallel(
+      groups.map((g) => async () => {
+        const r = await agent(
+          `${SCOPE_BLOCK}
+## Code-review verifier
+
+## Candidate findings at ${g.length === 1 ? locOf(g[0]) : g[0].file}
+${g.map((c, i) => `[${i}] ${locOf(c)}\n    Summary: ${c.summary}\n    Failure scenario: ${c.failure_scenario}`).join('\n')}
+
+Read the relevant file(s) and return one verdict per candidate. Judge EACH candidate independently on its own claim — candidates at the same location may describe distinct issues, the same issue, or a mix. Reference each by its [i] index.
+
+${UPSTREAM_VERDICT_LADDER}
+
+${UPSTREAM_VERDICT_LADDER_RECALL}
+
+Structured output only. Evidence must quote or cite the relevant line(s).`,
+          { ...opts, label: `inhouse:verify:${(g[0].file.split('/').pop() || '?')}(${g.length})` },
+        )
+        if (!r) return []
+        const byIdx = new Map()
+        for (const v of r.verdicts) if (Number.isInteger(v.index) && v.index >= 0 && v.index < g.length) byIdx.set(v.index, v)
+        // verdict が返らなかった候補は落とす。未検証のまま報告に混ぜない (bundled と同じ方針)
+        return g.flatMap((c, i) => (byIdx.has(i) ? [{ ...c, verdict: byIdx.get(i).verdict, evidence: byIdx.get(i).evidence }] : []))
+      }),
+    )
+    return out.filter(Boolean).flat()
+  }
+  let verified = await verifyGroups(candidates)
+
+  // --- Sweep: 取りこぼし専用の 1 パス。既知リストを渡して重複を避けさせる ---
+  if (P.sweep) {
+    const known = verified.length ? verified.map((c) => `- ${locOf(c)} — ${c.summary}`).join('\n') : '(none)'
+    const sweep = await agent(
+      `${SCOPE_BLOCK}
+## Code-review sweep — gaps only
+
+## Already-found candidates (do NOT re-derive or re-confirm these)
+${known}
+
+Re-read the diff and the enclosing functions looking ONLY for defects not already listed. Focus on what the first pass tends to miss: ${SWEEP_GAP_FOCUS}
+
+Surface up to ${sweepMax} additional candidates. If nothing new, return an empty list — do not pad.
+
+Structured output only.`,
+      { agentType: 'Explore', schema: INHOUSE_CANDIDATES_SCHEMA, label: 'inhouse:sweep', phase: 'レビュー' },
+    )
+    if (sweep && sweep.candidates.length) {
+      const sliced = sweep.candidates.slice(0, sweepMax).map((c) => ({ ...c, file: relPath(c.file), kind: 'correctness' }))
+      candidatesSeen += sliced.length
+      log(`inhouse sweep: ${sliced.length} 候補`)
+      verified = verified.concat(await verifyGroups(sliced))
+    }
+  }
+
+  const surviving = verified.filter((c) => c.verdict !== 'REFUTED')
+  const refutedList = verified.filter((c) => c.verdict === 'REFUTED')
+  const stats = { level, engine: 'inhouse', finders: finders.length, candidates: candidatesSeen, verifierAgents, verified: verified.length, refuted: refutedList.length }
+  if (!surviving.length) {
+    return { level, summary: 'No findings survived verification.', findings: [], refuted: refutedList.map((c) => ({ file: c.file, line: c.line, summary: c.summary })), stats: { ...stats, reported: 0 } }
+  }
+
+  // --- Synthesize: 重複を畳み、順位を付け、上限で切る ---
+  // rank は bundled と同じ: CONFIRMED correctness → PLAUSIBLE correctness → cleanup
+  const rank = (c) => (c.kind === 'cleanup' ? 2 : 0) + (c.verdict === 'PLAUSIBLE' ? 1 : 0)
+  const ranked = surviving.slice().sort((a, b) => rank(a) - rank(b))
+  const block = ranked
+    .map((c, i) => `### [${i}] ${locOf(c)} (${c.verdict}${c.kind === 'cleanup' ? ', cleanup' : ''})\n${c.summary}\nFailure scenario: ${c.failure_scenario}\nVerifier evidence: ${c.evidence}\n`)
+    .join('\n')
+  const report = await agent(
+    `## Synthesis: final code-review report
+
+${ranked.length} findings survived independent verification (${level}-effort review). They are numbered [0]-[${ranked.length - 1}] below.
+
+${block}
+
+## Instructions
+Return decisions about findings BY INDEX — never re-emit finding text.
+1. For each distinct defect, emit one decision with its index. When several findings describe the same defect (same root cause), keep one entry and list the others in its merge array.
+2. Order decisions most-severe first. Correctness bugs always outrank cleanup findings.
+3. Keep at most ${P.maxFindings} decisions; omit the least severe beyond the cap.
+4. Write a 2-3 sentence summary of the review.
+
+Structured output only.`,
+    { schema: INHOUSE_REPORT_SCHEMA, label: 'inhouse:synthesize', phase: 'レビュー' },
+  )
+
+  // 組み立て。merge 注記の書式を bundled に揃えるので、下流の cap 検出式がそのまま効く
+  const decisions = report && Array.isArray(report.decisions) ? report.decisions : []
+  const seen = new Set()
+  const claim = (i) => (Number.isInteger(i) && i >= 0 && i < ranked.length && !seen.has(i) ? (seen.add(i), true) : false)
+  const findings = []
+  for (const d of decisions) {
+    if (findings.length >= P.maxFindings) break
+    if (!claim(d.index)) continue
+    const c = ranked[d.index]
+    const merged = (Array.isArray(d.merge) ? d.merge : []).filter(claim).map((i) => ranked[i])
+    const verdict = merged.some((m) => m.verdict === 'CONFIRMED') ? 'CONFIRMED' : c.verdict
+    const also = merged.length ? ' [same root cause also at: ' + merged.map(locOf).join(', ') + ']' : ''
+    findings.push({ file: c.file, line: c.line, summary: c.summary + also, failure_scenario: c.failure_scenario, category: c.kind, verdict })
+  }
+  // 上限まで余っていれば、synthesis が触れなかった残りを埋める (静かに落とさない)
+  for (let i = 0; i < ranked.length && findings.length < P.maxFindings; i++) {
+    if (seen.has(i)) continue
+    const c = ranked[i]
+    findings.push({ file: c.file, line: c.line, summary: c.summary, failure_scenario: c.failure_scenario, category: c.kind, verdict: c.verdict })
+  }
+  return {
+    level,
+    summary: (report && report.summary) || 'inhouse review completed.',
+    findings,
+    refuted: refutedList.map((c) => ({ file: c.file, line: c.line, summary: c.summary })),
+    stats: { ...stats, reported: findings.length },
+  }
+}
+
 function lensPrompt(focus, { context, requiresRationale } = {}) {
   return `あなたはコードレビュー担当。直前の実装で入った差分を、下記の観点に絞ってレビューし findings を返せ。コードの修正・編集はしない (Read/Glob/Grep と読み取りの Bash のみ)。
 
@@ -443,16 +792,25 @@ ${ROUND1_BAR}
 ${diffBlock()}`
 }
 
-// 本家の呼び出し・security・追加観点を 1 つの parallel で並走させる。
-// 追加観点は本家の外側なので maxFindings / perAngle cap の影響を受けない
-const round1Results = await parallel([
-  async () => {
+// レビュー本体・security・追加観点を 1 つの parallel で並走させる。
+// 追加観点はレビュー本体の外側なので、bundled の maxFindings / perAngle cap の影響を受けない
+async function runPrimaryReview() {
+  if (REVIEW_ENGINE === 'inhouse') {
     try {
-      return { ok: true, value: await workflow('code-review', CR_ARGS) }
+      return { ok: true, engine: 'inhouse', value: await runInhouseReview(LEVEL) }
     } catch (e) {
-      return { ok: false, error: String((e && e.message) || e) }
+      return { ok: false, engine: 'inhouse', error: String((e && e.message) || e) }
     }
-  },
+  }
+  try {
+    return { ok: true, engine: 'bundled', value: await workflow('code-review', CR_ARGS) }
+  } catch (e) {
+    return { ok: false, engine: 'bundled', error: String((e && e.message) || e) }
+  }
+}
+
+const round1Results = await parallel([
+  () => runPrimaryReview(),
   () => agent(lensPrompt(SECURITY_FOCUS), { agentType: 'Explore', schema: REVIEW_SCHEMA, label: 'review:security', phase: 'レビュー' }),
   ...EXTRA_LENSES.map((l) => () =>
     agent(lensPrompt(l.focus, { context: l.context, requiresRationale: l.requires_rationale }), {
@@ -478,44 +836,54 @@ function upstreamUsable(w) {
   return true
 }
 
-if (upstreamUsable(crWrapped)) {
-  const cr = crWrapped.value
-  flags.upstream_used = true
-  upstreamStats = cr.stats || null
-  for (const f of cr.findings) {
+// レビュー本体の結果を取り込む。bundled と inhouse は同じ戻り値の形を返すので処理は共通
+function ingestPrimary(res, engine) {
+  upstreamStats = res.stats || null
+  for (const f of res.findings) {
     const { text, locs } = splitAlso(f.summary)
     pushFinding(
       { summary: text, failure_scenario: f.failure_scenario, category: f.category, file: f.file, line: f.line },
       { round: 1, lens: 'code-review', verdict: f.verdict === 'CONFIRMED' ? 'CONFIRMED' : 'PLAUSIBLE', verified: true, evidence: '', alsoAt: locs },
     )
   }
-  log(`bundled code-review (${LEVEL}): findings ${cr.findings.length} 件`)
+  log(`${engine} レビュー (${LEVEL}): findings ${res.findings.length} 件`)
+}
+
+if (upstreamUsable(crWrapped)) {
+  flags.engine_used = crWrapped.engine
+  flags.upstream_used = crWrapped.engine === 'bundled'
+  ingestPrimary(crWrapped.value, crWrapped.engine)
 } else {
   flags.upstream_used = false
-  flags.fallback_used = true
-  flags.upstream_error = crWrapped && crWrapped.ok === false ? crWrapped.error : crWrapped && crWrapped.value && crWrapped.value.error ? String(crWrapped.value.error) : 'bundled code-review の戻り値が想定の形ではない'
-  log(`bundled code-review を使えなかった: ${flags.upstream_error} — 自前の観点別 finder に落ちる`)
-  const fb = await parallel(
-    FALLBACK_LENSES.map((lens) => () =>
-      agent(
-        `あなたはコードレビュー担当。直前の実装で入った差分を、下記の観点に絞ってレビューし findings を返せ。コードの修正・編集はしない (Read/Glob/Grep と読み取りの Bash のみ)。
-
-担当する観点: ${lens.focus}
-この観点の外にあるものは他の担当が見るので挙げない。
-${ROUND1_BAR}
-
-${diffBlock()}`,
-        { agentType: 'Explore', schema: REVIEW_SCHEMA, label: `review:${lens.key}`, phase: 'レビュー' },
-      ),
-    ),
-  )
-  const okCount = fb.filter(Boolean).length
-  flags.lenses_missing = FALLBACK_LENSES.length - okCount
-  fb.forEach((r, i) => {
-    if (!r) return
-    for (const raw of r.findings) pushFinding(raw, { round: 1, lens: FALLBACK_LENSES[i].key, verified: false })
-  })
-  log(`フォールバック: ${okCount}/${FALLBACK_LENSES.length} 観点が完了`)
+  flags.upstream_error =
+    crWrapped && crWrapped.ok === false
+      ? crWrapped.error
+      : crWrapped && crWrapped.value && crWrapped.value.error
+        ? String(crWrapped.value.error)
+        : 'レビュー本体の戻り値が想定の形ではない'
+  // engine を明示指定していた場合は勝手に別のエンジンへ落とさない (指定と違うもので収束させない)
+  if (REVIEW_ENGINE !== 'auto') {
+    flags.engine_used = null
+    flags.review_failed = true
+    log(`レビュー本体 (${REVIEW_ENGINE}) を使えなかった: ${flags.upstream_error}`)
+  } else {
+    flags.fallback_used = true
+    log(`bundled code-review を使えなかった: ${flags.upstream_error} — inhouse エンジンに落ちる`)
+    let inh = null
+    try {
+      inh = await runInhouseReview(LEVEL)
+    } catch (e) {
+      log(`inhouse エンジンも失敗した: ${String((e && e.message) || e)}`)
+    }
+    if (inh && !inh.error && Array.isArray(inh.findings)) {
+      flags.engine_used = 'inhouse'
+      ingestPrimary(inh, 'inhouse')
+    } else {
+      flags.engine_used = null
+      flags.review_failed = true
+      log('inhouse エンジンも使えなかった。security 観点と追加観点だけが残る')
+    }
+  }
 }
 
 if (secResult) {
@@ -537,7 +905,9 @@ EXTRA_LENSES.forEach((l, i) => {
   log(`追加観点 ${l.key}: ${r.findings.length} 件 (${l.category})`)
 })
 
-if (!findings.length && flags.fallback_used && flags.security_failed) {
+// レビュー本体も security も追加観点も何も残らなかったときだけ「レビュー未実施」とする。
+// 指摘ゼロは正当な出力なので、本体が動いた上での 0 件と区別する
+if (!findings.length && flags.review_failed && flags.security_failed) {
   return result('review-failed', { fixes: [], changed_files: [], rounds: [] })
 }
 
@@ -545,7 +915,8 @@ if (!findings.length && flags.fallback_used && flags.security_failed) {
 // bundled は maxFindings を超えた候補を findings にも refuted にも入れずに落とす。
 // backfill が cap まで埋め切る実装なので、報告数 + merge 注記の件数が生存数に届かなければ
 // その差がそのまま落ちた件数になる。merge による集約と切り捨てを区別できる唯一の経路
-if (flags.upstream_used && upstreamStats && Number.isFinite(upstreamStats.verified) && Number.isFinite(upstreamStats.refuted)) {
+// エンジンによらず効く。inhouse も merge 注記の書式を bundled に揃えているため
+if (flags.engine_used && upstreamStats && Number.isFinite(upstreamStats.verified) && Number.isFinite(upstreamStats.refuted)) {
   const surviving = upstreamStats.verified - upstreamStats.refuted
   const claimed = findings.filter((f) => f.lens === 'code-review').reduce((n, f) => n + 1 + f.also_at.length, 0)
   const shortfall = surviving - claimed
@@ -669,6 +1040,6 @@ ${diffBlock()}`,
 
 const out = result(stoppedBy, { fixes, changed_files: changedFiles, rounds })
 log(
-  `収束: ${out.totals.count} 件 (解消 ${out.totals.resolved} / 反証 ${out.totals.refuted} / 重複 ${out.totals.duplicates} / 既存 ${out.totals.pre_existing} / cleanup ${out.totals.cleanup} / 未検証 ${out.totals.unverified} / 理由なし乖離 ${out.totals.unexplained} / 未対応 ${out.totals.fix_targets}) rounds=${rounds.length} stopped_by=${out.stopped_by} upstream=${flags.upstream_used ? LEVEL : 'fallback'}${EXTRA_LENSES.length ? ` extra_lenses=${EXTRA_LENSES.length}` : ''}`,
+  `収束: ${out.totals.count} 件 (解消 ${out.totals.resolved} / 反証 ${out.totals.refuted} / 重複 ${out.totals.duplicates} / 既存 ${out.totals.pre_existing} / cleanup ${out.totals.cleanup} / 未検証 ${out.totals.unverified} / 理由なし乖離 ${out.totals.unexplained} / 未対応 ${out.totals.fix_targets}) rounds=${rounds.length} stopped_by=${out.stopped_by} engine=${flags.engine_used || 'none'}/${LEVEL}${flags.fallback_used ? ' (bundled から落ちた)' : ''}${EXTRA_LENSES.length ? ` extra_lenses=${EXTRA_LENSES.length}` : ''}`,
 )
 return out

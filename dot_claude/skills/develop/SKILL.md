@@ -98,12 +98,18 @@ resume（経路 2）以外の経路では、トラック（code / skill）を判
   - `git -C <worktree> diff --numstat HEAD` を集計して `diff_stat`（`{ files, insertions, deletions }`）にする
   - `git -C <worktree> diff --name-only HEAD` を `changed_files_actual` にする（未追跡ファイルは `git status --porcelain` から補う）
 - `Workflow` tool を `scriptPath: ~/.claude/workflows/review-pipeline.js` で起動する。args:
-  - `request`（元の依頼文）/ `worktree_cwd`（台帳の implement エントリの値。**これ以外を使わない**）/ `side_effect_ban`（「commit / push / chezmoi apply / 外部公開を行わない。修正は作業ツリー内のファイル編集に限る」）/ `plan_path` / `changed_files`（台帳の implement エントリ＝実装工程の申告）/ `changed_files_actual`（上の実測。`pre_existing` 判定の正本）/ `diff_stat`（上の実測。規模判定の入力）/ `diff_command`（既定は `git -C <worktree> diff HEAD`。コミット済みの差分をレビューするときだけ明示する）/ `source_note`（トラック表で引く）/ `max_rounds`（既定 5）/ `extra_lenses`（任意。下記）
+  - `request`（元の依頼文）/ `worktree_cwd`（台帳の implement エントリの値。**これ以外を使わない**）/ `side_effect_ban`（「commit / push / chezmoi apply / 外部公開を行わない。修正は作業ツリー内のファイル編集に限る」）/ `plan_path` / `changed_files`（台帳の implement エントリ＝実装工程の申告）/ `changed_files_actual`（上の実測。`pre_existing` 判定の正本）/ `diff_stat`（上の実測。規模判定の入力）/ `diff_command`（既定は `git -C <worktree> diff HEAD`。コミット済みの差分をレビューするときだけ明示する）/ `source_note`（トラック表で引く）/ `max_rounds`（既定 5）/ `review_engine`（`auto` \| `bundled` \| `inhouse`。既定 `auto`）/ `per_angle` `verify_model` `verify_effort` `max_verifiers`（任意。`inhouse` のときだけ効くコスト knob）/ `extra_lenses`（任意。下記）
 - **`extra_lenses` は本家の角度に無い観点を並走させる口。** 本家は角度 A〜E と cleanup 5 レンズが固定で、Conventions レンズは「規約の逐語と違反行の逐語が両方引けるとき」しか挙げない建て付けなので、**思想・設計意図との整合や、CLAUDE.md の外（docs 等）にあるルールは構造的に拾われない**。そこを埋めるのがこの引数。並走なので本家の報告上限や角度ごとの候補上限の影響を受けない。
   - `{ key, focus, category, context?, requires_rationale? }` の配列。`focus` は何を探すか（具体名で書くほど効く）。`category` は `correctness` なら修正ループに入り、`cleanup`（既定）なら報告のみ。`context` に参照先（docs のルート・索引・規約の所在）を渡す
   - **`requires_rationale: true` は文書との乖離を見る観点向け。** 出力に理由の所在（`plan` / `comment` / `none`）を持たせ、**理由がどこにも無い乖離があれば `stopped_by: unexplained-divergence` で収束を止める**。文書は古びるので違反と断定させず、どちらが更新されるべきかの見立てを添えさせる。理由が plan にあるものはゲート (a) を通った承認済みの判断なので収束を妨げない
   - **観点を 3 つより多く足すときは点検段の作りを見直す。** 未検証候補を 1 agent が全件見る構造なので、件数が増えると本家が捨てた形（1 コンテキストで全件判定）に戻る
-- **レビュー本体は bundled の code-review workflow に委譲される。** script が `workflow('code-review', ...)` で名指しで呼ぶ。規模判定で `high` / `xhigh` を切り替え、**既定は `xhigh`**（`diff_stat` が無い・判定材料が壊れている場合も `xhigh` に倒れる）。本家に無い security 観点だけ自前 agent が並走する。本家が使えなかった場合は自前の観点別 finder に落ち、`flags.fallback_used` が立つ。
+- **レビュー本体は 2 つのエンジンを切り替えられる。** `review_engine` で指定する（既定 `auto`）。
+  - `bundled` — `workflow('code-review', ...)` で本家に委譲する。本家側の改善に追従できるが、内部の候補上限もモデルも外から動かせない
+  - `inhouse` — 本家のプロンプト資産（角度 A〜E・cleanup 5 レンズ・判定ラダー・sweep）を逐語で移植した自前実装。**コスト knob が効くのはこちらだけ**
+  - `auto`（既定）— `bundled` を試し、使えなければ `inhouse` に落ちる。落ちたら `flags.fallback_used` が立つ
+  - `bundled` / `inhouse` を明示指定したときは**別エンジンに勝手に落とさない**（指定と違うもので収束させないため）。実際に担ったエンジンは `flags.engine_used` に入る
+- **コスト knob は `inhouse` のときだけ効く。** `per_angle`（角度ごとの候補上限。候補数を通じて verifier 数に線形に効く）/ `verify_model`（verifier のモデル。finder は下げない — 挙げなかった候補は下流の誰も再導出せず取りこぼしが無音で恒久になる）/ `verify_effort` / `max_verifiers`（超えたらロケーション単位からファイル単位のグループ化に落ちる）。実測ではレビュー本体のコストは verifier が約 6 割、finder が約 3 割を占める。
+- 規模判定で `high` / `xhigh` を切り替え、**既定は `xhigh`**（`diff_stat` が無い・判定材料が壊れている場合も `xhigh` に倒れる）。どちらのエンジンでも同じ判定を使う。本家に無い security 観点は、エンジンによらず自前 agent が並走する。
 - **修正対象の絞り込みは script が持つ。** 対象は「独立した検証を通った」かつ「この差分が持ち込んだ」かつ「`category: correctness`」かつ「偽陽性でも重複でもない」指摘だけ。`cleanup` と `pre_existing: true` と未検証のものは修正せず報告に回る。**本体で対象を足したり減らしたりしない。**
 - step 2 の implement 内 self-review とは観点で住み分ける（self-review＝plan 突合専任、ここ＝correctness / quality の adversarial レビュー）。同じバグ探しを二重にしない。
 - **cleanup の専用段は置かない。** 品質クリーンアップは implement-pipeline の cleanup ステージが実装直後に当てており、review の修正で生じる diff は小さい。`Skill: simplify` の呼び出しも撤去した（bundled skill の Skill tool 呼び出しはブロックされうるため、依存させない）。委譲先の code-review が Reuse / Simplification / Efficiency / Altitude / Conventions の 5 レンズを Round 1 で回すので、指摘としては拾われる（`category: cleanup` として報告に回り、修正ループには入らない）。
@@ -112,7 +118,7 @@ resume（経路 2）以外の経路では、トラック（code / skill）を判
 
 戻りを受けたら:
 
-- `flags` の true な軸を「未実施」「劣化」として明示する（`review_failed` はレビュー未実施、`triage_failed` は点検が未実施で未検証の指摘が残る、`fix_failed` は修正未適用、`security_failed` は security 観点が欠落、`extra_lenses_missing` はその数の追加観点が未実施、`unexplained_findings` は理由の記されていない乖離の件数、`fallback_used` は bundled のレビューを使えず自前の finder で代替した＝**検出力が落ちている**、`cap_reached` は本家の報告上限で指摘が切り捨てられた。併せて `cap_hit_correctness` が立っていれば押し出されたのが correctness の疑いで、その場合だけ修正ループに入らず `cap-reached` で止まる。cleanup 側の切り捨てなら報告に載せるだけで収束は妨げない）。**`lenses_missing` が 1 以上ならその数の観点が未実施＝カバレッジが欠けている**ことを明示する（全部揃ったかのように提示しない）。
+- `flags` の true な軸を「未実施」「劣化」として明示する（`review_failed` はレビュー未実施、`triage_failed` は点検が未実施で未検証の指摘が残る、`fix_failed` は修正未適用、`security_failed` は security 観点が欠落、`extra_lenses_missing` はその数の追加観点が未実施、`unexplained_findings` は理由の記されていない乖離の件数、`fallback_used` は bundled を使えず inhouse に落ちた（検出力そのものは移植で揃えてあるが、本家側の更新に追従していない状態）、`engine_used` は実際に担ったエンジン（`null` ならレビュー本体が未実施で security と追加観点しか残っていない）、`cap_reached` は本家の報告上限で指摘が切り捨てられた。併せて `cap_hit_correctness` が立っていれば押し出されたのが correctness の疑いで、その場合だけ修正ループに入らず `cap-reached` で止まる。cleanup 側の切り捨てなら報告に載せるだけで収束は妨げない）。**観点が欠けたまま完走した場合は、全部揃ったかのように提示しない**（`security_failed` と `extra_lenses_missing` がその指標）。
 - **`level_decision` と `upstream_stats` と `diff_stat` を台帳に記録する。** 規模判定の閾値は 1 サンプルからの外挿なので、実行ごとにこの 3 つを貯めて後から見直す（計装）。`flags.cap_shortfall` も併記する。
 - **報告に回った指摘を提示する。** `totals.pre_existing` と `totals.cleanup` と `totals.unverified` と `totals.unexplained` は修正されていない。件数と内容を提示し、別チケットにするか今回直すかをユーザに判断させる。`unverified` は点検が届かなかったもので、偽陽性か真の欠陥かが未確定である旨を添える。`unexplained` は文書との乖離のうち理由が見つからなかったもので、**実装と文書のどちらを直すかは人の判断**である旨を添える（文書が古い可能性があるので、実装を巻き戻す前提で提示しない）。
 - **skill トラックの名前参照追跡**: workflow の指摘が言及する**ガード／収束条件／台帳記録**（「ゲート (b)」「収束条件」等の名前参照）の定義箇所を、diff に出ていなくても develop 本体の Read で読み、局所編集が遠隔の定義を無効化していないか（非局所結合の崩れ）を確認する。崩れを検出したら指摘として review エントリに追加する。
