@@ -86,7 +86,12 @@
   "enabledPlugins": {
     "obsidian@obsidian-skills": true,
     "arscontexta@agenticnotetaking": false,
-    "playwright@claude-plugins-official": false
+    "playwright@claude-plugins-official": false,
+    "develop-suite@syaku-claude-plugins": true,
+    "drain-harvest@syaku-claude-plugins": true,
+    "skill-review@syaku-claude-plugins": true,
+    "trend-digest@syaku-claude-plugins": true,
+    "personal-misc@syaku-claude-plugins": true
   },
   "extraKnownMarketplaces": {
     "obsidian-skills": {
@@ -99,6 +104,12 @@
       "source": {
         "source": "github",
         "repo": "agenticnotetaking/arscontexta"
+      }
+    },
+    "syaku-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "syaku/claude-plugins"
       }
     }
   },

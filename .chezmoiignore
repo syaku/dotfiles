@@ -36,6 +36,12 @@
 # rules 配下の local-* はこの環境固有の規範。chezmoi に取り込まずローカルに閉じる
 .claude/rules/local-*.md
 
+# skill / workflow / subagent は plugin marketplace（syaku/claude-plugins）へ移設した。
+# 正本は ~/.claude/plugins/ 配下の plugin 版で、chezmoi は管理しない（2026-08-02 移行完了）
+.claude/skills
+.claude/workflows
+.claude/agents
+
 # リポジトリ用ドキュメント（target に展開しない。先頭 / でルート限定）
 /CLAUDE.md
 
