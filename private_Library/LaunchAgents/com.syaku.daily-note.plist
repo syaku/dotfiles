@@ -3,14 +3,17 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.syaku.trend-digest</string>
+    <string>com.syaku.daily-note</string>
+    <!-- プロンプトを --allowedTools より前に置く。--allowedTools は可変長引数で、
+         後ろに置いた位置引数まで tool 名として吸い込み prompt が空になる
+         (旧 trend-digest / illumia-chronicle plist はこれで 7 月頭から失敗し続けていた)。 -->
     <key>ProgramArguments</key>
     <array>
         <string>/Users/syaku/.local/bin/claude</string>
         <string>-p</string>
+        <string>/daily-note</string>
         <string>--allowedTools</string>
-        <string>Bash Read Write Edit Glob Grep Workflow WebFetch WebSearch</string>
-        <string>今日のトレンドまとめて</string>
+        <string>Bash,Read,Write,Edit,Glob,Grep,Skill,Workflow,WebFetch,WebSearch,ToolSearch,mcp__claude_ai_Google_Calendar__list_calendars,mcp__claude_ai_Google_Calendar__list_events</string>
     </array>
     <key>WorkingDirectory</key>
     <string>/Users/syaku/workspace</string>
@@ -26,12 +29,12 @@
         <key>Hour</key>
         <integer>7</integer>
         <key>Minute</key>
-        <integer>3</integer>
+        <integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>/Users/syaku/Library/Logs/claude-scheduled/trend-digest.log</string>
+    <string>/Users/syaku/Library/Logs/claude-scheduled/daily-note.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/syaku/Library/Logs/claude-scheduled/trend-digest.err.log</string>
+    <string>/Users/syaku/Library/Logs/claude-scheduled/daily-note.err.log</string>
     <key>RunAtLoad</key>
     <false/>
 </dict>
