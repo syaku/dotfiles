@@ -1,10 +1,5 @@
 {
   "cleanupPeriodDays": 180,
-  "statusLine": {
-    "type": "command",
-    "command": "bash ~/.claude/scripts/statusline.sh",
-    "padding": 0
-  },
   "env": {
     "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
@@ -88,6 +83,11 @@
       }
     ]
   },
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/scripts/statusline.sh",
+    "padding": 0
+  },
   "enabledPlugins": {
     "obsidian@obsidian-skills": true,
     "arscontexta@agenticnotetaking": false,
@@ -123,5 +123,16 @@
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "preferredNotifChannel": "terminal_bell",
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "pluginConfigs": {
+    "personal-misc@syaku-claude-plugins": {
+      "options": {
+        "journal_dir": "/Users/syaku/workspace/notes/obsidian/Life/notes",
+        "journal_template": "/Users/syaku/workspace/notes/obsidian/Life/templates/daily.md",
+        "trend_note_dir": "/Users/syaku/workspace/notes/obsidian/Life/skill/tech-trends",
+        "chronicle_lore_note": "/Users/syaku/workspace/notes/obsidian/Life/notes/イルミア年代記.md",
+        "chronicle_dir": "/Users/syaku/workspace/notes/obsidian/Life/skill/illumia-chronicle"
+      }
+    }
+  }
 }
