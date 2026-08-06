@@ -18,6 +18,9 @@ if $nu.os-info.name == "windows" {
     add_to_path "/opt/homebrew/sbin"
     add_to_path "/usr/local/bin"
     add_to_path "/usr/local/sbin"
+    # rustup は rust と衝突するため keg-only で、cargo / rustc の shim が
+    # /opt/homebrew/bin に出てこない。ここを通さないと rust の道具が一切引けない。
+    add_to_path "/opt/homebrew/opt/rustup/bin"
 }
 add_to_path $"($env.HOME)/.cargo/bin"
 add_to_path $"($env.HOME)/.local/bin"
