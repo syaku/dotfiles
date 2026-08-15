@@ -120,10 +120,6 @@
   },
   "language": "日本語",
   "advisorModel": "fable",
-  "tui": "fullscreen",
-  "skipWorkflowUsageWarning": true,
-  "preferredNotifChannel": "terminal_bell",
-  "skipAutoPermissionPrompt": true,
   "pluginConfigs": {
     "personal-misc@syaku-claude-plugins": {
       "options": {
@@ -134,5 +130,13 @@
         "chronicle_dir": "/Users/syaku/workspace/notes/obsidian/Life/skill/illumia-chronicle"
       }
     }
-  }
+  },
+  "tui": "fullscreen",
+  "skipWorkflowUsageWarning": true,
+  "preferredNotifChannel": "terminal_bell",
+  "skipAutoPermissionPrompt": true
+{{- $am := joinPath ".automode-environments" (printf "%s.json" .chezmoi.hostname) }}
+{{- if stat (joinPath .chezmoi.sourceDir $am) }},
+  "autoMode": {{ include $am }}
+{{- end }}
 }
