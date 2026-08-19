@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # Claude Code の status line（2 行）。
 #   1 行目: 󰉋 ディレクトリ │ 󰘬 ブランチ（dirty なら ●）
-#   2 行目: 󰍛 コンテキストバー │ 󰚩 モデル │ 󰓅 effort │ 󰏘 output_style │ 🕖 5h・📅 7d
+#   2 行目: 󰇮 宛先名 │ 󰌆 session_id │ 󰍛 コンテキストバー │ 󰚩 モデル │ 󰓅 effort │
+#           󰏘 output_style │ 🕖 5h・📅 7d
 #
 # 入力は stdin の JSON。フィールド定義は https://code.claude.com/docs/en/statusline
 # 欠落しうるフィールドは空ならセグメントごと落とす。
 #   .context_window.used_percentage  セッション初期は null
 #   .rate_limits                     Pro/Max の初回 API 応答後のみ
 #   .effort                          reasoning effort に対応したモデルのみ
+#
+# 宛先名（SendMessage の宛先になる名前）は JSON に入らないので registry から引く。
+# .session_name は /rename の会話タイトルで宛先名とは別物なため使わない。詳細は
+# 「セッションの宛先名」節を参照。
 #
 # 前提: Nerd Fonts 3.x（UDEV Gothic NF で全グリフの存在を確認済み）と truecolor。
 # 配色は Catppuccin Mocha に合わせた固定値で、暗い背景を想定している。
@@ -21,6 +26,7 @@
 #
 # 動作確認:
 #   echo '{"model":{"display_name":"Opus 5"},"workspace":{"current_dir":"'"$HOME"'"},
+#          "session_id":"f32bdffa-88fd-4967-8476-87646c23bbd0",
 #          "context_window":{"used_percentage":78},"effort":{"level":"high"},
 #          "output_style":{"name":"default"},
 #          "rate_limits":{"five_hour":{"used_percentage":31.5}}}' | ~/.claude/scripts/statusline.sh
@@ -58,7 +64,8 @@ level_color() {
 
 input=$(cat)
 
-# jq は 1 回だけ呼ぶ（status line は頻繁に実行されるのでプロセス起動を抑える）。
+# stdin のパースは jq 1 回で済ませる（status line は頻繁に実行されるのでプロセス
+# 起動を抑える。もう 1 回は宛先名の引き当てで呼ぶ）。
 # 数値は整数に丸め、欠落・null は空行にして 1 値 1 行で受け取る。
 # タブ区切り + read だと IFS のタブが空フィールドを潰すため行分割にしている。
 vals=()
@@ -72,7 +79,8 @@ done < <(printf '%s' "$input" | jq -r '
     .effort.level // "",
     .output_style.name // "",
     (.rate_limits.five_hour.used_percentage | pct),
-    (.rate_limits.seven_day.used_percentage | pct)
+    (.rate_limits.seven_day.used_percentage | pct),
+    .session_id // ""
   ] | .[]' 2>/dev/null)
 
 model=${vals[0]:-?}
@@ -82,6 +90,24 @@ effort=${vals[3]:-}
 style=${vals[4]:-}
 r5=${vals[5]:-}
 r7=${vals[6]:-}
+sid=${vals[7]:-}
+
+# --- セッションの宛先名 -----------------------------------------------------
+
+# 他セッションから SendMessage で呼ぶときの宛先名は stdin の JSON に含まれない。
+# 正本は ~/.claude/sessions/<pid>.json の .name で、既定は cwd 由来の派生名
+# （workspace-a1 等）、/rename を打つと差し替わる。同名の生存セッションがあると
+# 別名に譲られるので、打った文字列と一致するとは限らない。
+# resume で同じ sessionId のエントリが複数残りうるため updatedAt が最大のものを採る。
+sess_name=""
+if [ -n "$sid" ]; then
+	sess_name=$(cat "$HOME"/.claude/sessions/*.json 2>/dev/null |
+		jq -rs --arg sid "$sid" '
+      map(select(.sessionId == $sid))
+      | sort_by(.updatedAt // 0)
+      | last
+      | .name // empty' 2>/dev/null)
+fi
 
 # --- 1 行目: ディレクトリとブランチ ----------------------------------------
 
@@ -107,9 +133,19 @@ if [ -n "$branch" ]; then
 	fi
 fi
 
-# --- 2 行目: コンテキスト・モデル・effort・output_style・レート制限 ----------
+# --- 2 行目: 宛先名・session_id・コンテキスト・モデル・effort・style・レート制限 ---
 
 line2=""
+
+if [ -n "$sess_name" ]; then
+	line2="${GREEN}󰇮${RESET} ${TEXT}${sess_name}${RESET}"
+fi
+
+# session_id は 36 文字あるので transcript を辿るのに足りる先頭 8 文字だけ出す。
+# ListAgents が出す [ref] とは別系統の値なので、宛先の指定には使えない。
+if [ -n "$sid" ]; then
+	line2="${line2:+${line2}${SEP}}${OVERLAY}󰌆${RESET} ${TEXT}${sid:0:8}${RESET}"
+fi
 
 if [ -n "$ctx" ]; then
 	# 幅 12 のバーを 1/8 ブロック単位で描く（端数は部分ブロックで表現）
@@ -143,7 +179,7 @@ if [ -n "$ctx" ]; then
 		i=$((i + 1))
 	done
 
-	line2="${fill_color}󰍛${RESET} ${bar}${RESET}${TRACK}${empty}${RESET} ${TEXT}${ctx}%${RESET}"
+	line2="${line2:+${line2}${SEP}}${fill_color}󰍛${RESET} ${bar}${RESET}${TRACK}${empty}${RESET} ${TEXT}${ctx}%${RESET}"
 	[ "$ctx" -ge 90 ] && line2="${line2} 🔥"
 fi
 
