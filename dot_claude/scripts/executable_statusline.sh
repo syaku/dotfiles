@@ -126,7 +126,10 @@ branch=$(git -C "$work_dir" symbolic-ref --quiet --short HEAD 2>/dev/null) ||
 	branch=$(git -C "$work_dir" rev-parse --short HEAD 2>/dev/null) || branch=""
 
 if [ -n "$branch" ]; then
-	if [ -n "$(git -C "$work_dir" status --porcelain 2>/dev/null | head -n 1)" ]; then
+	# GIT_OPTIONAL_LOCKS=0: status は index の stat をリフレッシュするため index.lock を取る。
+	# 数秒ごとのポーリングと大きい index が重なると lock が途切れず、
+	# 同じ worktree での add / commit が通らなくなる（実測: 16MB index の monorepo）。
+	if [ -n "$(GIT_OPTIONAL_LOCKS=0 git -C "$work_dir" status --porcelain 2>/dev/null | head -n 1)" ]; then
 		line1="${line1}${SEP}${YELLOW}󰘬${RESET} ${TEXT}${branch}${RESET} ${YELLOW}●${RESET}"
 	else
 		line1="${line1}${SEP}${GREEN}󰘬${RESET} ${TEXT}${branch}${RESET}"
