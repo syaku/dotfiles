@@ -1,0 +1,5 @@
+# 退役した文体規範（2026-08-21）。Claude Code の Output Style 設定（Concise）へ寄せたため撤去する。
+# source から消しただけでは既存 target が残り続けるので、全環境が apply 済みになるまで本ファイルで削除する。
+.claude/output-style.md
+.claude/rules/document-style.md
+.claude/rules/subagent-norms.md
