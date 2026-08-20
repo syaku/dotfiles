@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Claude Code の status line（2 行）。
 #   1 行目: 󰉋 ディレクトリ │ 󰘬 ブランチ（dirty なら ●）
-#   2 行目: 󰇮 宛先名 │ 󰌆 session_id │ 󰍛 コンテキストバー │ 󰚩 モデル │ 󰓅 effort │
-#           󰏘 output_style │ 🕖 5h・📅 7d
+#   2 行目: 󰇮 宛先名 │ 󰌆 session_id │ 󰚩 モデル │ 󰓅 effort │ 󰏘 output_style │
+#           󰍛 コンテキスト │ 🕖 5h・📅 7d
 #
 # 入力は stdin の JSON。フィールド定義は https://code.claude.com/docs/en/statusline
 # 欠落しうるフィールドは空ならセグメントごと落とす。
@@ -45,8 +45,6 @@ RED=$'\033[38;2;243;139;168m'
 TEAL=$'\033[38;2;148;226;213m'
 TEXT=$'\033[38;2;166;173;200m'
 OVERLAY=$'\033[38;2;108;112;134m'
-TRACK=$'\033[38;2;69;71;90m'    # バーの未充填部（surface1）
-TRACK_BG=$'\033[48;2;69;71;90m' # 部分ブロックの背後を埋める
 RESET=$'\033[0m'
 
 SEP="${OVERLAY}  ${RESET}" # powerline の細い区切り
@@ -136,7 +134,7 @@ if [ -n "$branch" ]; then
 	fi
 fi
 
-# --- 2 行目: 宛先名・session_id・コンテキスト・モデル・effort・style・レート制限 ---
+# --- 2 行目: 宛先名・session_id・モデル・effort・style・コンテキスト・レート制限 ---
 
 line2=""
 
@@ -148,42 +146,6 @@ fi
 # ListAgents が出す [ref] とは別系統の値なので、宛先の指定には使えない。
 if [ -n "$sid" ]; then
 	line2="${line2:+${line2}${SEP}}${OVERLAY}󰌆${RESET} ${TEXT}${sid:0:8}${RESET}"
-fi
-
-if [ -n "$ctx" ]; then
-	# 幅 12 のバーを 1/8 ブロック単位で描く（端数は部分ブロックで表現）
-	width=12
-	eighths=$((ctx * width * 8 / 100))
-	[ "$eighths" -gt $((width * 8)) ] && eighths=$((width * 8))
-	full=$((eighths / 8))
-	rem=$((eighths % 8))
-
-	parts=("" "▏" "▎" "▍" "▌" "▋" "▊" "▉")
-	fill_color=$(level_color "$ctx")
-
-	bar=""
-	i=0
-	while [ "$i" -lt "$full" ]; do
-		bar="${bar}█"
-		i=$((i + 1))
-	done
-	bar="${fill_color}${bar}"
-
-	used=$full
-	if [ "$rem" -gt 0 ]; then
-		bar="${bar}${TRACK_BG}${parts[$rem]}${RESET}${fill_color}"
-		used=$((full + 1))
-	fi
-
-	empty=""
-	i=$used
-	while [ "$i" -lt "$width" ]; do
-		empty="${empty}█"
-		i=$((i + 1))
-	done
-
-	line2="${line2:+${line2}${SEP}}${fill_color}󰍛${RESET} ${bar}${RESET}${TRACK}${empty}${RESET} ${TEXT}${ctx}%${RESET}"
-	[ "$ctx" -ge 90 ] && line2="${line2} 🔥"
 fi
 
 # display_name（"Opus 5"・"Opus 5 (1M context)" など）からファミリー名だけ取り出す。
@@ -203,6 +165,13 @@ fi
 
 if [ -n "$style" ]; then
 	line2="${line2}${SEP}${PINK}󰏘${RESET} ${TEXT}${style}${RESET}"
+fi
+
+# コンテキストとレート制限は同じ「残量」の話なので隣に並べる。
+if [ -n "$ctx" ]; then
+	ctx_color=$(level_color "$ctx")
+	line2="${line2:+${line2}${SEP}}${ctx_color}󰍛${RESET} ${ctx_color}${ctx}%${RESET}"
+	[ "$ctx" -ge 90 ] && line2="${line2} 🔥"
 fi
 
 # 5h は時計、7d はカレンダーの絵文字で区別する（テキストのラベルは置かない）
