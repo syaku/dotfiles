@@ -42,8 +42,8 @@
 .claude/workflows
 .claude/agents
 
-# リポジトリ用ドキュメント（target に展開しない。先頭 / でルート限定）
-/CLAUDE.md
+# リポジトリ用ドキュメント（target に展開しない）
+CLAUDE.md
 
 # バックアップと一時ファイル
 .config/zsh/*~
