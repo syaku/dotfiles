@@ -41,12 +41,6 @@
   path = ~/.gitconfig.secret
   path = ~/.gitconfig.local
 
-[includeIf "gitdir:~/workspace/repos/github.com/syaku/"]
-  path = ~/.gitconfig.prv
-
-[includeIf "gitdir:~/.local/share/chezmoi/"]
-  path = ~/.gitconfig.prv
-
 [ghq]
   root = ~/workspace/repos
 
