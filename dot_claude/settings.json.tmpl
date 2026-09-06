@@ -61,6 +61,15 @@
             "command": "bash ~/.claude/hooks/chezmoi-source-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/plan-checklist-guard.py"
+          }
+        ]
       }
     ],
     "PostToolUse": [
