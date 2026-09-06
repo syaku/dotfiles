@@ -36,6 +36,9 @@ def body(done_count, todo_count, marker=True):
 
 def run(payload, raw=None):
     """hook を起動して (exit code, stderr) を返す。"""
+    if payload is not None:
+        # 検出層の状態はテスト専用の session_id に書かせる（実セッションの状態を汚さない）
+        payload.setdefault("session_id", "guard-test-session")
     data = raw if raw is not None else json.dumps(payload)
     p = subprocess.run(
         [sys.executable, HOOK],

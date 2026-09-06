@@ -21,6 +21,7 @@ fail-open: 入力が読めない・未知の tool・対象ファイルが読め�
 が担う。
 """
 
+import importlib.util
 import json
 import os
 import re
@@ -29,6 +30,17 @@ import sys
 MARKER = "消化チェックリスト"
 CHECKED = re.compile(r"^[ \t]*- \[x\]", re.MULTILINE)
 TARGET_BASENAME = "plan.md"
+
+sys.dont_write_bytecode = True  # ~/.claude/hooks/ に __pycache__ を作らない
+_spec = importlib.util.spec_from_file_location(
+    "plan_checklist_state",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "plan-checklist-state.py"),
+)
+try:
+    state = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(state)
+except Exception:
+    state = None  # 状態が扱えなくても block 判定は行う（検出層だけが縮退する）
 
 
 def warn(msg):
@@ -87,7 +99,18 @@ def main():
     if MARKER not in after and MARKER not in before:
         return 0
 
-    delta = len(CHECKED.findall(after)) - len(CHECKED.findall(before))
+    before_n = len(CHECKED.findall(before))
+    after_n = len(CHECKED.findall(after))
+    delta = after_n - before_n
+
+    # 検出層（plan-checklist-watch）の追跡集合を育てる。通すときは編集後の件数、
+    # 止めるときは編集が起きないので編集前の件数を「把握している値」として置く。
+    if state is not None:
+        session_id = data.get("session_id")
+        tracked = state.load(session_id)
+        tracked[path] = after_n if delta <= 1 else before_n
+        state.save(session_id, tracked)
+
     if delta <= 1:
         return 0
 

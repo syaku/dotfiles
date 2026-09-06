@@ -114,3 +114,6 @@ Library
 
 # conf.d のローカル専用 drop-in（業務端末の Volta/SDKMAN 初期化等）は同期側に出さずローカルに閉じる
 **/conf.d/*.local.zsh
+
+# hooks のテストを source ディレクトリで走らせると生える bytecode（管理対象にしない）
+**/__pycache__
