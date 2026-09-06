@@ -17,7 +17,7 @@ f=$(jq -r '.tool_input.file_path // empty' 2>/dev/null)
 [ -z "$f" ] && exit 0
 
 if src=$(chezmoi source-path "$f" 2>/dev/null); then
-	printf 'これは chezmoi 管理下の target です。直接編集せず source を編集してください:\n  %s\n' "$src" >&2
+	printf 'これは chezmoi 管理下の target です。直接編集せず source を編集してください:\n  %s\n編集後は `chezmoi apply` で target に反映し、`chezmoi diff` が差分なしになることを確認してください。\n' "$src" >&2
 	exit 2
 fi
 exit 0
