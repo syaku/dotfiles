@@ -197,6 +197,7 @@ window_rules:
       - window_process: { equals: "LoupedeckConfig" }
       - window_process: { equals: "HWMonitor_x64" }
       - window_process: { equals: "EADesktop" }
+      - window_title: { equals: "Bitwarden - Vivaldi" }
 
   # Fullscreen games should be ignored so the WM does not interfere with
   # exclusive fullscreen / borderless modes.
