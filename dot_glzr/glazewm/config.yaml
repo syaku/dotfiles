@@ -224,6 +224,16 @@ window_rules:
       - window_process: { equals: "TheDivision2" }
       - window_class: { equals: "POEWindowClass" }
       - window_process: { equals: "Ace7Game" }
+      - window_class: { equals: "UnityWndClass" }
+      - window_process: { equals: "BrownDust II" }
+      - window_title: { equals: "BrownDust II" }
+      - window_title: { equals: "Stellaris" }
+      - window_process: { equals: "Paradox Launcher" }
+      - window_process: { equals: "stellaris" }
+      - window_title: { equals: "PowerMon" }
+      - window_title: { equals: "Victoria 3" }
+      - window_title: { equals: "Nioh 3" }
+      - window_title: { equals: "S.T.A.L.K.E.R. 2: Heart of Chornobyl  " }
 
   # Steam's window border extends past the normal border size, so trim it
   # back to align with the tiling layout.
