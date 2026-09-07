@@ -45,7 +45,7 @@ config.webgpu_power_preference = "HighPerformance" -- 高性能GPUを優先使�
 
 -- アニメーション設定（GPU使用時のパフォーマンスに影響）
 config.animation_fps = 60 -- アニメーション更新レート
-config.cursor_blink_rate = 800 -- カーソル点滅速度（ミリ秒）
+config.cursor_blink_rate = 0 -- カーソル点滅速度（ミリ秒）。0 で点滅を無効化
 
 -- スクロール設定
 config.max_fps = 120 -- 最大フレームレート
