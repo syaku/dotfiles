@@ -46,6 +46,11 @@ AI エージェントとして作業するときの操作プロトコル。人�
 - 対象セッションでは、skill が指示していても plan-pipeline / implement-pipeline / 多 agent review 等の多段オーケストレーションを既定にしない。読む・書く・検証するを main 直営で行い、fan-out は並列性が本質的に効く独立探索に限る。skill の workflow 委譲指示と衝突したら本規範を優先し、ユーザに一言断る。
 - 実行担当を sonnet/opus に固定した生産 pipeline（drain/harvest 等）は対象外——Fable はそれを作る側。**決定論ゲートは弱いモデルの自己申告不信を補う保険で、直営ではその保険料が本体より高い**（接地: 2026-07-04）。
 
+## [IMPORTANT]deep-research・多 agent 検索へ自発的に昇格しない
+
+- Web 調査は WebSearch + WebFetch（または /web-research skill）を既定にする。deep-research・Workflow・多 agent fan-out での検索は、ユーザがその手段を名指しした時のみ使う。「調べて」「まとめて」は起動理由にならない。予算内で答えに達しなければ中間報告で止まり、昇格するかはユーザが決める。
+- 失敗接地: 2026-07-15、PoE2 ビルド調査の「調べて」に対し deep-research を自発起動し、費用対効果が合わずユーザに制止された。
+
 ## auto memory の書き口
 
 - auto memory は規範体（「〜するな／〜しろ」）でなく観察記述（「〜が起きた／〜が出やすい／過去に〜があった」）で書く。
