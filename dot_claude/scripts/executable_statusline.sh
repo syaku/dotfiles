@@ -60,6 +60,15 @@ level_color() {
 	fi
 }
 
+# Windows ネイティブの jq.exe は stdout をテキストモードで開くため CRLF で出す
+# （scoop の jq 1.8.2 で実測）。末尾の CR を落とさないと、空フィールドが "" でなく CR に
+# なって非空判定を通り、値の無いセグメントが出る。さらに $sid を jq の --arg に渡すため、
+# CR が残ると sessionId が一致せず宛先名が丸ごと落ちる。
+# パターンを変数に出すのは、配列代入の要素の中では ${var%$'\r'} の除去が効かないため
+# （bash 5.3.15 で実測。同じ式もスカラー代入なら効く）。tr を挟まないのはプロセスを
+# 増やさないため。LF の環境（Mac）では no-op。
+CR=$'\r'
+
 input=$(cat)
 
 # stdin のパースは jq 1 回で済ませる（status line は頻繁に実行されるのでプロセス
@@ -68,7 +77,7 @@ input=$(cat)
 # タブ区切り + read だと IFS のタブが空フィールドを潰すため行分割にしている。
 vals=()
 while IFS= read -r line; do
-	vals+=("$line")
+	vals+=("${line%"$CR"}")
 done < <(printf '%s' "$input" | jq -r '
   def pct: if . == null then "" else (. | round | tostring) end;
   [ .model.display_name // "?",
@@ -105,6 +114,7 @@ if [ -n "$sid" ]; then
       | sort_by(.updatedAt // 0)
       | last
       | .name // empty' 2>/dev/null)
+	sess_name=${sess_name%"$CR"}
 fi
 
 # --- 1 行目: ディレクトリとブランチ ----------------------------------------
