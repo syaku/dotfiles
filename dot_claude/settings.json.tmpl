@@ -61,6 +61,25 @@
             "command": "python3 ~/.claude/hooks/plugin-version-drift.py"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/session_memory.py start"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/session_memory.py end",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "InstructionsLoaded": [

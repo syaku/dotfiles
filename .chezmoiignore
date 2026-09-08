@@ -32,6 +32,7 @@
 .claude/history.jsonl
 .claude/shell-snapshots/
 .claude/session-env/
+.claude/session-memory/
 
 # rules 配下の local-* はこの環境固有の規範。chezmoi に取り込まずローカルに閉じる
 .claude/rules/local-*.md
