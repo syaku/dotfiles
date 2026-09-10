@@ -143,37 +143,11 @@
     "command": "bash ~/.claude/scripts/statusline.sh",
     "padding": 0
   },
-  "enabledPlugins": {
-    "obsidian@obsidian-skills": true,
-    "arscontexta@agenticnotetaking": false,
-    "playwright@claude-plugins-official": false,
-    "develop-suite@syaku-claude-plugins": true,
-    "drain-harvest@syaku-claude-plugins": true,
-    "skill-review@syaku-claude-plugins": true,
-    "trend-digest@syaku-claude-plugins": true,
-    "personal-misc@syaku-claude-plugins": true,
-    "develop-suite2@syaku-claude-plugins": true
-  },
-  "extraKnownMarketplaces": {
-    "obsidian-skills": {
-      "source": {
-        "source": "github",
-        "repo": "kepano/obsidian-skills"
-      }
-    },
-    "agenticnotetaking": {
-      "source": {
-        "source": "github",
-        "repo": "agenticnotetaking/arscontexta"
-      }
-    },
-    "syaku-claude-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "syaku/claude-plugins"
-      }
-    }
-  },
+{{- /* enabledPlugins / extraKnownMarketplaces はランタイムで target に書き戻され常時 drift するため
+       chezmoi 管理外の <workspace>/.claude/settings.local.json に置く（2026-09-10）。
+       空スタブは anthropics/claude-code#27247（User 側にキーが無いと Local 側が無視される。
+       closed NOT_PLANNED で未修正）の回避策として残す。 */}}
+  "enabledPlugins": {},
   "language": "日本語",
   "outputStyle": "Concise",
   "advisorModel": "fable",
