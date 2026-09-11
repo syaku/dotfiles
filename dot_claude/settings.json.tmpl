@@ -101,15 +101,6 @@
             "command": "bash ~/.claude/hooks/chezmoi-source-guard.sh"
           }
         ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 ~/.claude/hooks/plan-checklist-guard.py"
-          }
-        ]
       }
     ],
     "PostToolUse": [
@@ -129,10 +120,6 @@
           {
             "type": "command",
             "command": "printf '%s' '{\"terminalSequence\":\"\\u0007\"}'"
-          },
-          {
-            "type": "command",
-            "command": "python3 ~/.claude/hooks/plan-checklist-watch.py"
           }
         ]
       }
