@@ -52,6 +52,8 @@ CATCHUP_WINDOW_DAYS = 14  # これより古い transcript は catch-up の対象
 CATCHUP_MIN_AGE_SEC = 30 * 60  # 更新から 30 分以内の transcript は「まだ生きている」扱い
 CLAUDE_TIMEOUT_SEC = 300
 CHILD_ENV = "CLAUDE_SESSION_MEMORY_CHILD"
+CREATE_NO_WINDOW = 0x08000000  # 子プロセスにコンソール窓を出させない（Windows のみ）
+NO_WINDOW_KW = {"creationflags": CREATE_NO_WINDOW} if os.name == "nt" else {}
 
 HOME = os.path.expanduser("~")
 STORE_DIR = os.environ.get("CLAUDE_SESSION_MEMORY_DIR", os.path.join(HOME, ".claude", "session-memory"))
@@ -113,7 +115,10 @@ def detach(args):
     env[CHILD_ENV] = "1"
     kw = {"start_new_session": True}
     if os.name == "nt":
-        kw = {"creationflags": 0x00000008 | 0x00000200}  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        # DETACHED_PROCESS だと worker 自身がコンソールを持たず、孫の claude（console app）が
+        # 可視のコンソール窓を新規に確保してしまう。CREATE_NO_WINDOW なら不可視のコンソールが
+        # 割り当てられ、孫もそれを継承するので窓が出ない（実機観測 2026-09-13）。
+        kw = {"creationflags": CREATE_NO_WINDOW | 0x00000200}  # CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
     with open(LOG_PATH, "a", encoding="utf-8") as out:
         subprocess.Popen(
             [sys.executable, os.path.abspath(__file__), *args],
@@ -222,7 +227,20 @@ def run_claude(prompt, stdin_text=None):
         prompt,
     ]
     os.makedirs(STORE_DIR, exist_ok=True)
-    r = subprocess.run(cmd, input=stdin_text, capture_output=True, text=True, env=env, cwd=STORE_DIR, timeout=CLAUDE_TIMEOUT_SEC)
+    # encoding を明示しないと Windows では cp932 になり、transcript の em dash 等で
+    # stdin 書き込みが UnicodeEncodeError で死ぬ（claude は入力待ちのまま timeout まで残る）。
+    r = subprocess.run(
+        cmd,
+        input=stdin_text,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        cwd=STORE_DIR,
+        timeout=CLAUDE_TIMEOUT_SEC,
+        **NO_WINDOW_KW,
+    )
     if r.returncode != 0:
         raise RuntimeError(f"claude exit {r.returncode}: {r.stderr.strip()[:300]}")
     return r.stdout.strip()
