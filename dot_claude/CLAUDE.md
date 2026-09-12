@@ -12,7 +12,7 @@ rules 本文の [CRITICAL] は常時厳守（妥協不可）、[IMPORTANT] は�
 @~/.claude/persona.md
 
 ## ユーザプロフィール（協働相手）
-協働相手の人物像・判断軸。態度ペルソナ（アシスタント側）と対になる基盤文脈として import する。応答の framing と提案の評価軸に効く。可変な個別状態（進行中の移行・採否の個別事例）は auto memory 側に置く。
+協働相手の人物像・判断軸。態度ペルソナ（アシスタント側）と対になる基盤文脈として import する。応答の framing と提案の評価軸に効く。可変な個別状態（進行中の移行・採否の個別事例）は vault 側に置く。
 
 @~/.claude/user-profile.md
 
@@ -22,7 +22,7 @@ advisor 呼び出し時にレビュアーへ渡す指示（分量の指定）を
 @~/.claude/advisor.md
 
 ## ナレッジの所在
-常時厳守の業務機密隔離と auto memory の扱いだけを常時ロードに残す。器の選択・CLAUDE.md と rules の境界判定・rules の入場条件・モデル世代での再ベースラインの正本は `/knowledge-placement` skill（永続化のタスク時にだけ要るため skill 側に置く）。
+常時厳守の業務機密隔離と、記憶の 3 層（短期＝session_memory・長期＝vault・規範＝rules）だけを常時ロードに残す。器の選択・CLAUDE.md と rules の境界判定・rules の入場条件・モデル世代での再ベースラインの正本は `/knowledge-placement` skill（永続化のタスク時にだけ要るため skill 側に置く）。
 
 @~/.claude/knowledge-location.md
 
