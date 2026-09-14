@@ -70,6 +70,19 @@
           }
         ]
       }
+{{- /* herdr は chezmoi 管理外の machine-local インストール。script がある環境でだけ登録する。 */}}
+{{- if stat (joinPath .chezmoi.homeDir ".claude/hooks/herdr-agent-state.sh") }},
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '{{ joinPath .chezmoi.homeDir ".claude/hooks/herdr-agent-state.sh" }}' session",
+            "timeout": 10
+          }
+        ]
+      }
+{{- end }}
     ],
     "SessionEnd": [
       {
@@ -78,16 +91,6 @@
             "type": "command",
             "command": "python3 ~/.claude/hooks/session_memory.py end",
             "timeout": 10
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 ~/.claude/hooks/correction-reread.py"
           }
         ]
       }
