@@ -1,0 +1,68 @@
+# quiro の設定ファイル。
+# 置き場所:
+#   macOS   ~/.config/quiro/config.toml
+#   Windows %USERPROFILE%\.config\quiro\config.toml
+#
+# パスの先頭の ~/ はホームディレクトリに展開する（macOS は $HOME、Windows は
+# %USERPROFILE%）。環境変数は展開しないので、~ 以外は実パスで書く。
+# exec の実体が無い [[entry]] は一覧に出ないので、両 OS 分のエントリを同じファイルに
+# 書いてよい。
+
+# 呼び出しホットキー。修飾子は Alt / Ctrl / Shift / Super(macOS の Cmd) を + で繋ぐ。
+hotkey = "Alt+."
+
+# --- アプリケーション ---
+
+[[entry]]
+name = "Ghostty"
+# macOS は .app のパス、Windows は .exe のパスを書く。
+exec = "/Applications/Ghostty.app"
+keywords = ["terminal", "term"]
+
+[[entry]]
+name = "Obsidian"
+exec = "/Applications/Obsidian.app"
+keywords = ["notes", "vault"]
+
+# --- 指定パス ---
+
+[[entry]]
+name = "workspace"
+exec = "~/workspace"
+keywords = ["ws", "repos"]
+
+[[entry]]
+name = "quiro の設定"
+exec = "~/.config/quiro/config.toml"
+keywords = ["config", "settings"]
+
+# --- WEB 検索 ---
+# prefix + 半角空白 で入り、打った語をそのまま既定ブラウザで検索する。
+# url の {query} が打った語（パーセントエンコード済み）に置き換わる。
+
+[[search]]
+name = "Google"
+prefix = "s"
+url = "https://www.google.com/search?q={query}"
+icon = "~/.config/quiro/icons/google_logo.svg"
+
+[[search]]
+name = "GitHub"
+prefix = "gh"
+url = "https://github.com/search?q={query}"
+icon = "~/.config/quiro/icons/github_logo.svg"
+
+# --- Claude Code のセッション ---
+# prefix + 半角空白 で入り、打った語を最初の指示として herdr の新しいタブで
+# Claude Code を開始する。この節を消せばモードごと出なくなる。
+
+[pane]
+icon = "~/.config/quiro/icons/herdr_logo.svg"
+
+[claude]
+prefix = "cc"
+# 起点ディレクトリ。先頭の ~/ はホームに展開する。
+root = "~/workspace"
+# タブを作る herdr の workspace 名。無ければ作る。
+workspace = "quiro"
+icon = "~/.config/quiro/icons/claude_logo.svg"
