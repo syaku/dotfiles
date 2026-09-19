@@ -135,3 +135,7 @@ run = 'layout floating'
 [[on-window-detected]]
 if.app-id = 'com.runningwithcrayons.Alfred'
 run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.syaku.quiro'
+run = 'layout floating'
