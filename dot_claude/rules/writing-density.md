@@ -1,18 +1,31 @@
-# 筆記密度（mannered prose の抑制）
+# 文章の調子（見本）
 
-比喩や気取った言い回しで直接的な言明を代替しない。文が長く連なって段落が割れなくなったら密度過多のシグナル。
+人に宛てて書く文（チャットの応答、レポート、規範文、commit / PR 本文、コードコメント）は、次の見本の調子で書く。禁止の列挙ではなく見本で示す。文体は一文ごとの判断ではなく全部の語に乗る傾向なので、書き手は禁止された書き方を書いている最中に認識できない。文脈にある文章の調子は、指示より強く写る。
 
-以下は公式の対策 prompt（原文のまま置く。訳すと効き目が変わるため）。
+## 見本
 
-```text
-Mannered prose substitutes metaphor and flourish for direct statement. Instead of "a parameter worth varying," the mannered writer produces "a dial worth turning." Instead of "this point still matters," they write "this point earns its keep." The phrases exist to display the writer, not to convey the idea, and readers can tell. That is why mannered prose irritates: it makes the reader work harder so the writer can perform. It is also imprecise. Metaphors drag in connotations the writer did not choose and cannot control. The fix is to say what you mean. When a literal phrase is available, use it.
-```
+> 設定ファイルの読み込みで起動が失敗していました。原因は、パスを絶対パスで書いていたことです。Windows では `~` が展開されないので、`C:\Users\...` を探しに行って見つからず、そこで止まります。
+>
+> 直し方は 2 つあります。起動時に `~` をホームディレクトリに置き換えるか、設定には相対パスだけを許すかです。前者を勧めます。既存の設定ファイルをそのまま使えるからです。
+>
+> 確認は、Windows で一度起動して、ログにパスが展開されて出ることを見れば足ります。
 
-短縮版（分量を切り詰めるときはこちら）: `Please remove all mannered prose.`
+規範や教訓を一文にするときも同じ調子で書く。
+
+> 元: 移植した「弾く理由」は被害の型ごと移らなかった
+> 見本: 他所から規則を写すときは、その規則が防いでいる被害が、写した先でも起きるかを確かめる。
+
+## 見本が持っている性質
+
+- 一文に主語と動詞が 1 組ある。何が何をしてどうなったかが、その文だけで分かる。
+- 名詞は読み手がすでに知っている語で、`~` や `C:\Users\...` のような実物を使う。自分がその場で作った名詞句は使わない。
+- 理由は「〜だから」「〜なので」の文にする。名詞にまとめない。
+- 補足は文を分ける。ダッシュや括弧で一文の中に足さない。
+- 比喩を使わず、そのまま言える言い方があればそれを使う。
 
 ## 錨と適用条件
 
-- 出典: [Prompting Claude Fable 5.1 — Writing density](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#writing-density)。Fable 5.1 / Mythos 5.1 で「Fable 5 より prose が密になる（文が長く段落が少ない）」と観測された傾向への対策。
-- Opus / Sonnet 系では同傾向の観測は無いが、内容は世代非依存の文体規範なのでモデル ID でゲートしない。
-- 退役判定: Fable 系を常用しなくなり、かつ他系列でも mannered prose が出ないと確認できたら、`/knowledge-placement` skill の「モデル世代での再ベースライン」の手順で退役試行する。
-- 簡潔さの具体則（分量・構成）は Output Style が正本で、ここは扱わない。本ルールは「比喩で直言を代替しない」という別軸。
+- 前身は Fable 5.1 の公式ガイド [Prompting Claude Fable 5.1 — Writing density](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#writing-density) にある mannered prose 対策の prompt で、比喩と装飾を禁じる形だった。2026-09-20 に、禁止の形から見本の形に変えた。理由は、セッション c22db3cc（Opus 5）でこの規範が終日読み込まれていたのに、読み手が意味を取れない日本語（「理由が指す被害の型が移っているかを確かめる」）を止められなかったから。壊れ方は比喩ではなく、名詞化と自分で作った語だった。
+- モデル ID でこの規範を切り替えない。Opus でも Fable でも同じ調子で書く。
+- 見直しの条件: 常時読み込む規範・skill・CLAUDE.md を見本の調子に揃え終えたあと、数セッションで読み手が意味を取れない語がまだ出るなら、見本の内容を変える。見本を外すのではなく差し替える。
+- 分量と構成の決まりは Output Style が持つ。ここが扱うのは調子だけ。
