@@ -68,8 +68,25 @@
           }
         ]
       }
-{{- /* herdr は chezmoi 管理外の machine-local インストール。script がある環境でだけ登録する。 */}}
-{{- if stat (joinPath .chezmoi.homeDir ".claude/hooks/herdr-agent-state.sh") }},
+{{- /* herdr は chezmoi 管理外の machine-local インストール。script がある環境でだけ登録する。
+       command は herdr integration install が書く文字列と同じ形にし、install を再実行しても二重登録にならないようにする。
+       Windows は .ps1 を powershell で呼ぶ（herdr 0.8.2 src/integration/command.rs）。joinPath は Windows で
+       区切りが混在するので、パスは homeDir の連結で組む。 */}}
+{{- if eq .chezmoi.os "windows" }}
+{{-   if stat (joinPath .chezmoi.homeDir ".claude/hooks/herdr-agent-state.ps1") }},
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"{{ .chezmoi.homeDir | replace "/" "\\\\" }}\\.claude\\hooks\\herdr-agent-state.ps1\" session",
+            "timeout": 10
+          }
+        ]
+      }
+{{-   end }}
+{{- else }}
+{{-   if stat (joinPath .chezmoi.homeDir ".claude/hooks/herdr-agent-state.sh") }},
       {
         "matcher": "*",
         "hooks": [
@@ -80,6 +97,7 @@
           }
         ]
       }
+{{-   end }}
 {{- end }}
     ],
     "SessionEnd": [
@@ -110,10 +128,6 @@
           {
             "type": "command",
             "command": "bash ~/.claude/hooks/chezmoi-source-guard.sh"
-          },
-          {
-            "type": "command",
-            "command": "python3 ~/.claude/hooks/question-write-guard.py"
           }
         ]
       }
