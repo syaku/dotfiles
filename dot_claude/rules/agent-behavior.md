@@ -51,7 +51,7 @@ AI エージェントとして作業するときの操作手順。人間が手�
 
 ## [IMPORTANT]deep-research・多 agent 検索へ自分から切り替えない
 
-- Web 調査は WebSearch + WebFetch（または /web-research skill）を既定にする。deep-research、Workflow、多 agent fan-out での検索は、ユーザがその手段を指定したときだけ使う。「調べて」「まとめて」は切り替える理由にならない。予算内で答えに達しなければ中間報告で止まり、切り替えるかどうかはユーザが決める。
+- Web 調査は WebSearch + WebFetch を既定にする。deep-research、Workflow、多 agent fan-out での検索は、ユーザがその手段を指定したときだけ使う。「調べて」「まとめて」は切り替える理由にならない。予算内で答えに達しなければ中間報告で止まり、切り替えるかどうかはユーザが決める。
 - 接地: 2026-07-15。PoE2 ビルド調査の「調べて」に対し deep-research を自分から起動し、費用対効果が合わずユーザに止められた。
 
 ## [IMPORTANT]調査・レビューの委譲で、見る箇所を先回りして絞らない
