@@ -24,9 +24,12 @@
 # 他のアプリが先に握っている組み合わせは登録に失敗する。そのときは**取れたものだけ**
 # が使われ、取れなかった組み合わせが状態行に出る。
 
+# **領域へ送るキーだけ OS で書き分ける。** macOS は Karabiner で修飾キーを入れ替えて
+# あるので、同じ綴りが両 OS で別の物理キーになる。zoni の設定は「OS 条件つきのキーを
+# 作らない」約束（premise の Acceptance 4）なので、分岐は chezmoi の側に置く。
 [hotkeys]
-prev_zone = "Ctrl+Left"
-next_zone = "Ctrl+Right"
+prev_zone = "{{ if eq .chezmoi.os "windows" }}Cmd{{ else }}Ctrl{{ end }}+Left"
+next_zone = "{{ if eq .chezmoi.os "windows" }}Cmd{{ else }}Ctrl{{ end }}+Right"
 maximize = "Option+x"
 minimize = "Option+Shift+x"
 overlay = "Option+/"
@@ -46,8 +49,10 @@ overlay = "Option+/"
 #
 # 例:
 #   bundle_ids = ["com.apple.finder", "com.apple.systempreferences"]
+# Windows では実行ファイル名（小文字）で照合する。1 つでも当たれば落ちるので、
+# macOS の bundle ID と並べて書けば 1 つの設定ファイルで両方の OS に効く。
 [exclude]
-bundle_ids = ["com.syaku.quiro"]
+bundle_ids = ["com.syaku.quiro", "quiro.exe"]
 
 # ---------------------------------------------------------------------------
 # 領域
