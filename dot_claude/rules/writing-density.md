@@ -23,7 +23,7 @@
 - 補足は文を分ける。ダッシュや括弧で一文の中に足さない。
 - 比喩を使わず、そのまま言える言い方があればそれを使う。
 
-## 錨と適用条件
+## 元になった資料と適用条件
 
 - 前身は Fable 5.1 の公式ガイド [Prompting Claude Fable 5.1 — Writing density](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#writing-density) にある mannered prose 対策の prompt で、比喩と装飾を禁じる形だった。2026-09-20 に、禁止の形から見本の形に変えた。理由は、セッション c22db3cc（Opus 5）でこの規範が終日読み込まれていたのに、読み手が意味を取れない日本語（「理由が指す被害の型が移っているかを確かめる」）を止められなかったから。壊れ方は比喩ではなく、名詞化と自分で作った語だった。
 - モデル ID でこの規範を切り替えない。Opus でも Fable でも同じ調子で書く。
