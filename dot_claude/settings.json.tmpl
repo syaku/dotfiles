@@ -41,7 +41,11 @@
       "WebFetch(domain:0.0.0.0)",
       "WebFetch(domain:169.254.169.254)",
       "WebFetch(domain:*.local)",
-      "WebFetch(domain:*.internal)"
+      "WebFetch(domain:*.internal)",
+      "Artifact",
+      "SendFeedback",
+      "ScheduleWakeup",
+      "ReportFindings"
     ],
     "ask": [
       "Bash(screencapture)",
@@ -181,7 +185,17 @@
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "preferredNotifChannel": "terminal_bell",
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+{{- /* 常時読み込みの削減（2026-09-22）。tool 定義・connector の tool 名・skill 一覧・auto memory が
+       固定文脈の大半を占めていたため、この workspace で使っていないものを外す。deny に素の tool 名を
+       書くと定義そのものが context から消える。deny は全設定ファイルの合算で allow の例外を作れないので、
+       Artifact が要る session ではこの行を外して chezmoi apply する。 */}}
+  "deniedMcpServers": [
+    { "serverName": "claude.ai Datadog" },
+    { "serverName": "claude.ai Atlassian Rovo" }
+  ],
+  "skillListingMaxDescChars": 400,
+  "autoMemoryEnabled": false
 {{- $am := joinPath ".automode-environments" (printf "%s.json" .chezmoi.hostname) }}
 {{- if stat (joinPath .chezmoi.sourceDir $am) }},
   "autoMode": {{ include $am }}
