@@ -88,10 +88,15 @@ def installed_versions(marketplace):
 
 
 def git(clone, *args, timeout=None):
+    # encoding を明示しないと Windows では cp932 で読もうとし、git の出力に日本語（commit
+    # message など）が混ざると reader thread が UnicodeDecodeError を投げる。例外は hook の
+    # stderr に出て毎セッションの context に載る（2026-09-22 に観測、689 字）。
     return subprocess.run(
         ["git", "-C", clone, *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
     )
 
