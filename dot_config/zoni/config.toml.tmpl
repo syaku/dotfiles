@@ -1,11 +1,13 @@
 # zoni の設定ファイル。
-# 置き場所: ~/Library/Application Support/zoni/config.toml
+# 置き場所:
+#   macOS   ~/.config/zoni/config.toml
+#   Windows %USERPROFILE%\.config\zoni\config.toml
 #
-# 初回起動時に、この内容と同じ雛形が書き出される。書き換えたあとは
-# メニューバーの「設定を再読み込み」で反映する（再起動は要らない）。
+# 書き換えたあとはメニューバーの「設定を再読み込み」で反映する（再起動は要らない）。
 #
-# **書く順序は自由。** 設定はすべて名前付きの表（[hotkeys] / [exclude] / [[zone]]）に
-# 入っているので、どの順序で並べても同じ設定になる。知らないキーを書くと読み込みが
+# **書く順序は自由。** 設定はすべて名前付きの表（[hotkeys] / [exclude] / [[zone]] /
+# [layout] / [overlay] / [placement] / [drag] / [focus]）に入っているので、どの順序で
+# 並べても同じ設定になる。知らないキーを書くと読み込みが
 # 落ちて状態行に出る（黙って無視されることはない）。
 
 # ---------------------------------------------------------------------------
@@ -27,9 +29,22 @@
 # **領域へ送るキーだけ OS で書き分ける。** macOS は Karabiner で修飾キーを入れ替えて
 # あるので、同じ綴りが両 OS で別の物理キーになる。zoni の設定は「OS 条件つきのキーを
 # 作らない」約束（premise の Acceptance 4）なので、分岐は chezmoi の側に置く。
+#
+# 書ける 9 つと、書かなかったときの既定:
+#   prev_zone          前の領域へ送る                     Ctrl+Left
+#   next_zone          次の領域へ送る                     Ctrl+Right
+#   focus_prev_zone    前の領域のウィンドウへフォーカス   Option+Left
+#   focus_next_zone    次の領域のウィンドウへフォーカス   Option+Right
+#   focus_prev_window  同じ領域の前のウィンドウへ         Option+Shift+Left
+#   focus_next_window  同じ領域の次のウィンドウへ         Option+Shift+Right
+#   maximize           作業領域いっぱいに広げる           Option+Up
+#   minimize           最小化する                         Option+Down
+#   overlay            領域のオーバーレイを出し入れする   Option+/
 [hotkeys]
 prev_zone = "{{ if eq .chezmoi.os "windows" }}Cmd{{ else }}Ctrl{{ end }}+Left"
 next_zone = "{{ if eq .chezmoi.os "windows" }}Cmd{{ else }}Ctrl{{ end }}+Right"
+# focus_prev_zone = "Option+Left"
+# focus_next_zone = "Option+Right"
 focus_prev_window = "Option+Up"
 focus_next_window = "Option+Down"
 maximize = "Option+x"
@@ -141,15 +156,51 @@ top = 0.75
 right = 1.0
 bottom = 1.0
 
+# ---------------------------------------------------------------------------
+# 余白
+# ---------------------------------------------------------------------------
+#
+# gap は隣り合う領域どうしの隙間、edge は画面の端に残す隙間（どちらも px。既定 0）。
+# 負の値を書くと読み込みが落ちる。edge は maximize にも効く。
+
 [layout]
 gap = 8.0
 edge = 8.0
 
+# ---------------------------------------------------------------------------
+# オーバーレイ
+# ---------------------------------------------------------------------------
+#
+# border_width  領域の枠の太さ（px。既定 2）
+# label         各領域に出す文字。"number" / "name" / "both"（既定 "name"）
+# border_color  枠の色。"#RRGGBB" か "#RRGGBBAA"（既定はシステムの青）
+# fill_color    ドラッグの落とし先を塗る色（既定はシステムの青。不透明度を書かないと 0.5）
+# text_color    文字の色（既定は白）
+# 読めない label や色は、そのキーだけ既定に戻り、理由が状態行に出る。
+
 [overlay]
 border_width = 1.0
+# label = "both"
+# border_color = "#4A90D9"
+# fill_color = "#4A90D940"
+# text_color = "#FFFFFF"
+
+# ---------------------------------------------------------------------------
+# 自動配置
+# ---------------------------------------------------------------------------
+#
+# enabled を true にすると、新しく開いたウィンドウを最も近い領域へ送る。既定は false。
 
 [placement]
 enabled = true
+
+# ---------------------------------------------------------------------------
+# ドラッグ
+# ---------------------------------------------------------------------------
+#
+# enabled を true にすると、ドラッグしたウィンドウを離した位置の領域へ収める。既定は false。
+# escape_modifier を押している間は収めない。Shift / Ctrl / Option / Cmd のどれか 1 つ
+# （既定 "Shift"）。
 
 [drag]
 enabled = true
@@ -170,3 +221,6 @@ escape_modifier = "Shift"
 
 [focus]
 enabled = true
+# border_width = 2.0
+# corner_radius = 10.0
+# border_color = "#FF9500"

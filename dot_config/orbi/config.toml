@@ -1,0 +1,37 @@
+# orbi の設定ファイル。
+# 置き場所: ~/.config/orbi/config.toml
+#
+# 書き換えたあとはメニューバーの「設定を再読み込み」で反映する（再起動は要らない）。
+# 書けるのは下の 4 項目だけで、どれも省略できる。
+
+# 呼び出しホットキー。修飾子は Option(Alt) / Ctrl / Shift / Super(Cmd) を + で繋ぐ。
+# 3 本とも常時登録するので、同じ組み合わせを 2 本以上に書くと 3 本とも登録されず、
+# 状態行が「ホットキー: 登録できませんでした」になる（常駐は続く）。
+#
+# 3 本とも Option を含む組み合わせにすること。一覧が開いているのは Option を押している
+# 間だけで、Option が押されていない発火は捨てる作りなので、Option を含まない組み合わせ
+# は登録できても一度も反応しない。読み込みの段で弾いて、状態行が
+# 「設定ファイルを読み込めませんでした」になる（常駐は続き、前の設定のまま動く）。
+#
+#   hotkey_next    一覧を開く / 選択を 1 つ進める        既定 "Option+Tab"
+#   hotkey_prev    選択を 1 つ戻す                       既定 "Option+Shift+Tab"
+#   hotkey_cancel  フォーカスを移さずに一覧を閉じる      既定 "Option+Escape"
+#
+# AltTab など他のアプリが Option+Tab を握っていると登録に失敗する。
+# そのときはメニューバーの状態行に出るので、ここを別の組み合わせに変えるか、
+# 相手のアプリを終了してから「設定を再読み込み」する。
+hotkey_next = "Option+Tab"
+hotkey_prev = "Option+Shift+Tab"
+hotkey_cancel = "Option+Escape"
+
+# 一覧に出さないアプリを bundle ID で指定する。空なら何も除外しない（既定は空）。
+# bundle ID は、アプリ名を渡して次を叩くと分かる。
+#
+#   osascript -e 'id of app "TotalMix FX"'
+#
+# アプリ名はメニューバーや Finder で見えている名前（.app の名前）。
+# 返ってきた文字列を、大文字小文字も含めてそのまま書く。
+#
+# 例（RME のオーディオインタフェースの常駐ウィンドウを外す）:
+#   exclude_bundle_ids = ["de.rme-audio.TotalmixFX", "de.rme-audio.dkusbsettings"]
+exclude_bundle_ids = []
