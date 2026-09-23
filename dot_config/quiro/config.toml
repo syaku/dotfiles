@@ -7,11 +7,20 @@
 # %USERPROFILE%）。環境変数は展開しないので、~ 以外は実パスで書く。
 # exec の実体が無い [[entry]] は一覧に出ないので、両 OS 分のエントリを同じファイルに
 # 書いてよい。
+#
+# 書き方に問題があると quiro は起動しない。「設定を再読み込み」のときは理由が
+# ウィンドウに出て、設定は前のまま残る。
 
 # 呼び出しホットキー。修飾子は Alt / Ctrl / Shift / Super(macOS の Cmd) を + で繋ぐ。
+# 省略すると "Alt+Space"。
 hotkey = "Alt+."
 
 # --- アプリケーション ---
+# name     一覧に出す表示名（必須）
+# exec     起動するアプリ・ディレクトリ・ファイル（必須）
+# args     exec に渡す引数。省略すると OS の既定の開き方（macOS は open）に任せる
+# keywords 表示名以外で検索に当てたい別名
+# exec と args が自動検出したアプリと一致すると、ここの name / keywords が使われる。
 
 [[entry]]
 name = "Ghostty"
@@ -23,6 +32,13 @@ keywords = ["terminal", "term"]
 name = "Obsidian"
 exec = "/Applications/Obsidian.app"
 keywords = ["notes", "vault"]
+
+# 引数付きの起動は別の候補として並ぶ（素のアプリも一覧に残る）。
+# [[entry]]
+# name = "VS Code で workspace を開く"
+# exec = "/Applications/Visual Studio Code.app"
+# args = ["~/workspace"]
+# keywords = ["code"]
 
 # --- 指定パス ---
 
@@ -36,9 +52,26 @@ name = "quiro の設定"
 exec = "~/.config/quiro/config.toml"
 keywords = ["config", "settings"]
 
+# --- フォルダの走査 ---
+# dir の中の .app（Windows は .lnk / .exe）を候補に加える。表示名は拡張子を除いた
+# ファイル名。存在しないフォルダは黙って飛ばす。走査は起動時と再読み込み時だけ。
+# depth は見る階層の深さ。省略すると 2、1 なら直下だけ、0 なら走査しない。
+# 深い階層を指定すると、そのぶん起動と再読み込みが遅くなる。
+
+# [[scan]]
+# dir = "~/Applications"
+#
+# [[scan]]
+# dir = "~/tools"
+# depth = 3
+
 # --- WEB 検索 ---
 # prefix + 半角空白 で入り、打った語をそのまま既定ブラウザで検索する。
 # url の {query} が打った語（パーセントエンコード済み）に置き換わる。
+# name と prefix は検索先どうしで重複できない。prefix は大文字小文字を区別せず、
+# 組み込みの w / p と [claude] の prefix とも重複できない。
+# url は http:// か https:// で始め、{query} を含める。
+# icon はモードの印。1 文字か画像ファイルのパスで、省略すると既定の印になる。
 
 [[search]]
 name = "Google"
@@ -52,17 +85,39 @@ prefix = "gh"
 url = "https://github.com/search?q={query}"
 icon = "~/.config/quiro/icons/github_logo.svg"
 
-# --- Claude Code のセッション ---
-# prefix + 半角空白 で入り、打った語を最初の指示として herdr の新しいタブで
-# Claude Code を開始する。この節を消せばモードごと出なくなる。
+# icon に 1 文字を書く例。
+# [[search]]
+# name = "Wikipedia"
+# prefix = "wp"
+# url = "https://ja.wikipedia.org/w/index.php?search={query}"
+# icon = "W"
+
+# --- ウィンドウ一覧（prefix は w で固定） ---
+# この節を書かなくてもモードは出る。
+# exclude_bundle_ids は一覧から落とすアプリ。macOS は bundle ID、Windows は
+# 実行ファイル名の小文字で書く。
+
+# [window]
+# exclude_bundle_ids = ["com.apple.finder", "obsidian.exe"]
+# icon = "~/.config/quiro/icons/window.svg"
+
+# --- herdr の pane 一覧（prefix は p で固定） ---
+# この節を書かなくてもモードは出る。書けるのは icon だけ。
 
 [pane]
 icon = "~/.config/quiro/icons/herdr_logo.svg"
 
+# --- Claude Code のセッション ---
+# prefix + 半角空白 で入り、打った語を最初の指示として herdr の新しいタブで
+# Claude Code を開始する。この節を消せばモードごと出なくなる。
+# 項目はすべて省略でき、空の [claude] だけを書くと全部が既定値になる。
+
 [claude]
+# 省略すると "cc"。書ける文字と重複の扱いは [[search]] の prefix と同じ。
 prefix = "cc"
-# 起点ディレクトリ。先頭の ~/ はホームに展開する。
+# 起点ディレクトリ。先頭の ~/ はホームに展開する。展開後に絶対パスでない値は弾かれる。
+# 省略すると ~/workspace。
 root = "~/workspace"
-# タブを作る herdr の workspace 名。無ければ作る。
+# タブを作る herdr の workspace 名。無ければ作る。省略すると "quiro"。
 workspace = "quiro"
 icon = "~/.config/quiro/icons/claude_logo.svg"
