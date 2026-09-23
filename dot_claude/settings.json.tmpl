@@ -79,7 +79,7 @@
 {{- if eq .chezmoi.os "windows" }}
 {{-   if stat (joinPath .chezmoi.homeDir ".claude/hooks/herdr-agent-state.ps1") }},
       {
-        "matcher": "*",
+        "matcher": "^(startup|resume|clear|compact|fork)$",
         "hooks": [
           {
             "type": "command",
@@ -92,7 +92,7 @@
 {{- else }}
 {{-   if stat (joinPath .chezmoi.homeDir ".claude/hooks/herdr-agent-state.sh") }},
       {
-        "matcher": "*",
+        "matcher": "^(startup|resume|clear|compact|fork)$",
         "hooks": [
           {
             "type": "command",
