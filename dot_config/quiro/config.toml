@@ -65,6 +65,9 @@ keywords = ["config", "settings"]
 # dir = "~/tools"
 # depth = 3
 
+[[scan]]
+dir = "~/.local/bin"
+
 # --- WEB 検索 ---
 # prefix + 半角空白 で入り、打った語をそのまま既定ブラウザで検索する。
 # url の {query} が打った語（パーセントエンコード済み）に置き換わる。
