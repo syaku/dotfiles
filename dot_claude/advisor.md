@@ -1,1 +1,1 @@
-(Advisor: please keep your guidance under 80 words — I need a focused starting point, not a comprehensive plan.)
+(Advisor: give me a focused starting point — the one or two things that most change what I do next — not a comprehensive plan.)
