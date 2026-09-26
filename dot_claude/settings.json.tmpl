@@ -54,6 +54,21 @@
     "defaultMode": "auto"
   },
   "hooks": {
+{{- /* 作業レポートの保存先。chezmoi.toml の [data] に sessionReportInbox がある端末でだけ
+       session_memory.py に --report-inbox を渡す。キーが無い端末でテンプレートを止めないよう dig で読む。
+       パスは単引用符で囲む。二重引用符だと末尾の \ や $ ` をシェルが解釈し、同じコマンドの要約まで止まるから。
+       単引用符の中に ' は書けないので、' を含む値はテンプレートで止める。先頭の ~ は Python 側が展開する。
+       コマンド全体は toJson で JSON の文字列にする。 */}}
+{{- $reportInbox := dig "sessionReportInbox" "" . }}
+{{- $smStart := "python3 ~/.claude/hooks/session_memory.py start" }}
+{{- $smEnd := "python3 ~/.claude/hooks/session_memory.py end" }}
+{{- if $reportInbox }}
+{{-   if contains "'" $reportInbox }}
+{{-     fail "sessionReportInbox に ' を含むパスは使えない" }}
+{{-   end }}
+{{-   $smStart = printf "%s --report-inbox %s" $smStart (squote $reportInbox) }}
+{{-   $smEnd = printf "%s --report-inbox %s" $smEnd (squote $reportInbox) }}
+{{- end }}
     "SessionStart": [
       {
         "matcher": "startup",
@@ -68,7 +83,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/session_memory.py start"
+            "command": {{ $smStart | toJson }}
           }
         ]
       }
@@ -109,7 +124,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/session_memory.py end",
+            "command": {{ $smEnd | toJson }},
             "timeout": 10
           }
         ]

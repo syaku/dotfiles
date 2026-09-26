@@ -27,6 +27,8 @@
 買ったと詰められるのは困る」）。要約も事象のみで、ユーザの属性（好み・方針）は書かせない。
 
 保存先は ~/.claude/session-memory/（chezmoi 非管理・端末ローカル）。vault には置かない。
+作業レポート（vault の inbox に書くノート）は session_report.py が持ち、`--report-inbox <パス>` を
+渡された worker だけが要約とは独立に試す。
 """
 
 import datetime as _dt
@@ -141,7 +143,18 @@ def _clean_text(s):
     return s.strip()
 
 
-def extract(transcript_path):
+def load_rows(transcript_path):
+    rows = []
+    with open(transcript_path, encoding="utf-8") as f:
+        for raw in f:
+            try:
+                rows.append(json.loads(raw))
+            except Exception:
+                continue
+    return rows
+
+
+def extract(transcript_path, rows=None):
     """transcript から要約器に渡す情報を取り出す。
 
     返り値: dict(session_id, started(ISO, ローカル), cwd, human_turns, text)
@@ -153,43 +166,38 @@ def extract(transcript_path):
     started = None
     cwd = None
     session_id = None
-    with open(transcript_path, encoding="utf-8") as f:
-        for raw in f:
-            try:
-                d = json.loads(raw)
-            except Exception:
+    for d in load_rows(transcript_path) if rows is None else rows:
+        t = d.get("type")
+        if t not in ("user", "assistant"):
+            continue
+        if d.get("isSidechain") or d.get("isMeta"):
+            continue
+        session_id = session_id or d.get("sessionId")
+        cwd = cwd or d.get("cwd")
+        m = d.get("message") or {}
+        content = m.get("content")
+        parts = []
+        if isinstance(content, str):
+            parts.append(_clean_text(content))
+        else:
+            for b in content or []:
+                bt = b.get("type")
+                if bt == "text":
+                    parts.append(_clean_text(b.get("text", "")))
+                elif bt == "tool_use":
+                    parts.append(f"[tool: {b.get('name', '')}]")
+        text = "\n".join(p for p in parts if p)
+        if not text:
+            continue
+        if t == "user":
+            if (d.get("origin") or {}).get("kind") != "human":
                 continue
-            t = d.get("type")
-            if t not in ("user", "assistant"):
-                continue
-            if d.get("isSidechain") or d.get("isMeta"):
-                continue
-            session_id = session_id or d.get("sessionId")
-            cwd = cwd or d.get("cwd")
-            m = d.get("message") or {}
-            content = m.get("content")
-            parts = []
-            if isinstance(content, str):
-                parts.append(_clean_text(content))
-            else:
-                for b in content or []:
-                    bt = b.get("type")
-                    if bt == "text":
-                        parts.append(_clean_text(b.get("text", "")))
-                    elif bt == "tool_use":
-                        parts.append(f"[tool: {b.get('name', '')}]")
-            text = "\n".join(p for p in parts if p)
-            if not text:
-                continue
-            if t == "user":
-                if (d.get("origin") or {}).get("kind") != "human":
-                    continue
-                human_turns += 1
-                if started is None:
-                    started = d.get("timestamp")
-                lines.append(f"USER: {text}")
-            else:
-                lines.append(f"ASSISTANT: {text}")
+            human_turns += 1
+            if started is None:
+                started = d.get("timestamp")
+            lines.append(f"USER: {text}")
+        else:
+            lines.append(f"ASSISTANT: {text}")
     body = "\n\n".join(lines)
     if len(body) > INPUT_HEAD_CHARS + INPUT_TAIL_CHARS:
         body = body[:INPUT_HEAD_CHARS] + "\n\n[...中略...]\n\n" + body[-INPUT_TAIL_CHARS:]
@@ -213,17 +221,19 @@ def _to_local(iso):
 
 
 # ---- 要約 -------------------------------------------------------------------
-def run_claude(prompt, stdin_text=None):
+def run_claude(prompt, stdin_text=None, model=None, output_format="text", extra_args=(), timeout=CLAUDE_TIMEOUT_SEC):
     env = dict(os.environ)
     env[CHILD_ENV] = "1"
+    # prompt は常に最後に置く。テストの偽 claude が sys.argv[-1] を prompt として読むから
     cmd = [
         claude_bin(), "-p",
         "--setting-sources", "",
         "--no-session-persistence",
         "--disable-slash-commands",
         "--tools", "",
-        "--model", MODEL,
-        "--output-format", "text",
+        "--model", model or MODEL,
+        "--output-format", output_format,
+        *extra_args,
         prompt,
     ]
     os.makedirs(STORE_DIR, exist_ok=True)
@@ -238,7 +248,7 @@ def run_claude(prompt, stdin_text=None):
         errors="replace",
         env=env,
         cwd=STORE_DIR,
-        timeout=CLAUDE_TIMEOUT_SEC,
+        timeout=timeout,
         **NO_WINDOW_KW,
     )
     if r.returncode != 0:
@@ -365,28 +375,47 @@ def store(entry):
         _write_jsonl(RECENT_PATH, recent)
 
 
-def summarize_transcript(transcript_path, reason="end"):
-    info = extract(transcript_path)
+def summarize_transcript(transcript_path, reason="end", report_inbox=None):
+    """要約とレポートを互いに独立して試す。要約の例外はレポートを試した後で投げ直す。"""
+    mtime = int(os.path.getmtime(transcript_path))  # 読む前に取る。読んだ後に伸びた分を処理済みにしないため
+    rows = load_rows(transcript_path)
+    info = extract(transcript_path, rows)
     if info["human_turns"] < MIN_HUMAN_TURNS:
         log(f"skip {os.path.basename(transcript_path)}: human_turns={info['human_turns']}")
         return None
     if not info["session_id"]:
         log(f"skip {transcript_path}: no session_id")
         return None
-    title, summary = summarize_text(info["text"])
-    entry = {
-        "session_id": info["session_id"],
-        "started": info["started"],
-        "cwd": info["cwd"],
-        "title": title,  # 要約器が全文から付けたもの。transcript の ai-title は使わない
-        "summary": summary,
-        "human_turns": info["human_turns"],
-        "transcript_mtime": int(os.path.getmtime(transcript_path)),
-        "recorded_at": _dt.datetime.now().astimezone().isoformat(timespec="minutes"),
-        "via": reason,
-    }
-    store(entry)
-    log(f"stored {info['session_id']} turns={info['human_turns']} len={len(summary)} via={reason}")
+    entry = None
+    summary_error = None
+    try:
+        title, summary = summarize_text(info["text"])
+        entry = {
+            "session_id": info["session_id"],
+            "started": info["started"],
+            "cwd": info["cwd"],
+            "title": title,  # 要約器が全文から付けたもの。transcript の ai-title は使わない
+            "summary": summary,
+            "human_turns": info["human_turns"],
+            "transcript_mtime": mtime,
+            "recorded_at": _dt.datetime.now().astimezone().isoformat(timespec="minutes"),
+            "via": reason,
+        }
+        store(entry)
+        log(f"stored {info['session_id']} turns={info['human_turns']} len={len(summary)} via={reason}")
+    except Exception as e:
+        summary_error = e
+    try:
+        import session_report
+
+        session_report.run(
+            transcript_path, rows, info["session_id"], info["human_turns"], mtime, report_inbox,
+            log=log, run_claude=run_claude, lock=_Lock, store_dir=STORE_DIR, strip_re=_STRIP_RE,
+        )
+    except Exception as e:
+        log(f"report error {os.path.basename(transcript_path)}: {e!r}")
+    if summary_error is not None:
+        raise summary_error
     return entry
 
 
@@ -459,7 +488,7 @@ def _pid_alive(pid):
         return True
 
 
-def catch_up(limit=CATCHUP_MAX_PER_START):
+def catch_up(limit=CATCHUP_MAX_PER_START, report_inbox=None):
     """SessionEnd が発火しなかった（kill 等）transcript を拾う。1 回あたり limit 件まで。"""
     if not os.path.isdir(PROJECTS_DIR):
         return 0
@@ -494,7 +523,7 @@ def catch_up(limit=CATCHUP_MAX_PER_START):
         if done >= limit:
             break
         try:
-            if summarize_transcript(path, reason="catch-up"):
+            if summarize_transcript(path, reason="catch-up", report_inbox=report_inbox):
                 done += 1
             else:
                 _mark_skipped(path)
@@ -515,7 +544,11 @@ def _mark_skipped(path):
 
 
 # ---- hook 入口 ---------------------------------------------------------------
-def cmd_end():
+def _report_args(report_inbox):
+    return ["--report-inbox", report_inbox] if report_inbox else []
+
+
+def cmd_end(report_inbox=None):
     if is_child():
         return 0
     try:
@@ -525,43 +558,59 @@ def cmd_end():
     path = payload.get("transcript_path")
     if not path or not os.path.exists(path):
         return 0
-    detach(["summarize", path])
+    detach(["summarize", path, *_report_args(report_inbox)])
     return 0
 
 
-def cmd_start():
+def cmd_start(report_inbox=None):
     if is_child():
         return 0
     out = render_recent()
     if out:
         sys.stdout.write(out)
     try:
-        detach(["catch-up"])
+        detach(["catch-up", *_report_args(report_inbox)])
     except Exception as e:
         print(f"session_memory: catch-up detach failed: {e}", file=sys.stderr)
     return 0
 
 
+def split_report_inbox(argv):
+    """`--report-inbox <パス>` を取り除き、(残りの位置引数, パス) を返す。取り除かないと summarize の reason として読まれる。"""
+    rest = []
+    report_inbox = None
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--report-inbox" and i + 1 < len(argv):
+            report_inbox = argv[i + 1]
+            i += 2
+            continue
+        rest.append(argv[i])
+        i += 1
+    return rest, report_inbox
+
+
 def main(argv):
+    argv, report_inbox = split_report_inbox(argv)
     if not argv:
-        print("usage: session_memory.py end|start|summarize <transcript>|catch-up|render", file=sys.stderr)
+        print("usage: session_memory.py end|start|summarize <transcript>|catch-up|render [--report-inbox <path>]", file=sys.stderr)
         return 1
     cmd = argv[0]
     if cmd == "end":
-        return cmd_end()
+        return cmd_end(report_inbox)
     if cmd == "start":
-        return cmd_start()
+        return cmd_start(report_inbox)
     if cmd == "summarize":
         if len(argv) < 2:
             return 1
         try:
-            summarize_transcript(argv[1], reason=argv[2] if len(argv) > 2 else "end")
+            summarize_transcript(argv[1], reason=argv[2] if len(argv) > 2 else "end", report_inbox=report_inbox)
         except Exception as e:
             log(f"summarize failed {argv[1]}: {e}")
             return 1
         return 0
     if cmd == "catch-up":
-        n = catch_up()
+        n = catch_up(report_inbox=report_inbox)
         log(f"catch-up done: {n}")
         return 0
     if cmd == "render":
