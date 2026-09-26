@@ -631,8 +631,31 @@ def _index_exists(base: str, name: str) -> bool:
     return status != 404
 
 
+def mapping_drift(expected: object, actual: object, path: str = "") -> list[str]:
+    """expected に書いたキーだけを actual と比べ、食い違うキーのパスを返す。
+
+    Why not 完全一致: OpenSearch は GET /_mapping で既定値 (knn_vector の parameters 等) を補い、
+    dynamic mapping で増えたフィールド (id 等) も返すので、完全一致だと毎回 drift になる。
+    """
+    if isinstance(expected, dict):
+        if not isinstance(actual, dict):
+            return [path or "<root>"]
+        drift: list[str] = []
+        for key, value in expected.items():
+            child = f"{path}.{key}" if path else key
+            if key not in actual:
+                drift.append(child)
+            else:
+                drift.extend(mapping_drift(value, actual[key], child))
+        return drift
+    return [] if expected == actual else [path or "<root>"]
+
+
 def ensure_index(opensearch_url: str, index: str) -> None:
-    # auto-create で float[] に落ちた既存 index を黙って踏み続けないよう、既存も厳密検証する。
+    # auto-create で float[] に落ちた既存 index や、INDEX_MAPPING を変える前に作った index を
+    # 黙って踏み続けないよう、既存も INDEX_MAPPING の全フィールドで検証する。
+    # Why not 既存 index への PUT /_mapping: 追加フィールドしか反映できず、既存 doc にも値が入らないので、
+    # 作り直しを促して止める方が確実。
     base = opensearch_url.rstrip("/")
     if not _index_exists(base, index):
         _opensearch_request("PUT", f"{base}/{index}", body=INDEX_MAPPING_BYTES)
@@ -648,27 +671,14 @@ def ensure_index(opensearch_url: str, index: str) -> None:
             f"HEAD と GET の間に外部 actor が DELETE した可能性。再実行してください。",
         )
     try:
-        bv = mapping[index]["mappings"]["properties"]["body_vector"]
-    except (KeyError, TypeError) as exc:
+        actual_properties = mapping[index]["mappings"]["properties"]
+    except (KeyError, TypeError):
+        actual_properties = None
+    drift = mapping_drift(INDEX_MAPPING["mappings"]["properties"], actual_properties)
+    if drift:
         raise RuntimeError(
-            f"既存 index `{index}` の mapping に body_vector が無い。`DELETE /{index}` で消してから再 ingest してください: {mapping!r}",
-        ) from exc
-
-    method_raw = bv.get("method")
-    # OpenSearch contract 外で method が non-dict truthy (str/int 等) で返った場合の AttributeError を防ぐ。
-    method = method_raw if isinstance(method_raw, dict) else {}
-    actual = (
-        bv.get("type"),
-        bv.get("dimension"),
-        method.get("engine"),
-        method.get("space_type"),
-    )
-    expected = ("knn_vector", EMBED_DIM, "faiss", "cosinesimil")
-    if actual != expected:
-        raise RuntimeError(
-            f"既存 index `{index}` の body_vector mapping が想定と乖離: "
-            f"actual={actual} expected={expected}. "
-            f"`DELETE /{index}` で消してから再 ingest してください。",
+            f"既存 index `{index}` の mapping が INDEX_MAPPING と乖離: {', '.join(drift)}. "
+            f"`DELETE /{index}` で消してから `--full` で再 ingest してください: {mapping!r}",
         )
 
 
