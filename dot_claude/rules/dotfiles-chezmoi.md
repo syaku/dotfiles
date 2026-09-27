@@ -16,7 +16,7 @@ paths:
 
 # dotfiles: chezmoi 操作手順
 
-ユーザは Mac/Windows 両環境の dotfile を chezmoi で 1 つの source から管理している（環境の差は `.tmpl` の `{{ .chezmoi.os }}` などで吸収する）。**ホーム配下の dotfile（`~/.gitconfig`, `~/.config/` 配下, `~/.claude/` 配下など）は chezmoi の管理下にある可能性が高く、元のファイルは常に source 側にある。** 過去に target を直接編集して source とのずれを作る失敗を繰り返している。
+ユーザは Mac/Windows 両環境の dotfile を chezmoi で 1 つの source から管理している（環境の差は `.tmpl` の `{{ .chezmoi.os }}` などで吸収する）。**ホーム配下の dotfile（`~/.gitconfig`, `~/.config/` 配下, `~/.claude/` 配下など）は chezmoi の管理下にある可能性が高く、元のファイルは常に source 側にある。**
 
 - 編集前に `chezmoi managed | grep <name>` か `chezmoi source-path <file>` で管理状況と source パスを確定する。
 - 管理下なら source（`~/.local/share/chezmoi/`）を編集する。target を直接編集しても source が古いままなら次の `chezmoi apply` で巻き戻る。
