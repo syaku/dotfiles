@@ -18,3 +18,11 @@ HOST apps-vm
   IdentityFile ~/.ssh/id_ed25519
   SetEnv TERM=xterm-256color
 
+# k3s のノードは svc zone にあり、PVE を経由して入る。
+HOST k3s
+  HostName 10.20.20.10
+  User root
+  ProxyJump pve.syaku.me
+  IdentityFile ~/.ssh/id_ed25519
+  SetEnv TERM=xterm-256color
+

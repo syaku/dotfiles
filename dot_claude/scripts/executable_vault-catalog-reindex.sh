@@ -5,56 +5,63 @@
 # Usage:
 #   vault-catalog-reindex.sh              # 差分 ingest
 #   vault-catalog-reindex.sh --full       # フル再 ingest (kuromoji 辞書変更時等)
-#   vault-catalog-reindex.sh --no-rsync   # rsync をスキップ (apps-vm 側は既に同期済み想定)
+#   vault-catalog-reindex.sh --no-rsync   # rsync をスキップ (k3s のノードは既に同期済み想定)
 #   vault-catalog-reindex.sh --help       # このヘルプ
 #
-# 環境変数で上書き可能 (apps-vm 構成が変わった場合):
+# 環境変数で上書き可能:
 #   VAULT_LOCAL    Mac 側 vault notes/ ディレクトリ
-#   APPS_VM_HOST   apps-vm のホスト名
-#   SNAPSHOT_DST   apps-vm 側 rsync 着信先
-#   COMPOSE_DIR    apps-vm 側 compose stack ディレクトリ
+#   K3S_HOST       k3s のノードの ssh の宛先 (~/.ssh/config の Host k3s)
+#   SNAPSHOT_DST   k3s のノードの rsync 着信先 (indexer の Job が /vault として読む)
+#   JOB_TIMEOUT    Job の完了を待つ秒数
 
 set -euo pipefail
 
 VAULT_LOCAL="${VAULT_LOCAL:-$HOME/workspace/notes/obsidian/Life/notes/}"
-APPS_VM_HOST="${APPS_VM_HOST:-app.syaku.me}"
+K3S_HOST="${K3S_HOST:-k3s}"
 SNAPSHOT_DST="${SNAPSHOT_DST:-/srv/vault-catalog/vault-snapshot/notes/}"
-COMPOSE_DIR="${COMPOSE_DIR:-/opt/apps/vault-catalog}"
+JOB_TIMEOUT="${JOB_TIMEOUT:-1800}"
 
-full=""
+cronjob="indexer-incremental"
 do_rsync="yes"
 
 while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --full) full="--full" ;;
-    --no-rsync) do_rsync="no" ;;
-    -h|--help)
-      sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
-      exit 0
-      ;;
-    *) echo "unknown option: $1" >&2; exit 2 ;;
-  esac
-  shift
+	case "$1" in
+	--full) cronjob="indexer-full" ;;
+	--no-rsync) do_rsync="no" ;;
+	-h | --help)
+		sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+		exit 0
+		;;
+	*)
+		echo "unknown option: $1" >&2
+		exit 2
+		;;
+	esac
+	shift
 done
 
 if [[ "$do_rsync" == "yes" ]]; then
-  echo "[reindex] rsync $VAULT_LOCAL -> $APPS_VM_HOST:$SNAPSHOT_DST"
-  rsync -a --delete "$VAULT_LOCAL" "$APPS_VM_HOST:$SNAPSHOT_DST"
+	echo "[reindex] rsync $VAULT_LOCAL -> $K3S_HOST:$SNAPSHOT_DST"
+	rsync -a --delete "$VAULT_LOCAL" "$K3S_HOST:$SNAPSHOT_DST"
 fi
 
-# docker compose run は引数を渡すと CMD を上書きするため、--full を渡すときは
-# Dockerfile CMD と同じ引数列を明示する (フル ingest の頻度は低く drift 容認)。
-# 差分時は引数なしで Dockerfile CMD のまま実行する。
-if [[ -n "$full" ]]; then
-  echo "[reindex] docker compose run --rm indexer (full)"
-  ssh "$APPS_VM_HOST" "cd '$COMPOSE_DIR' && docker compose run --rm indexer \
-    --vault /vault --scope notes --ingest \
-    --embed-url http://embed:8080/embed \
-    --opensearch-url http://opensearch:9200 \
-    --index vault-notes \
-    --state-index vault-notes-state \
-    --full"
-else
-  echo "[reindex] docker compose run --rm indexer (incremental)"
-  ssh "$APPS_VM_HOST" "cd '$COMPOSE_DIR' && docker compose run --rm indexer"
-fi
+# Mac の kubectl は k3s の API へのトンネルが要り、LaunchAgent から起動したときには張れないので、
+# ノードの kubectl で CronJob から Job を作る。
+# kubectl wait は complete と failed の片方しか待てず、失敗するとタイムアウトまで止まるので、Job の状態を読んで待つ。
+job="${cronjob}-$(date +%Y%m%d%H%M%S)"
+echo "[reindex] create job/$job from cronjob/$cronjob"
+ssh "$K3S_HOST" "set -eu
+  ns=vault-catalog
+  kubectl -n \$ns create job --from=cronjob/$cronjob $job
+  deadline=\$(( \$(date +%s) + $JOB_TIMEOUT ))
+  while :; do
+    state=\$(kubectl -n \$ns get job/$job -o jsonpath='{.status.succeeded}/{.status.failed}')
+    case \"\$state\" in
+      1/*) result=0; break ;;
+      */[1-9]*) result=1; break ;;
+    esac
+    if [ \$(date +%s) -ge \$deadline ]; then echo '[reindex] timeout' >&2; result=1; break; fi
+    sleep 5
+  done
+  kubectl -n \$ns logs job/$job --tail=20 || true
+  exit \$result"
