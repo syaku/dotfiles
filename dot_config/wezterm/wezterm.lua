@@ -190,7 +190,7 @@ if is_macos or is_windows then
     -- パネルの一覧。増やすときはここに足し、下の panel_keys に切り替えキーを足す。
     -- width はパネルの列数。ウィンドウの大きさが変わってもこの幅に戻す。
     local panels = {
-        tasks = { args = { home .. '/.cargo/bin/pit-task' .. exe }, width = 60 },
+        tasks = { args = { home .. '/.local/bin/pit-task' .. exe }, width = 60 },
     }
 
     -- 退避したペインを戻す操作は Lua API に無く `wezterm cli split-pane --move-pane-id` を使う。
