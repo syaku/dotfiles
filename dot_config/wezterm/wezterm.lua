@@ -106,22 +106,23 @@ config.initial_rows = 50
 config.color_scheme = 'Catppuccin Mocha (Gogh)'
 -- OS 標準のタイトルバーとリサイズ枠を表示（最小化/最大化/閉じるボタンを OS タイトルバーに戻す）。
 -- 旧構成は INTEGRATED_BUTTONS でタブバー内に統合していたが、タブバー無効化で道連れになるためタイトルバー復帰。
--- macOS だけは下でタブを描画しないタブバーを出し、INTEGRATED_BUTTONS に戻している。
+-- macOS と Windows は下でタブを描画しないタブバーを出し、INTEGRATED_BUTTONS に戻している。
 config.window_decorations = "TITLE | RESIZE"
 
 -- タブバー・マルチプレクサ機能は herdr に委譲。wezterm 自身のタブバーは描画しない。
 config.enable_tab_bar = false
 
-if is_macos then
-  -- macOS の標準タイトルバーは色を変えられないので、タブバーをタイトルバーの代わりにする。
-  -- タブと新規タブボタンは描画せず、信号機ボタンと色付きの帯だけを残す。
+if is_macos or is_windows then
+  -- OS 標準のタイトルバーは色を変えられないので、タブバーをタイトルバーの代わりにする。
+  -- タブと新規タブボタンは描画せず、ウィンドウ操作のボタンと色付きの帯だけを残す。
+  -- ボタンは macOS では信号機ボタン、Windows では Windows 風の描画になる（integrated_title_button_style の既定）。
   -- タブが見えないので、パネルの退避先のタブも画面に出ない。
   config.window_decorations = "INTEGRATED_BUTTONS | RESIZE"
   config.enable_tab_bar = true
-  config.hide_tab_bar_if_only_one_tab = false -- true にすると信号機ボタンごと消える
+  config.hide_tab_bar_if_only_one_tab = false -- true にするとボタンごと消える
   config.show_tabs_in_tab_bar = false
   config.show_new_tab_button_in_tab_bar = false
-  -- fancy tab bar を半透明にすると信号機ボタンの裏に不透明な四角が出る (wezterm/wezterm#5239) ので、
+  -- fancy tab bar を半透明にすると macOS で信号機ボタンの裏に不透明な四角が出る (wezterm/wezterm#5239) ので、
   -- retro tab bar を使う。色はカラースキームの背景色 #1e1e2e に、メイン領域と同じ透明度 0.8 を付ける。
   config.use_fancy_tab_bar = false
   config.colors = {
@@ -129,6 +130,38 @@ if is_macos then
       background = 'rgba(30, 30, 46, 0.8)',
     },
   }
+  if is_windows then
+    -- retro tab bar は Windows のボタンを文字で描くので、Nerd Font の Codicons に差し替える。
+    -- fancy tab bar ならボタンを図形で描くが、ボタンの背景が半透明にならない（button_bg も効かない）。
+    -- 背景を指定しないとボタンは不透明な #333333 で塗られるので、通常時も帯と同じ半透明の色を明示する。
+    local nf = wezterm.nerdfonts
+    local function button(icon, hover_bg, hover_fg)
+      local text = '  ' .. icon .. '  '
+      return {
+        normal = wezterm.format({
+          { Background = { Color = 'rgba(30, 30, 46, 0.8)' } },
+          { Foreground = { Color = '#cdd6f4' } },
+          { Text = text },
+        }),
+        hover = wezterm.format({
+          { Background = { Color = hover_bg } },
+          { Foreground = { Color = hover_fg } },
+          { Text = text },
+        }),
+      }
+    end
+    local hide = button(nf.cod_chrome_minimize, '#45475a', '#cdd6f4')
+    local maximize = button(nf.cod_chrome_maximize, '#45475a', '#cdd6f4')
+    local close = button(nf.cod_chrome_close, '#f38ba8', '#1e1e2e')
+    config.tab_bar_style = {
+      window_hide = hide.normal,
+      window_hide_hover = hide.hover,
+      window_maximize = maximize.normal,
+      window_maximize_hover = maximize.hover,
+      window_close = close.normal,
+      window_close_hover = close.hover,
+    }
+  end
 end
 
 -- ── キーバインド ───────────────────────────────────
