@@ -1,0 +1,5 @@
+[install]
+# cargo install の入れ先を ~/.local/bin に揃える（macOS / Windows 共通）。
+# 末尾の / は外さない。無いと cargo は設定ファイルからではなく実行したディレクトリからの
+# 相対として解決する（非推奨の旧挙動）。
+root = ".local/"
