@@ -172,6 +172,158 @@ if is_macos then
     end
 end
 
+-- ── パネル（macOS / Windows） ─────────────────────
+-- 左に作業用の herdr、右端に固定幅のパネルを置く（Vivaldi のパネルと同じ使い方）。
+-- 分割を herdr の外（WezTerm 側）に置くので、herdr でタブやワークスペースを切り替えてもパネルは残る。
+-- しまうときはパネルのペインを別タブへ退避させる。タブバーを消していてタブ切り替えキーも herdr に
+-- 渡しているので退避先は画面に出ず、プロセスは動き続ける。出すときは退避先から右端へ戻す。
+if is_macos or is_windows then
+    local home = wezterm.home_dir
+    -- macOS の GUI 起動経路では PATH に /opt/homebrew/bin 等が入らないため絶対パスで指定する
+    local herdr = is_windows and 'herdr.exe' or '/opt/homebrew/bin/herdr'
+    local exe = is_windows and '.exe' or ''
+
+    -- パネルの一覧。増やすときはここに足し、下の panel_keys に切り替えキーを足す。
+    -- width はパネルの列数。ウィンドウの大きさが変わってもこの幅に戻す。
+    local panels = {
+        tasks = { args = { home .. '/.cargo/bin/pit-task' .. exe }, width = 60 },
+    }
+
+    -- 退避したペインを戻す操作は Lua API に無く `wezterm cli split-pane --move-pane-id` を使う。
+    -- GUI 自身の env には WEZTERM_UNIX_SOCKET が無く、既定の symlink は古い GUI を指すことがあるので、
+    -- この GUI プロセスのソケットを明示する。置き場所は macOS / Windows とも ~/.local/share/wezterm
+    -- （XDG_RUNTIME_DIR を使うのは Linux だけ）。
+    local wezterm_bin = wezterm.executable_dir .. '/wezterm' .. exe
+    local gui_socket = home .. '/.local/share/wezterm/gui-sock-' .. wezterm.procinfo.pid()
+
+    -- Windows には /usr/bin/env が無いので cmd.exe の set で環境変数を渡す
+    local function with_gui_socket(argv)
+        local prefix
+        if is_windows then
+            prefix = { 'cmd.exe', '/c', 'set', 'WEZTERM_UNIX_SOCKET=' .. gui_socket .. '&&' }
+        else
+            prefix = { '/usr/bin/env', 'WEZTERM_UNIX_SOCKET=' .. gui_socket }
+        end
+        for _, a in ipairs(argv) do
+            table.insert(prefix, a)
+        end
+        return prefix
+    end
+
+    -- パネルのペイン ID は設定の再読み込みをまたいで残すため wezterm.GLOBAL に置く
+    local function panel_pane(name)
+        local id = wezterm.GLOBAL['panel_' .. name]
+        if not id then
+            return nil
+        end
+        -- パネルのプロセスが終了していれば get_pane は失敗する
+        local ok, p = pcall(wezterm.mux.get_pane, id)
+        if ok then
+            return p
+        end
+        return nil
+    end
+
+    local function in_tab(tab, pane)
+        for _, p in ipairs(tab:panes()) do
+            if p:pane_id() == pane:pane_id() then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function spawn_panel(main, name)
+        local def = panels[name]
+        local p = main:split { direction = 'Right', size = def.width, top_level = true, args = def.args }
+        wezterm.GLOBAL['panel_' .. name] = p:pane_id()
+        return p
+    end
+
+    local function stash(tab, pane)
+        pane:move_to_new_tab()
+        tab:activate()
+    end
+
+    -- mux の window を受け取るので、キー操作以外（wezterm.emit）からも呼べる
+    wezterm.on('toggle-panel', function(mux_window, name)
+        local tab = mux_window:active_tab()
+        local p = panel_pane(name)
+        if p and in_tab(tab, p) then
+            stash(tab, p)
+            return
+        end
+        -- 別のパネルが出ていたらしまってから出す
+        for other in pairs(panels) do
+            local o = panel_pane(other)
+            if other ~= name and o and in_tab(tab, o) then
+                stash(tab, o)
+            end
+        end
+        local main = tab:active_pane()
+        if p then
+            wezterm.background_child_process(with_gui_socket {
+                wezterm_bin, 'cli', 'split-pane',
+                '--pane-id', tostring(main:pane_id()), '--top-level', '--right',
+                '--cells', tostring(panels[name].width), '--move-pane-id', tostring(p:pane_id()),
+            })
+        else
+            spawn_panel(main, name)
+        end
+    end)
+
+    -- ウィンドウの大きさが変わると WezTerm は各ペインの幅を配り直すので、パネルの幅を戻す
+    wezterm.on('window-resized', function(window, _)
+        local tab = window:active_tab()
+        for name, def in pairs(panels) do
+            local p = panel_pane(name)
+            if p then
+                for _, info in ipairs(tab:panes_with_info()) do
+                    if info.pane:pane_id() == p:pane_id() then
+                        local delta = info.width - def.width
+                        if delta > 0 then
+                            window:perform_action(act.AdjustPaneSize { 'Right', delta }, p)
+                        elseif delta < 0 then
+                            window:perform_action(act.AdjustPaneSize { 'Left', -delta }, p)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    wezterm.on('gui-startup', function(cmd)
+        -- `wezterm start -- <prog>` のように起動コマンドが明示されたときはレイアウトを作らない
+        if cmd and cmd.args then
+            wezterm.mux.spawn_window(cmd)
+            return
+        end
+        local _, main, _ = wezterm.mux.spawn_window { args = { herdr } }
+        spawn_panel(main, 'tasks')
+        main:activate()
+    end)
+
+    local function toggle(name)
+        return wezterm.action_callback(function(window, _)
+            wezterm.emit('toggle-panel', window:mux_window(), name)
+        end)
+    end
+
+    -- Windows の Win キー（CMD）+ 文字は OS のショートカットに取られるので、Windows では CTRL を使う
+    local mod = is_windows and 'CTRL' or 'CMD'
+    local panel_keys = {
+        -- Cmd+Shift+P（Windows: Ctrl+Shift+P）: pit-task のパネルを出し入れする（Mapped/Shift 明示の両経路）
+        { key = 'p', mods = mod .. '|SHIFT', action = toggle 'tasks' },
+        { key = 'P', mods = mod, action = toggle 'tasks' },
+        -- Cmd+Option+←/→（Windows: Ctrl+Alt+←/→）: 左右のペインへフォーカス移動
+        { key = 'LeftArrow', mods = mod .. '|ALT', action = act.ActivatePaneDirection 'Left' },
+        { key = 'RightArrow', mods = mod .. '|ALT', action = act.ActivatePaneDirection 'Right' },
+    }
+    for _, k in ipairs(panel_keys) do
+        table.insert(config.keys, k)
+    end
+end
+
 -- ── マウス ───────────────────────────────────
 
 config.mouse_bindings = {
