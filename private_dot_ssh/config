@@ -7,13 +7,16 @@ HOST pve.syaku.me
   IdentityFile ~/.ssh/id_ed25519
   SetEnv TERM=xterm-256color
 
+# app.syaku.me は内部の wildcard で 10.20.20.2 に解決される。k3s 移行 Phase 8 から .2 は k3s のノードにある。
 HOST app.syaku.me
   User root
   IdentityFile ~/.ssh/id_ed25519
   SetEnv TERM=xterm-256color
 
+# apps-vm は k3s 移行 Phase 8 で .2 を手放し、10.20.20.110 になった。k3s のノードと同じく PVE を経由して入る。
 HOST apps-vm
-  HostName app.syaku.me
+  HostName 10.20.20.110
+  ProxyJump pve.syaku.me
   User root
   IdentityFile ~/.ssh/id_ed25519
   SetEnv TERM=xterm-256color
