@@ -8,6 +8,8 @@
 .config/doublecmd/doublecmd.err
 .config/doublecmd/doublecmd.inf
 .config/doublecmd/ignorelist.txt
+# quiro の実行の履歴（退避した .bad と書きかけの一時ファイルも含む）
+.config/quiro/history.json*
 
 # zsh キャッシュと履歴
 .config/zsh/.zcompdump*
