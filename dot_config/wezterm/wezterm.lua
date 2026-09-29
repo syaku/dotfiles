@@ -106,10 +106,30 @@ config.initial_rows = 50
 config.color_scheme = 'Catppuccin Mocha (Gogh)'
 -- OS 標準のタイトルバーとリサイズ枠を表示（最小化/最大化/閉じるボタンを OS タイトルバーに戻す）。
 -- 旧構成は INTEGRATED_BUTTONS でタブバー内に統合していたが、タブバー無効化で道連れになるためタイトルバー復帰。
+-- macOS だけは下でタブを描画しないタブバーを出し、INTEGRATED_BUTTONS に戻している。
 config.window_decorations = "TITLE | RESIZE"
 
 -- タブバー・マルチプレクサ機能は herdr に委譲。wezterm 自身のタブバーは描画しない。
 config.enable_tab_bar = false
+
+if is_macos then
+  -- macOS の標準タイトルバーは色を変えられないので、タブバーをタイトルバーの代わりにする。
+  -- タブと新規タブボタンは描画せず、信号機ボタンと色付きの帯だけを残す。
+  -- タブが見えないので、パネルの退避先のタブも画面に出ない。
+  config.window_decorations = "INTEGRATED_BUTTONS | RESIZE"
+  config.enable_tab_bar = true
+  config.hide_tab_bar_if_only_one_tab = false -- true にすると信号機ボタンごと消える
+  config.show_tabs_in_tab_bar = false
+  config.show_new_tab_button_in_tab_bar = false
+  -- fancy tab bar を半透明にすると信号機ボタンの裏に不透明な四角が出る (wezterm/wezterm#5239) ので、
+  -- retro tab bar を使う。色はカラースキームの背景色 #1e1e2e に、メイン領域と同じ透明度 0.8 を付ける。
+  config.use_fancy_tab_bar = false
+  config.colors = {
+    tab_bar = {
+      background = 'rgba(30, 30, 46, 0.8)',
+    },
+  }
+end
 
 -- ── キーバインド ───────────────────────────────────
 -- タブ・ペイン・ワークスペース・LEADER 系は全て herdr に委譲し、ここからは外した。
