@@ -355,7 +355,13 @@ if is_macos or is_windows then
             wezterm.mux.spawn_window(cmd)
             return
         end
-        local _, main, _ = wezterm.mux.spawn_window { args = { herdr } }
+        -- WezTerm はペインを閉じるとき、pty の VEOF が 0 でなければ raw モードかどうかに関係なく
+        -- 改行と EOF を書き込む（pty/src/unix.rs の UnixMasterWriter::drop）。herdr はそれを
+        -- フォーカス中のペインへの Enter として渡すので、VEOF を 0 にしてから herdr を起動する。
+        -- stty eof undef は macOS では 0xff になり、改行が送られるので使わない。
+        local herdr_args = is_windows and { herdr }
+            or { '/bin/sh', '-c', "stty eof '^@'; exec " .. herdr }
+        local _, main, _ = wezterm.mux.spawn_window { args = herdr_args }
         spawn_panel(main, 'tasks')
         main:activate()
     end)
