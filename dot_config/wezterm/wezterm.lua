@@ -24,6 +24,10 @@ config.term = 'xterm-256color'
 -- kitty keyboard protocol を有効化（Cmd/Super 等の修飾子を PTY 経由で TUI に届けるため）
 config.enable_kitty_keyboard = true
 
+-- macOS で Ctrl 付きのキーも IME に回す（既定 SHIFT のままだと SKK に Ctrl+G などが届かない）。
+-- IME が使わないキーは素通しされるが、SKK が取る Ctrl の組み合わせは端末のプログラムに届かなくなる。
+config.macos_forward_to_ime_modifier_mask = 'SHIFT|CTRL'
+
 -- kitty graphics protocol を有効化（既定は無効）。herdr は pane の画像を kitty graphics で外側の
 -- 端末へ描くので、これが無いと herdr 内の yazi 等の画像プレビューが出ない。
 config.enable_kitty_graphics = true
