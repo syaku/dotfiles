@@ -29,7 +29,7 @@ $env.LESSCHARSET = "utf-8"
 
 # エディタ設定
 $env.EDITOR = "nvim"
-$env.VISUAL = "zed -wait"
+$env.VISUAL = "zed --wait"
 
 # YAZI設定
 if $nu.os-info.name == "windows" {
