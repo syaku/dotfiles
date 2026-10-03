@@ -2,7 +2,10 @@ Host github.com
   User git
   IdentityFile ~/.ssh/id_ed25519
 
+# DNS (Technitium) が止まっていても PVE に入って直せるよう、名前を引かずに IP で入る。
+# PVE を経由する ProxyJump (apps-vm、k3s、ansible、terraform の null_resource) もこれに乗る。
 HOST pve.syaku.me
+  HostName 192.168.0.10
   User root
   IdentityFile ~/.ssh/id_ed25519
   SetEnv TERM=xterm-256color
