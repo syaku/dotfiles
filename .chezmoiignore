@@ -10,6 +10,8 @@
 .config/doublecmd/ignorelist.txt
 # quiro の実行の履歴（退避した .bad と書きかけの一時ファイルも含む）
 .config/quiro/history.json*
+# quiro の機械ごとの起動対象と走査先はマシンごとに置く（config.lua が pcall(require, "local") で読む）
+.config/quiro/local.lua
 # zoni の除外はマシンごとに置く（config.lua が pcall(require, "exclude") で読む）
 .config/zoni/exclude.lua
 

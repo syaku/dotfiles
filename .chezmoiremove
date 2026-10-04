@@ -7,3 +7,7 @@
 # zoni の設定を Lua（.config/zoni/config.lua）に移した（2026-10-04）。新しい zoni は TOML を読まない。
 # 戻すときは、この行を含む dotfiles の commit も戻す（残すと apply のたびに config.toml が消える）。
 .config/zoni/config.toml
+
+# quiro の設定を Lua（.config/quiro/config.lua）に移した（2026-10-04）。新しい quiro は TOML を読まない。
+# 戻すときは、この行を含む dotfiles の commit も戻す（残すと apply のたびに config.toml が消える）。
+.config/quiro/config.toml
