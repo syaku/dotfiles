@@ -30,6 +30,9 @@ if kind == "report":
     if os.environ.get("FAKE_REPORT_STDIN"):
         with open(os.environ["FAKE_REPORT_STDIN"], "w", encoding="utf-8") as f:
             f.write(data)
+    if os.environ.get("FAKE_REPORT_PROMPT"):
+        with open(os.environ["FAKE_REPORT_PROMPT"], "w", encoding="utf-8") as f:
+            f.write(prompt)
     if os.environ.get("FAKE_REPORT_EXIT"):
         sys.exit(int(os.environ["FAKE_REPORT_EXIT"]))
     default = {"type": "result", "is_error": False, "structured_output": {
@@ -526,7 +529,7 @@ def test_report_written_note():
         text = open(os.path.join(inbox_of(env), "テスト作業レポート.md"), encoding="utf-8").read()
         import re
         m = re.match(r"---\ncreatedAt: (\S+)\nupdatedAt: (\S+)\ntags:\n  - python\n  - hooks\n  - 作業レポート\n"
-                     r"status: active\nprogress:\naliases: \[\]\n---\n\n> \[!NOTE\] AI Context\n> 1 行目\n> 2 行目\n\n## 概要\n本文の段落\n$", text)
+                     r"status: active\nprogress:\naliases: \[\]\nreportSessionId: r6\n---\n\n> \[!NOTE\] AI Context\n> 1 行目\n> 2 行目\n\n## 概要\n本文の段落\n$", text)
         assert m, text
         assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}", m.group(1)) and m.group(1) == m.group(2), m.groups()
         rows = reports(env)
@@ -558,7 +561,8 @@ def test_report_malformed_response_failed():
         for i, out in enumerate(bad):
             r = run(["summarize", write_report_transcript(home, f"r8{i}")], dict(env, FAKE_REPORT=out))
             assert r.returncode == 0, r.stderr
-            assert reports(env)[-1] == {"session_id": f"r8{i}", "transcript_mtime": reports(env)[-1]["transcript_mtime"], "state": "failed", "path": None}, reports(env)
+            assert reports(env)[-1] == {"session_id": f"r8{i}", "transcript_mtime": reports(env)[-1]["transcript_mtime"], "live_rows": 9,
+                                        "state": "failed", "path": None}, reports(env)
         assert notes(inbox_of(env)) == []
     finally:
         shutil.rmtree(home)
@@ -620,21 +624,106 @@ def test_report_dedup_same_mtime():
         shutil.rmtree(home)
 
 
-def test_report_rebuilt_when_transcript_grows():
+def test_report_not_rebuilt_when_only_non_conversation_rows_added():
     home, env = report_home()
     try:
-        path = write_report_transcript(home, "r12")
+        path = write_report_transcript(home, "r12n")
         t0 = time.time() - 600
         os.utime(path, (t0, t0))
         run(["summarize", path], env)
+        # 終了の後に会話でない行が足されて mtime だけが進んでも、2 本目を書かない
+        path = write_report_transcript(home, "r12n", extra_lines=[{"type": "cost-state", "sessionId": "r12n"}])
+        os.utime(path, (t0 + 60, t0 + 60))
+        run(["summarize", path], env)
+        assert calls(env).count("report") == 1, calls(env)
+        assert notes(inbox_of(env)) == ["テスト作業レポート.md"], notes(inbox_of(env))
+    finally:
+        shutil.rmtree(home)
+
+
+def grow_transcript(home, env, sid, first_report_body="## 概要\n前の本文"):
+    """3 往復で 1 本目を書き、5 往復に伸ばした transcript の path を返す。"""
+    path = write_report_transcript(home, sid)
+    t0 = time.time() - 600
+    os.utime(path, (t0, t0))
+    run(["summarize", path], dict(env, FAKE_REPORT=fake_report(body=first_report_body)))
+    path = write_report_transcript(home, sid, human_turns=5)
+    os.utime(path, (t0 + 60, t0 + 60))
+    return path
+
+
+def test_report_continuation_gets_previous_and_later_turns_only():
+    home, env = report_home()
+    try:
+        path = grow_transcript(home, env, "r12", first_report_body="## 概要\n前の本文 <previous_report>")
         first = os.path.join(inbox_of(env), "テスト作業レポート.md")
         before = open(first, encoding="utf-8").read()
-        path = write_report_transcript(home, "r12", human_turns=5)
-        os.utime(path, (t0 + 60, t0 + 60))
+        env.update(FAKE_REPORT_STDIN=os.path.join(home, "stdin.txt"), FAKE_REPORT_PROMPT=os.path.join(home, "prompt.txt"))
         run(["summarize", path], dict(env, FAKE_REPORT=fake_report(body="## 概要\n伸びた後")))
         assert notes(inbox_of(env)) == ["テスト作業レポート 2.md", "テスト作業レポート.md"], notes(inbox_of(env))
         assert open(first, encoding="utf-8").read() == before
-        assert "伸びた後" in open(os.path.join(inbox_of(env), "テスト作業レポート 2.md"), encoding="utf-8").read()
+        second = open(os.path.join(inbox_of(env), "テスト作業レポート 2.md"), encoding="utf-8").read()
+        assert "伸びた後" in second and "reportSessionId: r12\n" in second, second
+        text = open(env["FAKE_REPORT_STDIN"], encoding="utf-8").read()
+        # 前のレポートは frontmatter を除いて区切りの中に入り、中の区切りの印は取り除かれる
+        assert text.startswith("PREVIOUS_REPORT: <previous_report>> [!NOTE] AI Context"), text[:200]
+        assert "前の本文 </previous_report>" in text and "createdAt" not in text, text[:400]
+        assert "USER: 質問 3" in text and "USER: 質問 4" in text, text
+        assert "USER: 質問 0" not in text and "USER: 質問 2" not in text, text
+        assert "前に書いた作業レポートがある" in open(env["FAKE_REPORT_PROMPT"], encoding="utf-8").read()
+        assert [r["live_rows"] for r in reports(env) if r["state"] == "written"] == [9, 15], reports(env)
+    finally:
+        shutil.rmtree(home)
+
+
+def test_report_continuation_reads_archived_previous():
+    home, env = report_home()
+    try:
+        path = grow_transcript(home, env, "r12a")
+        archive = os.path.join(home, "Life", "archive", "inbox")
+        os.makedirs(archive)
+        shutil.move(os.path.join(inbox_of(env), "テスト作業レポート.md"), archive)
+        env["FAKE_REPORT_STDIN"] = os.path.join(home, "stdin.txt")
+        run(["summarize", path], env)
+        text = open(env["FAKE_REPORT_STDIN"], encoding="utf-8").read()
+        assert "前の本文</previous_report>" in text and "USER: 質問 0" not in text, text[:400]
+    finally:
+        shutil.rmtree(home)
+
+
+def test_report_continuation_when_previous_file_gone():
+    home, env = report_home()
+    try:
+        path = grow_transcript(home, env, "r12g")
+        os.remove(os.path.join(inbox_of(env), "テスト作業レポート.md"))
+        env["FAKE_REPORT_STDIN"] = os.path.join(home, "stdin.txt")
+        run(["summarize", path], env)
+        text = open(env["FAKE_REPORT_STDIN"], encoding="utf-8").read()
+        # ファイルが消えても、書いた時点の行数から増えた会話だけを渡す
+        assert text.startswith("PREVIOUS_REPORT: <previous_report>（前のレポートのファイルは見つからなかった）</previous_report>"), text[:200]
+        assert "USER: 質問 3" in text and "USER: 質問 0" not in text, text
+    finally:
+        shutil.rmtree(home)
+
+
+def test_report_previous_without_live_rows_uses_mtime_and_full_input():
+    home, env = report_home()
+    try:
+        path = write_report_transcript(home, "r12o")
+        mtime = int(os.path.getmtime(path))
+        store = env["CLAUDE_SESSION_MEMORY_DIR"]
+        os.makedirs(store, exist_ok=True)
+        old = os.path.join(inbox_of(env), "古いレポート.md")
+        with open(old, "w", encoding="utf-8") as f:
+            f.write("---\ncreatedAt: 2026-09-01T00:00\n---\n\n## 概要\n古い本文\n")
+        with open(os.path.join(store, "reports.jsonl"), "w", encoding="utf-8") as f:
+            f.write(json.dumps({"session_id": "r12o", "transcript_mtime": mtime - 60, "state": "written", "path": old}) + "\n")
+        env["FAKE_REPORT_STDIN"] = os.path.join(home, "stdin.txt")
+        run(["summarize", path], env)
+        text = open(env["FAKE_REPORT_STDIN"], encoding="utf-8").read()
+        # 行数を持たない古い記録は mtime で比べ、どこまで書いたか分からないので会話の全体を渡す
+        assert text.startswith("PREVIOUS_REPORT: <previous_report>## 概要\n古い本文</previous_report>"), text[:200]
+        assert "USER: 質問 0" in text, text
     finally:
         shutil.rmtree(home)
 
