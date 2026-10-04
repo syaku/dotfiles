@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # vault-catalog の OpenSearch index を更新する。
-# 通常は差分 ingest (last_run_iso 以降の content_hash 差分)。--full でフル再 ingest。
+# 通常は差分 ingest (last_run_iso 以降に変わったファイルと、索引に無い path のファイルを読む)。--full でフル再 ingest。
 #
 # Usage:
-#   vault-catalog-reindex.sh              # 差分 ingest
-#   vault-catalog-reindex.sh --full       # フル再 ingest (kuromoji 辞書変更時等)
+#   vault-catalog-reindex.sh              # 差分 ingest (消えたファイルと改名前の path も索引から消す)
+#   vault-catalog-reindex.sh --full       # フル再 ingest (kuromoji 辞書変更時、embedding に失敗し続ける doc の復旧等)
 #   vault-catalog-reindex.sh --no-rsync   # rsync をスキップ (k3s のノードは既に同期済み想定)
 #   vault-catalog-reindex.sh --help       # このヘルプ
 #

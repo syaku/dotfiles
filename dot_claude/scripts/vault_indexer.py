@@ -308,28 +308,48 @@ class NoteMeta:
         object.__setattr__(self, "sorted_outlinks", sorted(self.outlinks))
 
 
-def walk_vault(vault: Path, scope_dir: str, *, mtime_after: float | None = None) -> list[Path]:
-    """vault/<scope_dir> 配下を再帰走査し、Markdown 候補パスを返す。
+def walk_vault(vault: Path, scope_dir: str) -> list[Path]:
+    """vault/<scope_dir> 配下を再帰走査し、いま存在する Markdown のパスを全件返す。
 
-    `mtime_after` が None なら全件、float (Unix epoch sec) なら mtime 比較で incremental walk。
-    比較は `>=` で同秒 race を緩める。false positive は content_hash 差分で skip される。
+    incremental ingest でも全件を返す。消えたファイルの doc を stale に倒すには、いま存在するパスの
+    一覧が要るからである。rglob だけで read も hash もしないので安い。読み込む対象の絞り込みは
+    select_candidate_paths が行う。
     """
     root = vault / scope_dir
     if not root.is_dir():
         sys.exit(f"scope ディレクトリが無い: {root}")
+    return [path for path in sorted(root.rglob("*.md")) if path.name != "README.md"]
+
+
+def select_candidate_paths(
+    present_paths: list[Path],
+    existing: dict[str, dict],
+    vault: Path,
+    *,
+    mtime_after: float | None,
+) -> list[Path]:
+    """present_paths のうち、読み込んで doc にするパスを返す。
+
+    `mtime_after` が None なら全件。float (Unix epoch sec) なら、mtime が mtime_after 以降のファイルと、
+    既存 doc の path に無いファイルを返す。後者は改名・移動したファイルを拾うためで、mv も rsync -a も
+    mtime を保つので mtime だけでは新しい path を読み込めない。mtime の比較は `>=` で同秒 race を緩める。
+    false positive は content_hash 差分で skip される。
+    """
+    if mtime_after is None:
+        return present_paths
+    indexed_paths = {meta.get("path") for meta in existing.values()}
     paths: list[Path] = []
-    for path in sorted(root.rglob("*.md")):
-        if path.name == "README.md":
+    for path in present_paths:
+        if path.relative_to(vault).as_posix() not in indexed_paths:
+            paths.append(path)
             continue
-        if mtime_after is not None:
-            try:
-                mtime = path.stat().st_mtime
-            except OSError:
-                # stat 失敗時は安全側に倒し、walk 対象から除外する (rsync 中で race した場合等)。
-                continue
-            if mtime < mtime_after:
-                continue
-        paths.append(path)
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            # stat 失敗時は安全側に倒し、walk 対象から除外する (rsync 中で race した場合等)。
+            continue
+        if mtime >= mtime_after:
+            paths.append(path)
     return paths
 
 
@@ -768,8 +788,9 @@ def _extract_hits(resp: dict) -> list[dict]:
 def fetch_existing_ids_and_hashes(opensearch_url: str, index: str) -> dict[str, dict]:
     """index 内の全 doc の {_id: {"content_hash", "path"}} を返す。
 
-    path も返すのは、walked ファイル内のセクション削除を「walk しなかった id」と区別するため
-    (walked ファイルの ghost section は stale 対象、walk しなかったファイルの id は current 残し)。
+    path も返すのは、vault から消えたファイルと walked ファイル内のセクション削除を「walk しなかった id」と
+    区別するため (どちらも stale 対象、walk しなかったファイルの id は current 残し)。索引に無い path の
+    ファイルを読み込む対象に足すのにも使う。
     第一選択: `_search size:10000` で 1 リクエスト全件取得。
     fallback: hit total が 10000 以上 or max_result_window 制限で 400 が返ったとき PIT + search_after。
     index 不在時は空 dict を返す (初回 run・state 不在と同じ扱い)。
@@ -986,31 +1007,51 @@ def _resolve_mtime_after(
     return last_run_iso, mtime_after
 
 
+def select_docs_to_index(docs: list[dict], existing: dict[str, dict]) -> tuple[list[dict], int]:
+    """再 index する doc と、そのうち旧 schema (content_hash 不在) の件数を返す。
+
+    content_hash が変わった doc に加え、path だけが変わった doc も再 index する。id はノートのタイトルから
+    作るので、タイトルを変えずにフォルダだけ移すと id も content_hash も変わらず、索引の path が古いまま残るからである。
+    旧 schema doc の件数は migration 経路として観測できるようにするため (F10)。
+    """
+    docs_to_index: list[dict] = []
+    migration_count = 0
+    for d in docs:
+        existing_meta = existing.get(d["id"])
+        if (
+            existing_meta is None
+            or existing_meta.get("content_hash") != d["content_hash"]
+            or existing_meta.get("path") != d["path"]
+        ):
+            docs_to_index.append(d)
+            if existing_meta is not None and existing_meta.get("content_hash") == "":
+                migration_count += 1
+    return docs_to_index, migration_count
+
+
 def _compute_current_ids(
     docs: list[dict],
+    present_paths: list[Path],
     candidate_paths: list[Path],
     existing: dict[str, dict],
     vault: Path,
-    *,
-    mtime_after: float | None,
 ) -> tuple[set[str], set[str]]:
-    """walk しなかったファイルの doc を stale 削除から守りつつ ghost section は stale に倒す。
+    """walk しなかったファイルの doc を stale 削除から守りつつ、消えたファイルと ghost section は stale に倒す。
 
-    incremental walk で対象外だった既存 id (walk しなかったファイルの doc) は current に残す。
-    一方 walked ファイル内のセクション削除 (path が walked_paths に居る既存 id) は ghost なので
-    current から外して stale に倒す (F2 fix)。path 空の legacy doc は保守側で current に残す。
-    全件 walk (初回 or --full) では walk しなかった existing は vault から消えたファイル扱いで stale。
+    current に残す既存 id は、path がいま存在し、かつ walk しなかったファイルの doc だけ。
+    - vault から消えたファイル (改名・移動前の path を含む) の doc は path が present_paths に無いので stale。
+    - walked ファイル内のセクション削除 (path が walked_paths に居る既存 id) は ghost なので stale (F2 fix)。
+    - path 空の doc も stale。全件 walk で必ず path 付きで書き直されるので、残っていれば由来不明の doc である。
+    全件 walk (初回 or --full) では present_paths と walked_paths が一致するので、current は walked_ids だけになる。
     walked_ids は summary log にも使うので併せて返す。Windows backslash で existing path
-    (forward slash) と一致しなくなる事故を避けるため walked_paths は as_posix() で統一。
+    (forward slash) と一致しなくなる事故を避けるため path は as_posix() で統一。
     """
     walked_ids = {d["id"] for d in docs}
     walked_paths = {p.relative_to(vault).as_posix() for p in candidate_paths}
-    if mtime_after is None:
-        return walked_ids, walked_ids
+    unwalked_paths = {p.relative_to(vault).as_posix() for p in present_paths} - walked_paths
     mtime_skipped_ids = {
         _id for _id, meta in existing.items()
-        if _id not in walked_ids
-        and (not meta.get("path") or meta["path"] not in walked_paths)
+        if _id not in walked_ids and meta.get("path") in unwalked_paths
     }
     return walked_ids | mtime_skipped_ids, walked_ids
 
@@ -1035,28 +1076,20 @@ def run_ingest(
     ensure_state_index(opensearch_url, state_index)
 
     last_run_iso, mtime_after = _resolve_mtime_after(opensearch_url, state_index, full=full)
-    candidate_paths = walk_vault(vault, scope, mtime_after=mtime_after)
+    # existing は読み込む対象を決めるのにも使うので、walk より先に取る。
+    existing = fetch_existing_ids_and_hashes(opensearch_url, index)
+    present_paths = walk_vault(vault, scope)
+    candidate_paths = select_candidate_paths(present_paths, existing, vault, mtime_after=mtime_after)
     docs = build_docs(vault, scope, paths=candidate_paths)
 
-    existing = fetch_existing_ids_and_hashes(opensearch_url, index)
-
-    # content_hash 差分で再 index 対象を抽出。同 loop で旧 schema doc (content_hash 不在) も
-    # migration 経路として観測可能にする (F10)。
-    docs_to_index: list[dict] = []
-    migration_count = 0
-    for d in docs:
-        existing_meta = existing.get(d["id"])
-        if existing_meta is None or existing_meta.get("content_hash") != d["content_hash"]:
-            docs_to_index.append(d)
-            if existing_meta is not None and existing_meta.get("content_hash") == "":
-                migration_count += 1
+    docs_to_index, migration_count = select_docs_to_index(docs, existing)
     if migration_count:
         sys.stderr.write(
             f"content_hash 不在の既存 doc {migration_count} 件 → migration として re-embed\n",
         )
 
     current_ids, walked_ids = _compute_current_ids(
-        docs, candidate_paths, existing, vault, mtime_after=mtime_after,
+        docs, present_paths, candidate_paths, existing, vault,
     )
 
     embed_all(docs_to_index, embed_url=embed_url)
