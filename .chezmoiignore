@@ -10,6 +10,8 @@
 .config/doublecmd/ignorelist.txt
 # quiro の実行の履歴（退避した .bad と書きかけの一時ファイルも含む）
 .config/quiro/history.json*
+# zoni の除外はマシンごとに置く（config.lua が pcall(require, "exclude") で読む）
+.config/zoni/exclude.lua
 
 # zsh キャッシュと履歴
 .config/zsh/.zcompdump*

@@ -9,6 +9,7 @@
 -- 読み込みが落ちて、どこのキーか（overlay.width、zone[3].foo）が状態行に出る。
 -- 使える Lua は string / table / math / utf8 / coroutine と基本関数だけ。io / os /
 -- package と load / dofile は無い。
+-- require("name") は、このファイルと同じディレクトリの name.lua を読んで戻り値を返す。
 
 -- ---------------------------------------------------------------------------
 -- キー操作
@@ -56,28 +57,15 @@ return {
   -- 除外
   -- -------------------------------------------------------------------------
   --
-  -- rules に書いたアプリは動かさない。書く値は macOS では bundle ID、Windows では
-  -- 実行ファイルの名前で、大文字小文字は問わない。両方を 1 つの並びに書けば、
-  -- 1 枚の設定で両方の OS に効く。
-  --
-  -- ダイアログ・シート・デスクトップは設定なしで外れる。大きさを変えられない
-  -- ウィンドウは**位置だけ**動く（大きさが変わらなかったことはログに出る）。
-  --
-  -- macOS の bundle ID は、アプリ名を渡して次を叩くと分かる。
-  --
-  --   osascript -e 'id of app "Finder"'
-  exclude = {
-    rules = {
-      "com.syaku.quiro",
-      "quiro.exe",
-      "afxwcfg.exe",
-      "nms.exe",
-      "wwm.exe",
-      "ace7game.exe",
-      "acz.exe",
-      "acecombat8.exe",
-    },
-  },
+  -- 除外するアプリの並びは、同じディレクトリの exclude.lua に書く。exclude.lua は
+  -- マシンごとに置き、dotfiles では配らない。無いマシンでは除外なしで読むように
+  -- pcall で包む。包むと、exclude.lua の中身が誤っていても黙って除外なしになる。
+  exclude = (function()
+    local ok, exclude = pcall(require, "exclude")
+    if ok then
+      return exclude
+    end
+  end)(),
 
   -- -------------------------------------------------------------------------
   -- 領域
