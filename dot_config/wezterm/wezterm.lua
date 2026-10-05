@@ -108,6 +108,10 @@ config.initial_rows = 50
 
 -- カラースキーム・ウィンドウデコレーション
 config.color_scheme = 'Catppuccin Mocha (Gogh)'
+-- ペインの区切り線はスキームの既定だと背景に沈むので、背景より暗い真っ黒にして際立たせる。
+config.colors = {
+  split = '#000000',
+}
 -- OS 標準のタイトルバーとリサイズ枠を表示（最小化/最大化/閉じるボタンを OS タイトルバーに戻す）。
 -- 旧構成は INTEGRATED_BUTTONS でタブバー内に統合していたが、タブバー無効化で道連れになるためタイトルバー復帰。
 -- macOS と Windows は下でタブを描画しないタブバーを出し、INTEGRATED_BUTTONS に戻している。
@@ -129,10 +133,8 @@ if is_macos or is_windows then
   -- fancy tab bar を半透明にすると macOS で信号機ボタンの裏に不透明な四角が出る (wezterm/wezterm#5239) ので、
   -- retro tab bar を使う。色はカラースキームの背景色 #1e1e2e に、メイン領域と同じ透明度 0.8 を付ける。
   config.use_fancy_tab_bar = false
-  config.colors = {
-    tab_bar = {
-      background = 'rgba(30, 30, 46, 0.8)',
-    },
+  config.colors.tab_bar = {
+    background = 'rgba(30, 30, 46, 0.8)',
   }
   if is_windows then
     -- retro tab bar は Windows のボタンを文字で描くので、Nerd Font の Codicons に差し替える。
