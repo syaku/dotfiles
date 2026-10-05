@@ -100,5 +100,10 @@ command = {{ $command | toToml }}
 [ui.toast]
 delivery = "herdr"
 
+# Claude の行に、Claude Code が会話から付けるターミナルのタイトルを出す。
+# タブを作る時点ではタスクが決まっておらず、タブ名を入力する場面が無いため。
+[ui.sidebar.agents.rows_by_agent]
+claude = [["state_icon", "machine", "workspace"], ["terminal_title_stripped"]]
+
 [update]
 channel = "stable"
