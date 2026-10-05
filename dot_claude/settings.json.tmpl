@@ -173,16 +173,6 @@
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "printf '%s' '{\"terminalSequence\":\"\\u0007\"}'"
-          }
-        ]
-      }
     ]
   },
   "statusLine": {
@@ -211,7 +201,6 @@
   },
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
-  "preferredNotifChannel": "terminal_bell",
   "skipAutoPermissionPrompt": true,
 {{- /* セッションの並列管理は herdr で行うので、agent view（claude agents / --bg / /background）は使わない。 */}}
   "disableAgentView": true,
