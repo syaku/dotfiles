@@ -77,21 +77,24 @@ open_notification_target = "prefix+shift+o"
 focus_agent = "prefix+alt+1..9"
 
 # ── 新しいタブで claude を起動する ───────────────────────────────────────
-# 処理は new-claude-tab.nu に置く。nu が無い環境（会社の Mac）ではキーを作らない。
-{{- $nu := "" }}
-{{- $herdr := "" }}
+# 処理は Windows では new-claude-tab.nu、それ以外では new-claude-tab.sh（bash と jq）に置く。
+# Windows に bash があるとは限らず、Mac に nu があるとは限らないため。
+# 必要な実行ファイルが見つからない環境ではキーを作らない。
+{{- $command := "" }}
 {{- if eq .chezmoi.os "windows" }}
-{{- $nu = "nu.exe" }}
-{{- $herdr = "herdr.exe" }}
+{{- $command = printf "nu.exe %s herdr.exe" (joinPath .chezmoi.homeDir ".config" "herdr" "new-claude-tab.nu") }}
 {{- else }}
-{{- $nu = lookPath "nu" }}
-{{- $herdr = lookPath "herdr" }}
+{{- $herdr := lookPath "herdr" }}
+{{- $jq := lookPath "jq" }}
+{{- if and $herdr $jq }}
+{{- $command = printf "/bin/bash %s %s %s" (joinPath .chezmoi.homeDir ".config" "herdr" "new-claude-tab.sh") $herdr $jq }}
 {{- end }}
-{{- if and $nu $herdr }}
+{{- end }}
+{{- if $command }}
 [[keys.command]]
 key = "prefix+a"
 type = "shell"
-command = {{ printf "%s %s %s" $nu (joinPath .chezmoi.homeDir ".config" "herdr" "new-claude-tab.nu") $herdr | toToml }}
+command = {{ $command | toToml }}
 {{- end }}
 
 [ui.toast]

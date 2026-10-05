@@ -1,4 +1,5 @@
-# herdr の custom command（prefix+a）から呼ぶ。新しいタブを作り、そのシェルを claude に置き換える。
+# herdr の custom command（prefix+a）から Windows で呼ぶ。新しいタブを作り、そのシェルを claude に置き換える。
+# Windows 以外では同じ処理を new-claude-tab.sh が行う。
 # herdr にはタブごとに起動するものを選ぶプロファイルが無いので、タブのシェルに exec claude を打ち込む。
 # claude を終えるとペインも閉じる。
 # command の文字列に ' を含めると herdr から起動されないので、処理はこのファイルに置く。
