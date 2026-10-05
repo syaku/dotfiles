@@ -234,20 +234,25 @@ if is_macos then
 end
 
 -- ── パネル（macOS / Windows） ─────────────────────
--- 左に作業用の herdr、右端に固定幅のパネルを置く（Vivaldi のパネルと同じ使い方）。
+-- 左に作業用の herdr、右端と下に固定サイズのパネルを置く（Vivaldi のパネルと同じ使い方）。
 -- 分割を herdr の外（WezTerm 側）に置くので、herdr でタブやワークスペースを切り替えてもパネルは残る。
 -- しまうときはパネルのペインを別タブへ退避させる。タブバーを消していてタブ切り替えキーも herdr に
--- 渡しているので退避先は画面に出ず、プロセスは動き続ける。出すときは退避先から右端へ戻す。
+-- 渡しているので退避先は画面に出ず、プロセスは動き続ける。出すときは退避先から元の位置へ戻す。
+-- 下のパネルはウィンドウの幅いっぱいに、右のパネルは herdr のペインの横だけに置く。
+-- 右もウィンドウ全体で分割すると、出した順番でどちらが端から端まで伸びるかが変わるため。
 if is_macos or is_windows then
     local home = wezterm.home_dir
     -- macOS の GUI 起動経路では PATH に /opt/homebrew/bin 等が入らないため絶対パスで指定する
     local herdr = is_windows and 'herdr.exe' or '/opt/homebrew/bin/herdr'
+    local nu = is_windows and 'nu.exe' or '/opt/homebrew/bin/nu'
     local exe = is_windows and '.exe' or ''
 
     -- パネルの一覧。増やすときはここに足し、下の panel_keys に切り替えキーを足す。
-    -- width はパネルの列数。ウィンドウの大きさが変わってもこの幅に戻す。
+    -- side は出す位置（'Right' か 'Bottom'）。同じ side のパネルは同時に 1 つだけ出す。
+    -- size は Right なら列数、Bottom なら行数。ウィンドウの大きさが変わってもこの大きさに戻す。
     local panels = {
-        tasks = { args = { home .. '/.local/bin/pit-task' .. exe }, width = 60 },
+        tasks = { args = { home .. '/.local/bin/pit-task' .. exe }, side = 'Right', size = 60 },
+        term = { args = { nu }, side = 'Bottom', size = 15 },
     }
 
     -- 退避したペインを戻す操作は Lua API に無く `wezterm cli split-pane --move-pane-id` を使う。
@@ -257,18 +262,38 @@ if is_macos or is_windows then
     local wezterm_bin = wezterm.executable_dir .. '/wezterm' .. exe
     local gui_socket = home .. '/.local/share/wezterm/gui-sock-' .. wezterm.procinfo.pid()
 
-    -- Windows には /usr/bin/env が無いので cmd.exe の set で環境変数を渡す
-    local function with_gui_socket(argv)
-        local prefix
+    -- `wezterm cli` の呼び出しを 1 つのプロセスで順に実行する。前の呼び出しで配置が変わってから
+    -- 次を実行させたいので、呼び出しごとに別のプロセスにはしない。前が失敗しても次は実行する。
+    -- Windows には sh が無いので cmd.exe の set で環境変数を渡し、& でつなぐ。
+    local function run_cli(cmds)
+        local argv
         if is_windows then
-            prefix = { 'cmd.exe', '/c', 'set', 'WEZTERM_UNIX_SOCKET=' .. gui_socket .. '&&' }
+            argv = { 'cmd.exe', '/c', 'set', 'WEZTERM_UNIX_SOCKET=' .. gui_socket .. '&&' }
+            for i, cmd in ipairs(cmds) do
+                if i > 1 then
+                    table.insert(argv, '&')
+                end
+                table.insert(argv, wezterm_bin)
+                table.insert(argv, 'cli')
+                for _, a in ipairs(cmd) do
+                    table.insert(argv, a)
+                end
+            end
         else
-            prefix = { '/usr/bin/env', 'WEZTERM_UNIX_SOCKET=' .. gui_socket }
+            local function quote(s)
+                return "'" .. s:gsub("'", "'\\''") .. "'"
+            end
+            local lines = { 'export WEZTERM_UNIX_SOCKET=' .. quote(gui_socket) }
+            for _, cmd in ipairs(cmds) do
+                local words = { quote(wezterm_bin), 'cli' }
+                for _, a in ipairs(cmd) do
+                    table.insert(words, quote(a))
+                end
+                table.insert(lines, table.concat(words, ' '))
+            end
+            argv = { '/bin/sh', '-c', table.concat(lines, '\n') }
         end
-        for _, a in ipairs(argv) do
-            table.insert(prefix, a)
-        end
-        return prefix
+        wezterm.background_child_process(argv)
     end
 
     -- パネルのペイン ID は設定の再読み込みをまたいで残すため wezterm.GLOBAL に置く
@@ -294,9 +319,28 @@ if is_macos or is_windows then
         return false
     end
 
+    -- フォーカスがパネルにあっても分割の基準にできるよう、パネルでないペイン（herdr）を探す
+    local function main_pane(tab)
+        for _, p in ipairs(tab:panes()) do
+            local is_panel = false
+            for name in pairs(panels) do
+                local q = panel_pane(name)
+                if q and q:pane_id() == p:pane_id() then
+                    is_panel = true
+                end
+            end
+            if not is_panel then
+                return p
+            end
+        end
+        return tab:active_pane()
+    end
+
     local function spawn_panel(main, name)
         local def = panels[name]
-        local p = main:split { direction = 'Right', size = def.width, top_level = true, args = def.args }
+        local p = main:split {
+            direction = def.side, size = def.size, top_level = def.side == 'Bottom', args = def.args,
+        }
         wezterm.GLOBAL['panel_' .. name] = p:pane_id()
         return p
     end
@@ -304,6 +348,21 @@ if is_macos or is_windows then
     local function stash(tab, pane)
         pane:move_to_new_tab()
         tab:activate()
+    end
+
+    -- 退避したパネル p を main の隣へ戻す cli の引数
+    local function restore_cmd(main, name, p)
+        local def = panels[name]
+        local cmd = { 'split-pane', '--pane-id', tostring(main:pane_id()) }
+        if def.side == 'Bottom' then
+            table.insert(cmd, '--top-level')
+        end
+        for _, a in ipairs {
+            '--' .. def.side:lower(), '--cells', tostring(def.size), '--move-pane-id', tostring(p:pane_id()),
+        } do
+            table.insert(cmd, a)
+        end
+        return cmd
     end
 
     -- mux の window を受け取るので、キー操作以外（wezterm.emit）からも呼べる
@@ -314,26 +373,44 @@ if is_macos or is_windows then
             stash(tab, p)
             return
         end
-        -- 別のパネルが出ていたらしまってから出す
-        for other in pairs(panels) do
+        -- 同じ位置に別のパネルが出ていたらしまってから出す
+        local def = panels[name]
+        for other, odef in pairs(panels) do
             local o = panel_pane(other)
-            if other ~= name and o and in_tab(tab, o) then
+            if other ~= name and odef.side == def.side and o and in_tab(tab, o) then
                 stash(tab, o)
             end
         end
-        local main = tab:active_pane()
+        -- 分割が残っているタブをウィンドウ全体で分割すると、WezTerm が覚えるタブの高さが分割前の
+        -- 上側の高さにずれ、しまって戻すたびにタブが縮む。下のパネルはウィンドウ全体で分割するので、
+        -- 右のパネルもいったんしまって herdr だけにしてから下を出し、そのあと右を herdr の横に戻す。
+        local reopen = {}
+        if def.side == 'Bottom' then
+            for other, odef in pairs(panels) do
+                local o = panel_pane(other)
+                if odef.side == 'Right' and o and in_tab(tab, o) then
+                    stash(tab, o)
+                    table.insert(reopen, { name = other, pane = o })
+                end
+            end
+        end
+        local main = main_pane(tab)
+        local cmds = {}
         if p then
-            wezterm.background_child_process(with_gui_socket {
-                wezterm_bin, 'cli', 'split-pane',
-                '--pane-id', tostring(main:pane_id()), '--top-level', '--right',
-                '--cells', tostring(panels[name].width), '--move-pane-id', tostring(p:pane_id()),
-            })
+            table.insert(cmds, restore_cmd(main, name, p))
         else
             spawn_panel(main, name)
         end
+        for _, r in ipairs(reopen) do
+            table.insert(cmds, restore_cmd(main, r.name, r.pane))
+        end
+        if #cmds > 0 then
+            run_cli(cmds)
+        end
     end)
 
-    -- ウィンドウの大きさが変わると WezTerm は各ペインの幅を配り直すので、パネルの幅を戻す
+    -- ウィンドウの大きさが変わると WezTerm は各ペインの大きさを配り直すので、パネルの大きさを戻す。
+    -- パネルは右か下の側にあるので、境界を右（下）へ動かすと縮み、左（上）へ動かすと広がる。
     wezterm.on('window-resized', function(window, _)
         local tab = window:active_tab()
         for name, def in pairs(panels) do
@@ -341,11 +418,16 @@ if is_macos or is_windows then
             if p then
                 for _, info in ipairs(tab:panes_with_info()) do
                     if info.pane:pane_id() == p:pane_id() then
-                        local delta = info.width - def.width
+                        local delta, shrink, grow
+                        if def.side == 'Right' then
+                            delta, shrink, grow = info.width - def.size, 'Right', 'Left'
+                        else
+                            delta, shrink, grow = info.height - def.size, 'Down', 'Up'
+                        end
                         if delta > 0 then
-                            window:perform_action(act.AdjustPaneSize { 'Right', delta }, p)
+                            window:perform_action(act.AdjustPaneSize { shrink, delta }, p)
                         elseif delta < 0 then
-                            window:perform_action(act.AdjustPaneSize { 'Left', -delta }, p)
+                            window:perform_action(act.AdjustPaneSize { grow, -delta }, p)
                         end
                     end
                 end
@@ -366,6 +448,8 @@ if is_macos or is_windows then
         local herdr_args = is_windows and { herdr }
             or { '/bin/sh', '-c', "stty eof '^@'; exec " .. herdr }
         local _, main, _ = wezterm.mux.spawn_window { args = herdr_args }
+        -- 下のパネルはウィンドウ全体で分割するので、分割の無いうちに先に作る（toggle-panel の説明を参照）
+        spawn_panel(main, 'term')
         spawn_panel(main, 'tasks')
         main:activate()
     end)
@@ -382,9 +466,14 @@ if is_macos or is_windows then
         -- Cmd+Shift+P（Windows: Ctrl+Shift+P）: pit-task のパネルを出し入れする（Mapped/Shift 明示の両経路）
         { key = 'p', mods = mod .. '|SHIFT', action = toggle 'tasks' },
         { key = 'P', mods = mod, action = toggle 'tasks' },
-        -- Cmd+Option+←/→（Windows: Ctrl+Alt+←/→）: 左右のペインへフォーカス移動
+        -- Cmd+Shift+J（Windows: Ctrl+Shift+J）: 下のターミナルのパネルを出し入れする
+        { key = 'j', mods = mod .. '|SHIFT', action = toggle 'term' },
+        { key = 'J', mods = mod, action = toggle 'term' },
+        -- Cmd+Option+矢印（Windows: Ctrl+Alt+矢印）: 上下左右のペインへフォーカス移動
         { key = 'LeftArrow', mods = mod .. '|ALT', action = act.ActivatePaneDirection 'Left' },
         { key = 'RightArrow', mods = mod .. '|ALT', action = act.ActivatePaneDirection 'Right' },
+        { key = 'UpArrow', mods = mod .. '|ALT', action = act.ActivatePaneDirection 'Up' },
+        { key = 'DownArrow', mods = mod .. '|ALT', action = act.ActivatePaneDirection 'Down' },
     }
     for _, k in ipairs(panel_keys) do
         table.insert(config.keys, k)
