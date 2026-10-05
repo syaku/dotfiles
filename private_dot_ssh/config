@@ -3,7 +3,7 @@ Host github.com
   IdentityFile ~/.ssh/id_ed25519
 
 # DNS (Technitium) が止まっていても PVE に入って直せるよう、名前を引かずに IP で入る。
-# PVE を経由する ProxyJump (apps-vm、k3s、ansible、terraform の null_resource) もこれに乗る。
+# PVE を経由する ProxyJump (k3s、ansible、terraform の null_resource) もこれに乗る。
 HOST pve.syaku.me
   HostName 192.168.0.10
   User root
@@ -12,14 +12,6 @@ HOST pve.syaku.me
 
 # app.syaku.me は内部の wildcard で 10.20.20.2 に解決される。k3s 移行 Phase 8 から .2 は k3s のノードにある。
 HOST app.syaku.me
-  User root
-  IdentityFile ~/.ssh/id_ed25519
-  SetEnv TERM=xterm-256color
-
-# apps-vm は k3s 移行 Phase 8 で .2 を手放し、10.20.20.110 になった。k3s のノードと同じく PVE を経由して入る。
-HOST apps-vm
-  HostName 10.20.20.110
-  ProxyJump pve.syaku.me
   User root
   IdentityFile ~/.ssh/id_ed25519
   SetEnv TERM=xterm-256color
