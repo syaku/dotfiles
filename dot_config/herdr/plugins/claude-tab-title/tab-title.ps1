@@ -1,4 +1,4 @@
-# herdr の plugin（syaku.claude-tab-title）が pane.agent_status_changed を受けるたびに呼ぶ。Windows 用。
+﻿# herdr の plugin（syaku.claude-tab-title）が pane.agent_status_changed を受けるたびに呼ぶ。Windows 用。
 # Mac では同じ処理を tab-title.sh が行う。
 # イベントを出した pane が Claude で、タブの中で最初の Claude の pane なら、タブ名をその題名に付け直す。
 $ErrorActionPreference = 'Stop'
