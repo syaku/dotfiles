@@ -20,6 +20,8 @@ file_size も file_content も含まれておらず、来た項目だけを残�
 既知の癖（anthropics/claude-code の issue）:
   - compact 1 回につきファイルあたり 3 回発火する（#52176）。数えるときは重複を潰す。
   - /clear では発火しない（#31017）。ログの空白がそのまま「読まれていない」を意味しない。
+  - 設定（agents-md の instructionFiles）経由で読まれた AGENTS.md では発火しない（公式ドキュメント
+    の memory#agents-md 節）。AGENTS.md の読み込みはこのログでは確かめられないので、/memory で見る。
 """
 
 import json

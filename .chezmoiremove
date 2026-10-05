@@ -15,3 +15,10 @@
 # orbi の設定を Lua（.config/orbi/config.lua）に移した（2026-10-05）。新しい orbi は TOML を読まない。
 # 戻すときは、この行を含む dotfiles の commit も戻す（残すと apply のたびに config.toml が消える）。
 .config/orbi/config.toml
+
+# workspace の指示ファイルを AGENTS.md に名前を変えた（2026-10-06）。CLAUDE.md と AGENTS.md を両方読む設定なので、
+# 古い CLAUDE.md が target に残ると同じ指示が 2 回読み込まれる。戻すときは、この行を含む dotfiles の commit も戻す。
+workspace/CLAUDE.md
+workspace/repos/CLAUDE.md
+workspace/notes/CLAUDE.md
+workspace/notes/obsidian/CLAUDE.md

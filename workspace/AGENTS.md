@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 このファイルはワークスペース内で作業する際の Claude Code (claude.ai/code) へのガイダンスを提供する。環境固有・業務固有の情報は同階層の `CLAUDE.local.md` を参照。
 
@@ -8,12 +8,12 @@
 
 ## ディレクトリ構成
 
-- `repos/` — 開発リポジトリ。詳細は `repos/CLAUDE.md` を参照。
-- `notes/` — ノート。詳細は `notes/CLAUDE.md` を参照。
+- `repos/` — 開発リポジトリ。詳細は `repos/AGENTS.md` を参照。
+- `notes/` — ノート。詳細は `notes/AGENTS.md` を参照。
 - `notes/obsidian/Life/inbox/` — Life ボルトに格納したいノートや作業レポートの保存先。特に指定が無い場合はこのフォルダに保存する。
 - `worktree/` — Git worktree の作成先。
 
-各領域固有のルール（命名規則・運用方針・作業対象範囲等）は配下の CLAUDE.md を参照。
+各領域固有のルール（命名規則・運用方針・作業対象範囲等）は配下の AGENTS.md を参照。
 
 ### 作業ディレクトリ
 
@@ -25,4 +25,4 @@
   - 例: `購入履歴ページ404調査/`, `BigQueryコスト試算/`
 - 英語スラッグ（`investigate-xxx/`, `try-xxx/` 等）や、英語スラッグに日本語を継ぎ足しただけの命名（`product-detail-items-404調査/` 等）をデフォルトにしない。
 
-チケット ID を起点にする等、領域固有の命名追加ルールは各 `CLAUDE.md` を参照（例: `notes/obsidian/Life/CLAUDE.md` の「作業スペース（workbench/）」）。
+チケット ID を起点にする等、領域固有の命名追加ルールは各 `AGENTS.md` を参照（例: `notes/obsidian/Life/AGENTS.md` の「作業スペース（workbench/）」）。
