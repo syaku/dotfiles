@@ -244,7 +244,9 @@ if is_macos or is_windows then
     local home = wezterm.home_dir
     -- macOS の GUI 起動経路では PATH に /opt/homebrew/bin 等が入らないため絶対パスで指定する
     local herdr = is_windows and 'herdr.exe' or '/opt/homebrew/bin/herdr'
-    local nu = is_windows and 'nu.exe' or '/opt/homebrew/bin/nu'
+    -- 下のパネルのシェル。macOS は args を渡さず、ユーザのログインシェルで起動させる。
+    -- Windows は default_prog が herdr なので、args を外すと herdr が起動する。nu を明示する
+    local shell = is_windows and { 'nu.exe' } or nil
     local exe = is_windows and '.exe' or ''
 
     -- パネルの一覧。増やすときはここに足し、下の panel_keys に切り替えキーを足す。
@@ -252,7 +254,7 @@ if is_macos or is_windows then
     -- size は Right なら列数、Bottom なら行数。ウィンドウの大きさが変わってもこの大きさに戻す。
     local panels = {
         tasks = { args = { home .. '/.local/bin/pit-task' .. exe }, side = 'Right', size = 60 },
-        term = { args = { nu }, side = 'Bottom', size = 15 },
+        term = { args = shell, side = 'Bottom', size = 15 },
     }
 
     -- 退避したペインを戻す操作は Lua API に無く `wezterm cli split-pane --move-pane-id` を使う。
