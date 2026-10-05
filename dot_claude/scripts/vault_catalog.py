@@ -21,7 +21,7 @@ from pathlib import Path
 
 # 全文から wikilink を拾う（frontmatter の "[[..]]" も本文の [[..]] も同一パスで）
 WIKILINK = re.compile(r"\[\[([^\[\]|#]+)(?:[#|][^\[\]]*)?\]\]")
-# 層を決めるタグ（CLAUDE.md「学習ループ」節。1 ノートは複数層を兼ねない前提だが優先順位で確定する）
+# 層を決めるタグ（vault の AGENTS.md「学習ループ」節。1 ノートは複数層を兼ねない前提だが優先順位で確定する）
 LAYER_BY_TAG = ["洞察", "気づき", "タスク"]
 # AI Context callout 本文の先頭を gist に使う
 AI_CONTEXT_RE = re.compile(r">\s*\[!NOTE\]\s*AI Context\s*\n((?:>.*\n?)*)", re.IGNORECASE)
