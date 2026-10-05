@@ -38,7 +38,7 @@
 
 -- 領域へ送るキーだけ OS で書き分ける。macOS は Karabiner で修飾キーを入れ替えて
 -- あるので、同じ綴りが両 OS で別の物理キーになる。
-local send_modifier = zoni.os == "windows" and "Cmd" or "Ctrl"
+local send_modifier = host.os == "windows" and "Cmd" or "Ctrl"
 
 return {
   hotkeys = {
