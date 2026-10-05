@@ -22,3 +22,10 @@ workspace/CLAUDE.md
 workspace/repos/CLAUDE.md
 workspace/notes/CLAUDE.md
 workspace/notes/obsidian/CLAUDE.md
+
+# InstructionsLoaded の観測 hook を外した（2026-10-06）。問いのうち答えが出るものは出し切り、残りは payload から答えられないため。
+# 戻すときは、この行を含む dotfiles の commit も戻す。
+.claude/hooks/instructions-loaded-log.py
+.claude/hooks/instructions-loaded-log.test.py
+.claude/cache/instructions-loaded.jsonl
+.claude/cache/instructions-loaded.jsonl.1
