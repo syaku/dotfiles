@@ -101,7 +101,7 @@ return {
   claude = {
     prefix = "cc",
     root = "~/workspace",
-    workspace = "quiro",
+    workspace = "workspace",
     icon = "~/.config/quiro/icons/claude_logo.svg",
   },
 }
