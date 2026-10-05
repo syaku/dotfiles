@@ -1,0 +1,22 @@
+# Claude Code の agent の状態が変わるたびに、タブ名をそのタブの Claude Code の題名に付け直す。
+# herdr にはタブ名を題名に揃える設定が無く、題名が変わったときに出る pane.updated は plugin の hook で受けられない。
+# そこで、最初の応答の前後で必ず出る pane.agent_status_changed を受ける。
+# /rename のように状態が変わらずに題名だけが変わったときは、次に状態が変わるまでタブ名が古いまま残る。
+id = "syaku.claude-tab-title"
+name = "Claude tab title"
+version = "0.1.0"
+min_herdr_version = "0.9.1"
+description = "Rename tabs to the Claude Code session title"
+platforms = ["macos", "windows"]
+
+# command はシェルを通らない。Mac は OS に入っている bash と jq で、Windows は PowerShell で動かす。
+# Windows に bash があるとは限らず、会社の Mac には nu が無いため。
+[[events]]
+on = "pane.agent_status_changed"
+platforms = ["macos"]
+command = ["/bin/bash", "tab-title.sh"]
+
+[[events]]
+on = "pane.agent_status_changed"
+platforms = ["windows"]
+command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "tab-title.ps1"]
