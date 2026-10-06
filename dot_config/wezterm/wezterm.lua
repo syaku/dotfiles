@@ -251,11 +251,16 @@ if is_macos or is_windows then
     local shell = is_windows and { 'nu.exe' } or nil
     local exe = is_windows and '.exe' or ''
 
+    -- pit-task は gh を子プロセスで呼ぶ。GUI から起動したパネルは PATH が /usr/bin:/bin:/usr/sbin:/sbin
+    -- だけで gh（/opt/homebrew/bin）が見つからないので、macOS では PATH を渡す。
+    local tasks_env = is_macos and { PATH = '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin' } or nil
+
     -- パネルの一覧。増やすときはここに足し、下の panel_keys に切り替えキーを足す。
     -- side は出す位置（'Right' か 'Bottom'）。同じ side のパネルは同時に 1 つだけ出す。
     -- size は Right なら列数、Bottom なら行数。ウィンドウの大きさが変わってもこの大きさに戻す。
+    -- env はそのパネルのプロセスに足す環境変数。
     local panels = {
-        tasks = { args = { home .. '/.local/bin/pit-task' .. exe }, side = 'Right', size = 60 },
+        tasks = { args = { home .. '/.local/bin/pit-task' .. exe }, env = tasks_env, side = 'Right', size = 60 },
         term = { args = shell, side = 'Bottom', size = 15 },
     }
 
@@ -344,6 +349,7 @@ if is_macos or is_windows then
         local def = panels[name]
         local p = main:split {
             direction = def.side, size = def.size, top_level = def.side == 'Bottom', args = def.args,
+            set_environment_variables = def.env,
         }
         wezterm.GLOBAL['panel_' .. name] = p:pane_id()
         return p
