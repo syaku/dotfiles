@@ -108,9 +108,9 @@ config.initial_rows = 50
 
 -- カラースキーム・ウィンドウデコレーション
 config.color_scheme = 'Catppuccin Mocha (Gogh)'
--- ペインの区切り線はスキームの既定だと背景に沈むので、背景より暗い真っ黒にして際立たせる。
+-- ペインの区切り線はスキームの既定だと背景に沈むので、Catppuccin Mocha の Overlay0 のグレーにする。
 config.colors = {
-  split = '#000000',
+  split = '#6c7086',
 }
 -- OS 標準のタイトルバーとリサイズ枠を表示（最小化/最大化/閉じるボタンを OS タイトルバーに戻す）。
 -- 旧構成は INTEGRATED_BUTTONS でタブバー内に統合していたが、タブバー無効化で道連れになるためタイトルバー復帰。
