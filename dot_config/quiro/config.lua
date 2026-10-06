@@ -33,7 +33,10 @@ local scan = {
 --     scan = {
 --       { dir = "d:/tools/" },
 --     },
+--     claude_args = { "--add-dir", "~/notes" },
 --   }
+--
+-- claude_args は Claude モードで起動する claude に足す引数で、claude.args にそのまま渡す。
 --
 -- pcall で包むので、local.lua の構文エラーと実行時エラーは黙って無視される（その機械の
 -- 候補が出ないだけになる）。local.lua の entry の中のキーや型の誤りは設定全体を落とし、
@@ -102,6 +105,7 @@ return {
     prefix = "cc",
     root = "~/workspace",
     workspace = "workspace",
+    args = machine.claude_args,
     icon = "~/.config/quiro/icons/claude_logo.svg",
   },
 }
