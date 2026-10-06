@@ -18,6 +18,8 @@
 .config/zoni/exclude.lua
 # orbi の除外はマシンごとに置く（config.lua が pcall(require, "exclude") で読む）
 .config/orbi/exclude.lua
+# pit-task の vault と claude に足す引数はマシンごとに置く（config.lua が pcall(require, "local") で読む）
+.config/pit-task/local.lua
 
 # zsh キャッシュと履歴
 .config/zsh/.zcompdump*
