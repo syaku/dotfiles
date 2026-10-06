@@ -12,6 +12,8 @@
 .config/quiro/history.json*
 # quiro の機械ごとの起動対象と走査先はマシンごとに置く（config.lua が pcall(require, "local") で読む）
 .config/quiro/local.lua
+# herdr の prefix+a で起動する claude の追加引数はマシンごとに置く（new-claude-tab.sh が読む）
+.config/herdr/claude-args.local
 # zoni の除外はマシンごとに置く（config.lua が pcall(require, "exclude") で読む）
 .config/zoni/exclude.lua
 # orbi の除外はマシンごとに置く（config.lua が pcall(require, "exclude") で読む）
