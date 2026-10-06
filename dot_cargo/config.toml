@@ -3,3 +3,8 @@
 # 末尾の / は外さない。無いと cargo は設定ファイルからではなく実行したディレクトリからの
 # 相対として解決する（非推奨の旧挙動）。
 root = ".local/"
+
+[net]
+# git 依存の取得を git コマンドに任せる。private な自作 crate（lua-config など）を
+# ssh で取るのに、普段の git と同じ鍵と ~/.ssh/config がそのまま使われるため。
+git-fetch-with-cli = true
