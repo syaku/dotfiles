@@ -473,6 +473,9 @@ if is_macos or is_windows then
         -- Cmd+Shift+J（Windows: Ctrl+Shift+J）: 下のターミナルのパネルを出し入れする
         { key = 'j', mods = mod .. '|SHIFT', action = toggle 'term' },
         { key = 'J', mods = mod, action = toggle 'term' },
+        -- Cmd+Shift+Z（Windows: Ctrl+Shift+Z）: 今のペインをタブいっぱいに広げる。もう一度押すと元に戻る
+        { key = 'z', mods = mod .. '|SHIFT', action = act.TogglePaneZoomState },
+        { key = 'Z', mods = mod, action = act.TogglePaneZoomState },
         -- Cmd+Option+矢印（Windows: Ctrl+Alt+矢印）: 上下左右のペインへフォーカス移動
         { key = 'LeftArrow', mods = mod .. '|ALT', action = act.ActivatePaneDirection 'Left' },
         { key = 'RightArrow', mods = mod .. '|ALT', action = act.ActivatePaneDirection 'Right' },
