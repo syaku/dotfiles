@@ -20,7 +20,8 @@ return {
     workspace = "review",
     -- 書かなければ task.cwd ではなく既定の ~/workspace になる。
     cwd = machine.review_cwd,
-    prompt = "run-pr-review2 skill で、ノートの requestUrl の PR のレビューを始めてください。",
+    command = machine.review_command,
+    prompt = machine.review_prompt,
     -- review は task を引き継がないので、別に渡す。
     claude = { args = machine.review_claude_args },
   },
