@@ -158,7 +158,8 @@ if is_macos or is_windows then
     end
     local hide = button(nf.cod_chrome_minimize, '#45475a', '#cdd6f4')
     local maximize = button(nf.cod_chrome_maximize, '#45475a', '#cdd6f4')
-    local close = button(nf.cod_chrome_close, '#f38ba8', '#1e1e2e')
+    -- 閉じるボタンのホバーは Windows 標準の閉じるボタンと同じ濃い赤にする
+    local close = button(nf.cod_chrome_close, '#c42b1c', '#ffffff')
     config.tab_bar_style = {
       window_hide = hide.normal,
       window_hide_hover = hide.hover,
