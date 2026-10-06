@@ -14,8 +14,14 @@ return {
   vault = machine.vault,
   tasks_dir = machine.tasks_dir,
   template = machine.template,
-  -- review は task を引き継がないので、両方に渡す。
   task = { claude = { args = machine.claude_args } },
   -- PR レビューのタスクは、通常のタスク（tasks）と別の herdr workspace に起動する。
-  review = { workspace = "review", claude = { args = machine.claude_args } },
+  review = {
+    workspace = "review",
+    -- 書かなければ task.cwd ではなく既定の ~/workspace になる。
+    cwd = machine.review_cwd,
+    prompt = "run-pr-review2 skill で、ノートの requestUrl の PR のレビューを始めてください。",
+    -- review は task を引き継がないので、別に渡す。
+    claude = { args = machine.review_claude_args },
+  },
 }
