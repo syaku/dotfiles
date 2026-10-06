@@ -246,9 +246,25 @@ if is_macos or is_windows then
     local home = wezterm.home_dir
     -- macOS の GUI 起動経路では PATH に /opt/homebrew/bin 等が入らないため絶対パスで指定する
     local herdr = is_windows and 'herdr.exe' or '/opt/homebrew/bin/herdr'
-    -- 下のパネルのシェル。macOS は args を渡さず、ユーザのログインシェルで起動させる。
-    -- Windows は default_prog が herdr なので、args を外すと herdr が起動する。nu を明示する
-    local shell = is_windows and { 'nu.exe' } or nil
+
+    -- herdr を起動する args。extra は herdr に渡す引数の文字列。
+    -- WezTerm はペインを閉じるとき、pty の VEOF が 0 でなければ raw モードかどうかに関係なく
+    -- 改行と EOF を書き込む（pty/src/unix.rs の UnixMasterWriter::drop）。herdr はそれを
+    -- フォーカス中のペインへの Enter として渡すので、VEOF を 0 にしてから herdr を起動する。
+    -- stty eof undef は macOS では 0xff になり、改行が送られるので使わない。
+    local function herdr_args(extra)
+        if is_windows then
+            return { herdr }
+        end
+        return { '/bin/sh', '-c', "stty eof '^@'; exec " .. herdr .. extra }
+    end
+
+    -- 下のパネル。macOS は herdr の名前付きセッション panel を、サイドバーを隠した設定
+    -- （~/.config/herdr/panel-config.toml）で動かす。シェルは herdr のサーバに残るので、
+    -- WezTerm を終了しても消えず、タブも使える。
+    -- Windows は nu を起動する。default_prog が herdr なので、args を外すと herdr が起動するため nu を明示する。
+    local term_args = is_windows and { 'nu.exe' } or herdr_args ' --session panel'
+    local term_env = is_macos and { HERDR_CONFIG_PATH = home .. '/.config/herdr/panel-config.toml' } or nil
     local exe = is_windows and '.exe' or ''
 
     -- pit-task は gh を子プロセスで呼ぶ。GUI から起動したパネルは PATH が /usr/bin:/bin:/usr/sbin:/sbin
@@ -261,7 +277,7 @@ if is_macos or is_windows then
     -- env はそのパネルのプロセスに足す環境変数。
     local panels = {
         tasks = { args = { home .. '/.local/bin/pit-task' .. exe }, env = tasks_env, side = 'Right', size = 60 },
-        term = { args = shell, side = 'Bottom', size = 15 },
+        term = { args = term_args, env = term_env, side = 'Bottom', size = 16 },
     }
 
     -- 退避したペインを戻す操作は Lua API に無く `wezterm cli split-pane --move-pane-id` を使う。
@@ -451,13 +467,7 @@ if is_macos or is_windows then
             wezterm.mux.spawn_window(cmd)
             return
         end
-        -- WezTerm はペインを閉じるとき、pty の VEOF が 0 でなければ raw モードかどうかに関係なく
-        -- 改行と EOF を書き込む（pty/src/unix.rs の UnixMasterWriter::drop）。herdr はそれを
-        -- フォーカス中のペインへの Enter として渡すので、VEOF を 0 にしてから herdr を起動する。
-        -- stty eof undef は macOS では 0xff になり、改行が送られるので使わない。
-        local herdr_args = is_windows and { herdr }
-            or { '/bin/sh', '-c', "stty eof '^@'; exec " .. herdr }
-        local _, main, _ = wezterm.mux.spawn_window { args = herdr_args }
+        local _, main, _ = wezterm.mux.spawn_window { args = herdr_args '' }
         -- 下のパネルはウィンドウ全体で分割するので、分割の無いうちに先に作る（toggle-panel の説明を参照）
         spawn_panel(main, 'term')
         spawn_panel(main, 'tasks')

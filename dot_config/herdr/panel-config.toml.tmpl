@@ -1,0 +1,6 @@
+{{- /* chezmoi:template:line-endings=native */ -}}
+{{- /*
+  WezTerm の下のパネルで動かす herdr（セッション panel）の設定。wezterm.lua が HERDR_CONFIG_PATH で読ませる。
+  本文はメインと同じ .chezmoitemplates/herdr-config.toml で、サイドバーを隠す設定だけを足す。
+*/ -}}
+{{ template "herdr-config.toml" (merge (dict "herdrPanel" true) .) -}}
