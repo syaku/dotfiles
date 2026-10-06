@@ -259,12 +259,11 @@ if is_macos or is_windows then
         return { '/bin/sh', '-c', "stty eof '^@'; exec " .. herdr .. extra }
     end
 
-    -- 下のパネル。macOS は herdr の名前付きセッション panel を、サイドバーを隠した設定
+    -- 下のパネル。herdr の名前付きセッション panel を、サイドバーを隠した設定
     -- （~/.config/herdr/panel-config.toml）で動かす。シェルは herdr のサーバに残るので、
     -- WezTerm を終了しても消えず、タブも使える。
-    -- Windows は nu を起動する。default_prog が herdr なので、args を外すと herdr が起動するため nu を明示する。
-    local term_args = is_windows and { 'nu.exe' } or herdr_args ' --session panel'
-    local term_env = is_macos and { HERDR_CONFIG_PATH = home .. '/.config/herdr/panel-config.toml' } or nil
+    local term_args = is_windows and { herdr, '--session', 'panel' } or herdr_args ' --session panel'
+    local term_env = { HERDR_CONFIG_PATH = home .. '/.config/herdr/panel-config.toml' }
     local exe = is_windows and '.exe' or ''
 
     -- pit-task は gh を子プロセスで呼ぶ。GUI から起動したパネルは PATH が /usr/bin:/bin:/usr/sbin:/sbin
