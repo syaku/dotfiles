@@ -40,6 +40,24 @@
 -- あるので、同じ綴りが両 OS で別の物理キーになる。
 local send_modifier = host.os == "windows" and "Cmd" or "Ctrl"
 
+-- telop の帯の分だけ、領域を上から空ける。telop のカード本体は作業領域の上端から
+-- 8pt 下に、最大 75pt の高さで出る（offset_y = 8、3 行）。その下端（83pt）から gap と
+-- 同じ 8pt 空けて、領域の上端を 91pt にする。zoni は作業領域から edge（8pt）を引いた
+-- 内側に割合で置き、端に接しない辺を gap/2（4pt）縮めるので、割合は
+-- (91 - 8 - 4) / (作業領域の高さ - 16)。作業領域の高さ 1410pt（3440x1440 の画面）で
+-- 計算した値で、高さの違う画面では空き方がずれる。
+local telop_top = 79 / 1394
+
+-- 縦の割合 0〜1 を、telop の帯の下から 1 までに縮めて置く。
+-- 1 はそのまま返す。計算の誤差で 1 をわずかに下回ると、zoni が下の辺を画面の端に
+-- 接していないと見て gap/2 縮めるため。
+local function y(f)
+  if f == 1 then
+    return 1
+  end
+  return telop_top + (1 - telop_top) * f
+end
+
 return {
   hotkeys = {
     prev_zone = send_modifier .. "+Left",
@@ -89,15 +107,15 @@ return {
   -- 値が 0.0〜1.0 の外にあるか、right が left 以下（幅が 0 以下）だと、その設定は
   -- 読み込まれない。常駐は止まらず、メニューバーの状態行とログに理由が出る。
   zone = {
-    { name = "全体", left = 0.0, top = 0.0, right = 1.0, bottom = 1.0 },
-    { name = "左半分", left = 0.0, top = 0.0, right = 0.5, bottom = 1.0 },
-    { name = "右半分", left = 0.5, top = 0.0, right = 1.0, bottom = 1.0 },
-    { name = "右上", left = 0.5, top = 0.0, right = 1.0, bottom = 0.5 },
-    { name = "右下", left = 0.5, top = 0.5, right = 1.0, bottom = 1.0 },
-    { name = "右下左", left = 0.5, top = 0.5, right = 0.75, bottom = 1.0 },
-    { name = "右下右", left = 0.75, top = 0.5, right = 1.0, bottom = 1.0 },
-    { name = "右下右上", left = 0.75, top = 0.5, right = 1.0, bottom = 0.75 },
-    { name = "右下右下", left = 0.75, top = 0.75, right = 1.0, bottom = 1.0 },
+    { name = "全体", left = 0.0, top = y(0.0), right = 1.0, bottom = y(1.0) },
+    { name = "左半分", left = 0.0, top = y(0.0), right = 0.5, bottom = y(1.0) },
+    { name = "右半分", left = 0.5, top = y(0.0), right = 1.0, bottom = y(1.0) },
+    { name = "右上", left = 0.5, top = y(0.0), right = 1.0, bottom = y(0.5) },
+    { name = "右下", left = 0.5, top = y(0.5), right = 1.0, bottom = y(1.0) },
+    { name = "右下左", left = 0.5, top = y(0.5), right = 0.75, bottom = y(1.0) },
+    { name = "右下右", left = 0.75, top = y(0.5), right = 1.0, bottom = y(1.0) },
+    { name = "右下右上", left = 0.75, top = y(0.5), right = 1.0, bottom = y(0.75) },
+    { name = "右下右下", left = 0.75, top = y(0.75), right = 1.0, bottom = y(1.0) },
   },
 
   -- -------------------------------------------------------------------------
