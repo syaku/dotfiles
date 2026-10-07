@@ -4,7 +4,9 @@
 
 規範の適用条件を決めている機構の記述は、移さずに `rules/agent-behavior.md` 側へ残してある（該当箇所は下の各節に注記）。
 
-## [CRITICAL]ファイルの書き込みは Edit / Write ツールで行う
+## [CRITICAL]ファイルの書き込みは Edit / Write ツールで行う（2026-10-07 に撤去）
+
+> 撤去: 2026-10-07。この節は、Auto mode のシステムプロンプトが「`sed`、ヒアドキュメント、短いスクリプトでファイルを変更し、Edit / Write は最後の手段にする」と指示していたのを押し返すためのものだった。この指示は A/B 実験フラグで入っていて、`settings.json` の `env` に `CLAUDE_CODE_THRIFTY_SONIC: "0"` を入れて切ったので外した（参考: https://labee.jp/posts/claude-code-auto-mode-bash-first-opt-out ）。このフラグはドキュメントに載っていないので、名前が変わったり廃止されたりすると、Bash を優先させる指示が知らせなく戻る。Bash の `sed` やヒアドキュメントでファイルを書く動きがまた出たら、フラグが効いているかを確かめ、この節を戻す。Bash で書くと `Edit|Write|MultiEdit` の matcher を持つ hook が動かないという機構は、撤去した時点でも変わっていない。
 
 > 失敗接地: 2026-09-04、quiro の実装で全編集を Bash heredoc / python で行い、hook を一度も実行させずに作業した。
 
