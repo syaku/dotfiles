@@ -177,7 +177,7 @@ return {
   -- send + 番号で前面のウィンドウをその番号へ送る。表に出ていないワークスペースの
   -- ウィンドウは、macOS は画面の隅へ、Windows は cloak で隠す。
   workspace = {
-    count = 4,
+    count = 5,
     switch = "Option",
     send = "Option+Shift",
   },
