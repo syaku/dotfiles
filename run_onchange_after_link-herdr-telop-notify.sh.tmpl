@@ -1,0 +1,16 @@
+{{- if eq .chezmoi.os "darwin" -}}
+{{- $herdr := lookPath "herdr" -}}
+{{- if $herdr -}}
+#!/bin/bash
+# herdr の plugin（syaku.telop-notify）を登録する。Windows では同じ処理を .ps1 版が行う。
+# herdr は manifest を登録したときに読むので、manifest が変わったら登録し直す。
+# manifest hash: {{ include "dot_config/herdr/plugins/telop-notify/herdr-plugin.toml" | sha256sum }}
+set -euo pipefail
+
+herdr={{ $herdr | quote }}
+plugin_dir={{ joinPath .chezmoi.homeDir ".config" "herdr" "plugins" "telop-notify" | quote }}
+
+"$herdr" plugin unlink syaku.telop-notify >/dev/null 2>&1 || true
+"$herdr" plugin link "$plugin_dir"
+{{ end -}}
+{{- end -}}

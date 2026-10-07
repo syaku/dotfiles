@@ -1,0 +1,20 @@
+# エージェントの pane が入力待ち（blocked）か完了（done）になったら、telop にカードを流す。
+# pane.agent_status_changed は状態が変わったときにだけ出るので、前の状態を覚えておかなくてよい。
+# telop が動いていないときは telop send が終了コード 1 で終わり、plugin の log に失敗として残るだけで、herdr には影響しない。
+id = "syaku.telop-notify"
+name = "telop notify"
+version = "0.1.0"
+min_herdr_version = "0.9.1"
+description = "Send agent blocked/done changes to telop"
+platforms = ["macos", "windows"]
+
+# command はシェルを通らない。Mac は OS に入っている bash と jq で、Windows は PowerShell で動かす。
+[[events]]
+on = "pane.agent_status_changed"
+platforms = ["macos"]
+command = ["/bin/bash", "notify.sh"]
+
+[[events]]
+on = "pane.agent_status_changed"
+platforms = ["windows"]
+command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "notify.ps1"]

@@ -1,0 +1,11 @@
+{{- if eq .chezmoi.os "windows" -}}
+# herdr の plugin（syaku.telop-notify）を登録する。Mac では同じ処理を .sh 版が行う。
+# herdr は manifest を登録したときに読むので、manifest が変わったら登録し直す。
+# manifest hash: {{ include "dot_config/herdr/plugins/telop-notify/herdr-plugin.toml" | sha256sum }}
+
+$pluginDir = Join-Path $HOME '.config\herdr\plugins\telop-notify'
+
+& herdr.exe plugin unlink syaku.telop-notify 2>&1 | Out-Null
+& herdr.exe plugin link $pluginDir
+exit $LASTEXITCODE
+{{- end -}}
