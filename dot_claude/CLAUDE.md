@@ -1,8 +1,8 @@
 # Global Instructions
 
-決まりの本文は `~/.claude/rules/*.md` にある。このファイルは案内だけを持つ。置き場所の判断は `/knowledge-placement` skill が持つ。
+決まりの本文は `~/.claude/rules/*.md` にある。このファイルには案内だけを書く。置き場所の判断は `/knowledge-placement` skill が持つ。
 
-rules 本文の [CRITICAL] は必ず守る（例外なし）、[IMPORTANT] は原則として守る（はっきりした理由があれば例外にしてよい）。
+rules 本文で [CRITICAL] の付いた決まりは必ず守る（例外なし）。[IMPORTANT] の付いた決まりは原則として守り、はっきりした理由があれば例外にしてよい。
 
 ## 態度ペルソナ
 
