@@ -22,7 +22,7 @@ return {
     screen = 0,        -- 0 は主画面。1 から始まる番号で画面を選ぶ
     edge = "top",      -- "top" か "bottom"（作業領域のどちらの端に付けるか）
     offset_x = 8,      -- 作業領域の左端からの距離（pt）
-    offset_y = 8,      -- 付けた端からの距離（pt）
+    offset_y = host.os == "windows" and -8 or 8,  -- 付けた端からの距離（pt）
     width = 0,      -- 0 なら作業領域の幅いっぱい
     height = 0,        -- 0 ならカードの最大の高さから決める。正の値ならその高さ（pt）
   },
