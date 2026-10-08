@@ -4,7 +4,7 @@
 $ErrorActionPreference = 'Stop'
 
 # herdr のカードは紫の地にし、入力待ちと完了をアイコン（telop が持つ Phosphor の名前）で分ける。
-$color = '#4b2a8a'
+$color = '#6a4bb0'
 
 if (-not $env:HERDR_PLUGIN_EVENT_JSON) { exit 0 }
 $data = ($env:HERDR_PLUGIN_EVENT_JSON | ConvertFrom-Json).data
