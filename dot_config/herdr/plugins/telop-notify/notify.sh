@@ -6,7 +6,7 @@ set -euo pipefail
 
 jq=/usr/bin/jq
 
-# herdr のカードは紫の地にし、入力待ちと完了をアイコン（telop が持つ Phosphor の名前）で分ける。
+# herdr のカードは紫の地にし、入力待ちと完了をアイコン（telop が持つ Font Awesome の名前）で分ける。
 color="#6a4bb0"
 
 # telop send を通さず、受け口へ 1 行の JSON を直接書く。telop send に --color と --icon を渡すと、
@@ -35,7 +35,7 @@ blocked)
 	;;
 done)
 	level=info
-	icon=confetti
+	icon=champagne-glasses
 	text="完了しました"
 	;;
 *) exit 0 ;;
