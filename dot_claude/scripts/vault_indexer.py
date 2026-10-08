@@ -92,9 +92,12 @@ INDEX_MAPPING = {
             "knn": True,
             "analysis": {
                 "tokenizer": {
-                    # 複合語を search mode で分解する。default (normal) では
-                    # 「ホームラボ」が 1 トークンに固まり「ホーム ラボ」と検索結果が極端に非対称になる
-                    # (実測: hit=0 vs hit=223)。search mode は元語と分割語を両方残すので表記揺れに耐える。
+                    # mode: search は kuromoji_tokenizer の既定と同じで、明示してもトークン列は変わらない。
+                    # OpenSearch 2.19.1 の KuromojiTokenizerFactory は、mode を指定されないと
+                    # Lucene の JapaneseTokenizer.DEFAULT_MODE (SEARCH) を使うからである。
+                    # search mode は長い名詞の複合語を分割語に分け、discard_compound_token の既定 false によって元の語も残す。
+                    # 冗長でもこの行を消さない。既存 index の analysis 設定に入っているので、消すと
+                    # ensure_index がずれとして止め、index の作り直しと --full の再 ingest が要るからである。
                     "kuromoji_search_tokenizer": {
                         "type": "kuromoji_tokenizer",
                         "mode": "search",
