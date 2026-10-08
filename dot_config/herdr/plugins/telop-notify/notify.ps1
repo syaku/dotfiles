@@ -11,7 +11,7 @@ $data = ($env:HERDR_PLUGIN_EVENT_JSON | ConvertFrom-Json).data
 
 switch ($data.agent_status) {
     'blocked' { $level = 'warn'; $icon = [char]::ConvertFromUtf32(0x270B); $text = '入力待ちになりました' }
-    'done' { $level = 'info'; $icon = [char]::ConvertFromUtf32(0x2705); $text = '完了しました' }
+    'done' { $level = 'info'; $icon = [char]::ConvertFromUtf32(0x1F389); $text = '完了しました' }
     default { exit 0 }
 }
 

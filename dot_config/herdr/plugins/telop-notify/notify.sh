@@ -35,7 +35,7 @@ blocked)
 	;;
 done)
 	level=info
-	icon="✅"
+	icon="🎉"
 	text="完了しました"
 	;;
 *) exit 0 ;;
