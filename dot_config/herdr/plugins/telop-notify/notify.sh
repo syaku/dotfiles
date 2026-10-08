@@ -44,4 +44,14 @@ name="$("$jq" -rn --arg title "$title" --arg pane "$pane_id" '
     | gsub("\\s+"; " ") | sub("^ "; "") | sub(" $"; "")) as $name
   | if $name == "" then $pane else $name end')"
 
-exec "$telop" send --source "$name" --level "$level" -- "$text"
+# カードのクリックで focus.sh がその pane に飛ぶ。telop-app の PATH には herdr が無いので絶対パスにし、
+# 下パネルのような別のセッションの pane にも飛べるよう、この出来事を出した server の socket も渡す。
+if [[ -z "$pane_id" ]]; then
+	exec "$telop" send --source "$name" --level "$level" -- "$text"
+fi
+herdr_path="$(command -v "$herdr" || true)"
+plugin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+action="$("$jq" -cn --arg focus "$plugin_dir/focus.sh" --arg herdr "${herdr_path:-$herdr}" \
+	--arg pane "$pane_id" --arg socket "${HERDR_SOCKET_PATH:-}" \
+	'["/bin/bash", $focus, $herdr, $pane] + (if $socket == "" then [] else [$socket] end)')"
+exec "$telop" send --source "$name" --level "$level" --action "$action" -- "$text"

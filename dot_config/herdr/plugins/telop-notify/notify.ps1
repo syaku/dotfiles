@@ -49,5 +49,20 @@ for ($i = 0; $i -lt 4; $i++) {
 $title = ($title -split '\s+' | Where-Object { $_ }) -join ' '
 $name = if ($title) { $title } else { [string]$data.pane_id }
 
-& $telop send --source $name --level $level -- $text
+if (-not $data.pane_id) {
+    & $telop send --source $name --level $level -- $text
+    exit $LASTEXITCODE
+}
+
+# カードのクリックで focus.ps1 がその pane に飛ぶ。telop-app の PATH で探さずに済むよう pwsh と herdr は
+# 絶対パスにし、下パネルのような別のセッションの pane にも飛べるよう、この出来事を出した server の socket も渡す。
+# JSON をそのまま引数に渡せるのは pwsh 7.3 以降で、5.1 は引数の中の " を落とす。
+$herdrPath = (Get-Command $herdr -ErrorAction SilentlyContinue).Source
+if (-not $herdrPath) { $herdrPath = $herdr }
+$action = @(
+    (Get-Process -Id $PID).Path, '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+    '-File', (Join-Path $PSScriptRoot 'focus.ps1'), $herdrPath, [string]$data.pane_id
+)
+if ($env:HERDR_SOCKET_PATH) { $action += $env:HERDR_SOCKET_PATH }
+& $telop send --source $name --level $level --action (ConvertTo-Json -Compress -InputObject $action) -- $text
 exit $LASTEXITCODE
