@@ -671,6 +671,37 @@ def mapping_drift(expected: object, actual: object, path: str = "") -> list[str]
     return [] if expected == actual else [path or "<root>"]
 
 
+def _normalize_setting(value: object) -> object:
+    # GET /_settings は値を文字列で返す (真偽値は "true"、数値は "1")。定義側も同じ形に直してから比べる。
+    # リストは順序を保つ。辞書の行やフィルタの並びは順序に意味があるからである。
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, list):
+        return [_normalize_setting(v) for v in value]
+    return str(value)
+
+
+def analysis_drift(expected: object, actual: object, path: str = "") -> list[str]:
+    """analysis 設定を両側のキーの集合まで含めて比べ、食い違うキーのパスを返す。
+
+    Why not mapping_drift と同じ片側の比較: OpenSearch は analysis の定義に既定値を足さないので、
+    完全一致で比べても誤検出しない。一方、定義から消した設定 (辞書の行など) が index 側に残っているのを
+    見逃すと、作り直し忘れを捕まえられない。
+    """
+    if isinstance(expected, dict) or isinstance(actual, dict):
+        if not (isinstance(expected, dict) and isinstance(actual, dict)):
+            return [path or "<root>"]
+        drift: list[str] = []
+        for key in sorted(set(expected) | set(actual)):
+            child = f"{path}.{key}" if path else key
+            if key not in expected or key not in actual:
+                drift.append(child)
+            else:
+                drift.extend(analysis_drift(expected[key], actual[key], child))
+        return drift
+    return [] if _normalize_setting(expected) == _normalize_setting(actual) else [path or "<root>"]
+
+
 def ensure_index(opensearch_url: str, index: str) -> None:
     # auto-create で float[] に落ちた既存 index や、INDEX_MAPPING を変える前に作った index を
     # 黙って踏み続けないよう、既存も INDEX_MAPPING の全フィールドで検証する。
@@ -694,11 +725,33 @@ def ensure_index(opensearch_url: str, index: str) -> None:
         actual_properties = mapping[index]["mappings"]["properties"]
     except (KeyError, TypeError):
         actual_properties = None
-    drift = mapping_drift(INDEX_MAPPING["mappings"]["properties"], actual_properties)
+    drift = [
+        f"mappings.{p}" for p in mapping_drift(INDEX_MAPPING["mappings"]["properties"], actual_properties)
+    ]
+
+    # analysis は index を作った後には変えられないので、定義だけ変えて作り直さないと
+    # 古い analyzer のまま ingest が通り、検索結果だけが黙って変わる。
+    settings_status, settings = _opensearch_request(
+        "GET", f"{base}/{index}/_settings", allowed_status=(200, 404),
+    )
+    if settings_status == 404:
+        raise RuntimeError(
+            f"ensure_index: HEAD で existing 判定後、GET /{index}/_settings で 404。"
+            f"HEAD と GET の間に外部 actor が DELETE した可能性。再実行してください。",
+        )
+    try:
+        actual_analysis = settings[index]["settings"]["index"].get("analysis", {})
+    except (KeyError, TypeError, AttributeError):
+        actual_analysis = None
+    drift.extend(
+        f"analysis.{p}"
+        for p in analysis_drift(INDEX_MAPPING["settings"]["index"]["analysis"], actual_analysis)
+    )
+
     if drift:
         raise RuntimeError(
-            f"既存 index `{index}` の mapping が INDEX_MAPPING と乖離: {', '.join(drift)}. "
-            f"`DELETE /{index}` で消してから `--full` で再 ingest してください: {mapping!r}",
+            f"既存 index `{index}` が INDEX_MAPPING と乖離: {', '.join(drift)}. "
+            f"`DELETE /{index}` で消してから `--full` で再 ingest してください。",
         )
 
 
