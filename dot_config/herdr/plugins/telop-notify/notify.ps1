@@ -3,16 +3,15 @@
 # 入力待ち（blocked）と完了（done）になったときだけ、pane の題名を送信元にして telop に送る。
 $ErrorActionPreference = 'Stop'
 
-# plugin は herdr のサーバーから起動され、PATH に telop があるとは限らないので、絶対パスで呼ぶ。
-# cargo install の入れ先は ~/.cargo/config.toml の [install] root（.local）に従う。
-$telop = if ($env:TELOP_BIN) { $env:TELOP_BIN } else { Join-Path $env:USERPROFILE '.local\bin\telop.exe' }
+# herdr のカードは紫の地にし、入力待ちと完了をアイコンでも分ける。重要度は telop が丸の色で出す。
+$color = '#4b2a8a'
 
 if (-not $env:HERDR_PLUGIN_EVENT_JSON) { exit 0 }
 $data = ($env:HERDR_PLUGIN_EVENT_JSON | ConvertFrom-Json).data
 
 switch ($data.agent_status) {
-    'blocked' { $level = 'warn'; $text = '入力待ちになりました' }
-    'done' { $level = 'info'; $text = '完了しました' }
+    'blocked' { $level = 'warn'; $icon = [char]::ConvertFromUtf32(0x270B); $text = '入力待ちになりました' }
+    'done' { $level = 'info'; $icon = [char]::ConvertFromUtf32(0x2705); $text = '完了しました' }
     default { exit 0 }
 }
 
@@ -49,20 +48,51 @@ for ($i = 0; $i -lt 4; $i++) {
 $title = ($title -split '\s+' | Where-Object { $_ }) -join ' '
 $name = if ($title) { $title } else { [string]$data.pane_id }
 
-if (-not $data.pane_id) {
-    & $telop send --source $name --level $level -- $text
-    exit $LASTEXITCODE
-}
-
 # カードのクリックで focus.ps1 がその pane に飛ぶ。telop-app の PATH で探さずに済むよう pwsh と herdr は
 # 絶対パスにし、下パネルのような別のセッションの pane にも飛べるよう、この出来事を出した server の socket も渡す。
-# JSON をそのまま引数に渡せるのは pwsh 7.3 以降で、5.1 は引数の中の " を落とす。
-$herdrPath = (Get-Command $herdr -ErrorAction SilentlyContinue).Source
-if (-not $herdrPath) { $herdrPath = $herdr }
-$action = @(
-    (Get-Process -Id $PID).Path, '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-    '-File', (Join-Path $PSScriptRoot 'focus.ps1'), $herdrPath, [string]$data.pane_id
-)
-if ($env:HERDR_SOCKET_PATH) { $action += $env:HERDR_SOCKET_PATH }
-& $telop send --source $name --level $level --action (ConvertTo-Json -Compress -InputObject $action) -- $text
-exit $LASTEXITCODE
+# pane ID が無ければ飛ぶ先が無いので、action を付けない。
+$message = [ordered]@{ text = $text; level = $level; color = $color; icon = $icon }
+if ($name) { $message.source = $name }
+if ($data.pane_id) {
+    $herdrPath = (Get-Command $herdr -ErrorAction SilentlyContinue).Source
+    if (-not $herdrPath) { $herdrPath = $herdr }
+    $action = @(
+        (Get-Process -Id $PID).Path, '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', (Join-Path $PSScriptRoot 'focus.ps1'), $herdrPath, [string]$data.pane_id
+    )
+    if ($env:HERDR_SOCKET_PATH) { $action += $env:HERDR_SOCKET_PATH }
+    $message.action = $action
+}
+
+# telop send を通さず、受け口（名前付きパイプ）へ 1 行の JSON を直接書く。telop send に --color と --icon を
+# 渡すと、古い telop が知らないオプションとして本文ごと拒むので、telop を先に更新するまでカードが出なくなる。
+# 受け口の名前は telop の README の取り決め（TELOP_PIPE で上書き、空なら決まらない）に合わせる。
+# ユーザ名は telop と同じく GetUserNameW の値を使う（[Environment]::UserName がそれを返す）。
+if (Test-Path Env:TELOP_PIPE) {
+    $pipe = $env:TELOP_PIPE
+} else {
+    $pipe = "\\.\pipe\telop-$([Environment]::UserName)"
+}
+if (-not $pipe) {
+    [Console]::Error.WriteLine('telop の受け口の場所が決まりません（TELOP_PIPE が空）')
+    exit 1
+}
+$pipeName = $pipe -replace '^\\\\\.\\pipe\\', ''
+
+# 受け口は改行で行を区切るので -Compress で 1 行にする。BOM を付けると JSON として読めないので、
+# BOM の無い UTF-8 のバイト列にして書く。
+$line = (ConvertTo-Json -Compress -Depth 3 -InputObject $message) + "`n"
+$bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($line)
+
+# Identification で開き、受け口になりすましたパイプのサーバに、この plugin の権限を使わせない
+# （telop の lib が SECURITY_IDENTIFICATION で開くのと同じ）。締切は telop send と同じ 2 秒。
+$stream = [System.IO.Pipes.NamedPipeClientStream]::new(
+    '.', $pipeName, [System.IO.Pipes.PipeDirection]::Out,
+    [System.IO.Pipes.PipeOptions]::None, [System.Security.Principal.TokenImpersonationLevel]::Identification)
+try {
+    $stream.Connect(2000)
+    $stream.Write($bytes, 0, $bytes.Length)
+    $stream.Flush()
+} finally {
+    $stream.Dispose()
+}

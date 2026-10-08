@@ -5,8 +5,24 @@
 set -euo pipefail
 
 jq=/usr/bin/jq
-# plugin は herdr のサーバーから起動され、PATH に ~/.local/bin があるとは限らないので、絶対パスで呼ぶ。
-telop="${TELOP_BIN:-$HOME/.local/bin/telop}"
+
+# herdr のカードは紫の地にし、入力待ちと完了をアイコンでも分ける。重要度は telop が丸の色で出す。
+color="#4b2a8a"
+
+# telop send を通さず、受け口へ 1 行の JSON を直接書く。telop send に --color と --icon を渡すと、
+# 古い telop が知らないオプションとして本文ごと拒むので、telop を先に更新するまでカードが出なくなる。
+# 受け口の場所は telop の README の取り決め（TELOP_SOCKET で上書き、空なら決まらない）に合わせる。
+if [[ -n "${TELOP_SOCKET+set}" ]]; then
+	socket="$TELOP_SOCKET"
+elif [[ -n "${HOME:-}" ]]; then
+	socket="$HOME/.config/telop/telop.sock"
+else
+	socket=""
+fi
+if [[ -z "$socket" ]]; then
+	echo "telop の受け口の場所が決まりません（HOME か TELOP_SOCKET が空）" >&2
+	exit 1
+fi
 
 event="${HERDR_PLUGIN_EVENT_JSON:-}"
 status="$("$jq" -r '.data.agent_status // empty' <<<"$event")"
@@ -14,10 +30,12 @@ status="$("$jq" -r '.data.agent_status // empty' <<<"$event")"
 case "$status" in
 blocked)
 	level=warn
+	icon="✋"
 	text="入力待ちになりました"
 	;;
 done)
 	level=info
+	icon="✅"
 	text="完了しました"
 	;;
 *) exit 0 ;;
@@ -46,12 +64,22 @@ name="$("$jq" -rn --arg title "$title" --arg pane "$pane_id" '
 
 # カードのクリックで focus.sh がその pane に飛ぶ。telop-app の PATH には herdr が無いので絶対パスにし、
 # 下パネルのような別のセッションの pane にも飛べるよう、この出来事を出した server の socket も渡す。
-if [[ -z "$pane_id" ]]; then
-	exec "$telop" send --source "$name" --level "$level" -- "$text"
+# pane ID が無ければ飛ぶ先が無いので、action を付けない。
+action=null
+if [[ -n "$pane_id" ]]; then
+	herdr_path="$(command -v "$herdr" || true)"
+	plugin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+	action="$("$jq" -cn --arg focus "$plugin_dir/focus.sh" --arg herdr "${herdr_path:-$herdr}" \
+		--arg pane "$pane_id" --arg socket "${HERDR_SOCKET_PATH:-}" \
+		'["/bin/bash", $focus, $herdr, $pane] + (if $socket == "" then [] else [$socket] end)')"
 fi
-herdr_path="$(command -v "$herdr" || true)"
-plugin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-action="$("$jq" -cn --arg focus "$plugin_dir/focus.sh" --arg herdr "${herdr_path:-$herdr}" \
-	--arg pane "$pane_id" --arg socket "${HERDR_SOCKET_PATH:-}" \
-	'["/bin/bash", $focus, $herdr, $pane] + (if $socket == "" then [] else [$socket] end)')"
-exec "$telop" send --source "$name" --level "$level" --action "$action" -- "$text"
+
+# 受け口は改行で行を区切るので、-c で 1 行にする。送信元が空なら書かない（telop send と同じく送信元の行を出さない）。
+line="$("$jq" -cn --arg text "$text" --arg source "$name" --arg level "$level" \
+	--arg color "$color" --arg icon "$icon" --argjson action "$action" \
+	'{text: $text, level: $level, color: $color, icon: $icon}
+	 + (if $source == "" then {} else {source: $source} end)
+	 + (if $action == null then {} else {action: $action} end)')"
+
+# -w 2 は telop send の締切（2 秒）に合わせる。受け口が無いときと書けないときは nc が 0 以外で終わる。
+printf '%s\n' "$line" | /usr/bin/nc -U -w 2 "$socket"
