@@ -230,6 +230,17 @@ if is_macos then
         { key = '7', mods = 'CMD', action = act.DisableDefaultAssignment },
         { key = '8', mods = 'CMD', action = act.DisableDefaultAssignment },
         { key = '9', mods = 'CMD', action = act.DisableDefaultAssignment },
+        -- Esc: enable_kitty_keyboard があっても WezTerm は Esc を生の 0x1b で送る。herdr は 0x1b を
+        -- エスケープシーケンスの先頭として続きを待つので、pane に届くまで 1 秒ほど遅れる。
+        -- herdr のペインには kitty keyboard protocol の CSI u 形式（ESC[27u）を直送して待ちを無くす。
+        -- herdr 以外のペイン（pit-task 等）は CSI u を解釈するとは限らないので、従来どおり Esc を送る。
+        { key = 'Escape', mods = 'NONE', action = wezterm.action_callback(function(window, pane)
+            if (pane:get_foreground_process_name() or ''):match('/herdr$') then
+                window:perform_action(act.SendString '\x1b[27u', pane)
+            else
+                window:perform_action(act.SendKey { key = 'Escape' }, pane)
+            end
+        end) },
     }
     for _, k in ipairs(macos_keys) do
         table.insert(config.keys, k)
