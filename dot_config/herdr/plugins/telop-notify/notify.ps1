@@ -3,15 +3,15 @@
 # 入力待ち（blocked）と完了（done）になったときだけ、pane の題名を送信元にして telop に送る。
 $ErrorActionPreference = 'Stop'
 
-# herdr のカードは紫の地にし、入力待ちと完了をアイコンでも分ける。重要度は telop が丸の色で出す。
+# herdr のカードは紫の地にし、入力待ちと完了をアイコン（telop が持つ Phosphor の名前）で分ける。
 $color = '#4b2a8a'
 
 if (-not $env:HERDR_PLUGIN_EVENT_JSON) { exit 0 }
 $data = ($env:HERDR_PLUGIN_EVENT_JSON | ConvertFrom-Json).data
 
 switch ($data.agent_status) {
-    'blocked' { $level = 'warn'; $icon = [char]::ConvertFromUtf32(0x270B); $text = '入力待ちになりました' }
-    'done' { $level = 'info'; $icon = [char]::ConvertFromUtf32(0x1F389); $text = '完了しました' }
+    'blocked' { $level = 'warn'; $icon = 'hand'; $text = '入力待ちになりました' }
+    'done' { $level = 'info'; $icon = 'confetti'; $text = '完了しました' }
     default { exit 0 }
 }
 
