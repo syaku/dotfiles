@@ -25,6 +25,15 @@ return {
     -- review は task を引き継がないので、別に渡す。
     claude = { args = machine.review_claude_args },
   },
-  -- レビュー依頼が無くても PR レビューの一覧に出すリポジトリ。owner/* は owner の下を全部対象にする。
+  -- issue のタスク（requestUrl が /issues/ のノート）。workspace は通常のタスクと同じ tasks にする。
+  -- 古い pit-task はこの表を知らないキーとして止まるので、全部の機械の pit-task を上げてから書く。
+  issue = {
+    cwd = machine.issue_cwd,
+    command = machine.issue_command,
+    prompt = machine.issue_prompt,
+    -- issue は task も review も引き継がないので、別に渡す。
+    claude = { args = machine.issue_claude_args },
+  },
+  -- PR レビューと issue の一覧に足すリポジトリ。owner/* は owner の下を全部対象にする。
   github = { repos = { "syaku/*" } },
 }
