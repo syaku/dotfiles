@@ -85,13 +85,13 @@ return {
       name = "Google",
       prefix = "s",
       url = "https://www.google.com/search?q={query}",
-      icon = "~/.config/quiro/icons/google_logo.svg",
+      icon = "fa-brands:google",
     },
     {
       name = "GitHub",
       prefix = "gh",
       url = "https://github.com/search?q={query}",
-      icon = "~/.config/quiro/icons/github_logo.svg",
+      icon = "fa-brands:github",
     },
   },
 
@@ -106,6 +106,6 @@ return {
     root = "~/workspace",
     workspace = "workspace",
     args = machine.claude_args,
-    icon = "~/.config/quiro/icons/claude_logo.svg",
+    icon = "fa-brands:claude",
   },
 }
