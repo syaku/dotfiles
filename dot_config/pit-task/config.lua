@@ -25,4 +25,6 @@ return {
     -- review は task を引き継がないので、別に渡す。
     claude = { args = machine.review_claude_args },
   },
+  -- レビュー依頼が無くても PR レビューの一覧に出すリポジトリ。owner/* は owner の下を全部対象にする。
+  github = { repos = { "syaku/*" } },
 }
