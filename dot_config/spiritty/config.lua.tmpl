@@ -1,0 +1,31 @@
+{{- /*
+   Spiritty の設定。中身は Spiritty の既定値（src/config.rs の DEFAULT_*）を写し、
+   下のパネルのシェルだけを herdr の default_shell と同じ条件でマシンごとに分ける
+   （.chezmoitemplates/herdr-config.toml）。OS ごとに違う既定値（herdr と pit-task のパス、
+   pit-task の path、フォントの大きさ）も chezmoi の条件で分ける。lua-config の host.os では
+   マシン（isPrivate）を見分けられないので、chezmoi に揃える。
+*/ -}}
+return {
+{{- if eq .chezmoi.os "windows" }}
+  font = { family = "UDEV Gothic 35NFLG", size = 11 },
+{{- else }}
+  font = { family = "UDEV Gothic 35NFLG", size = 15 },
+{{- end }}
+  window = { cols = 200, rows = 50 },
+  panes = {
+{{- if eq .chezmoi.os "windows" }}
+    main = { command = { "herdr.exe" } },
+    right = { command = { "pit-task.exe" } },
+    bottom = { command = { "nu.exe" } },
+{{- else }}
+    main = { command = { "/opt/homebrew/bin/herdr" } },
+    -- pit-task が名前で起動する gh を、GUI から起動したときの PATH でも見つけられるようにする。
+    right = { command = { "~/.local/bin/pit-task" }, path = { "/opt/homebrew/bin", "~/.local/bin" } },
+{{-   if and (eq .chezmoi.os "darwin") (not (dig "isPrivate" false .)) }}
+    bottom = { command = { "/bin/zsh" } },
+{{-   else }}
+    bottom = { command = { "{{ lookPath "fish" }}" } },
+{{-   end }}
+{{- end }}
+  },
+}
