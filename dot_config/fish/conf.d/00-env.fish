@@ -9,6 +9,8 @@ end
 fish_add_path /snap/bin
 fish_add_path $HOME/.local/share/mise/shims
 fish_add_path $HOME/.cargo/bin
+# Homebrew の rustup は keg-only で、cargo と rustc を /opt/homebrew/bin にリンクしない
+fish_add_path /opt/homebrew/opt/rustup/bin
 fish_add_path $HOME/.local/bin
 
 # 文字コード関連
