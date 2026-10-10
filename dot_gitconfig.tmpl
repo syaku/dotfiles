@@ -57,9 +57,11 @@
   line-numbers = true
   hyperlinks = true
   hyperlinks-file-link-format = "vscode://file/{path}:{line}"
+{{- $gh := "/opt/homebrew/bin/gh" }}
+{{- if eq .chezmoi.os "windows" }}{{ $gh = "gh" }}{{ end }}
 [credential "https://github.com"]
 	helper = 
-	helper = !/opt/homebrew/bin/gh auth git-credential
+	helper = !{{ $gh }} auth git-credential
 [credential "https://gist.github.com"]
 	helper = 
-	helper = !/opt/homebrew/bin/gh auth git-credential
+	helper = !{{ $gh }} auth git-credential
