@@ -35,12 +35,12 @@ return {
     lines = 3,             -- カード全体の行数の上限（送信元の行を含む）
     fixed_height = false,  -- true ならカードの高さを上限の行数に固定する
     body_width = 320,      -- 本文を折り返す幅（pt）
-    font_size = 14,        -- 本文の文字の大きさ（pt）
-    font_family = nil,     -- 書体の名前。nil なら macOS は "Hiragino Sans"、Windows は "Yu Gothic UI"
+    font_size = 15,        -- 本文の文字の大きさ（pt）
+    font_family = nil,     -- 書体の名前。nil なら同梱の "M PLUS 2"
   },
   colors = {               -- 重要度ごとのカードの地の色（"#rrggbb"）
-    info = "#3a6ec4",
-    warn = "#e0932a",
-    error = "#d94848",
+    info = "#3366cc",
+    warn = "#ee9d2f",
+    error = "#d64545",
   },
 }
